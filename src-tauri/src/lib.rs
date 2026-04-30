@@ -1,5 +1,6 @@
 pub mod common;
 pub mod config;
+pub mod svn;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
