@@ -23,7 +23,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
-defineProps<{
+const props = defineProps<{
   visible: boolean
   filePath: string
   diffText: string
@@ -36,8 +36,12 @@ defineEmits<{
 
 const mode = ref<'unified' | 'side_by_side'>('unified')
 
-function copyDiff() {
-  // TODO: use clipboard API
+async function copyDiff() {
+  try {
+    await navigator.clipboard.writeText(props.diffText)
+  } catch (e) {
+    console.error('复制失败:', e)
+  }
 }
 </script>
 
