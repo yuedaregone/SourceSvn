@@ -169,21 +169,30 @@ function saveSession() {
 }
 
 async function handleAiReview(diff: string) {
+  if (aiReviewLoading.value) return
   showAiReview.value = true
   aiReviewContent.value = ''
   aiReviewLoading.value = true
   try {
     const { listen } = await import('@tauri-apps/api/event')
-    const unlisten = await listen<{ content: string; done: boolean }>('review_chunk', (event) => {
+    let unlisten: (() => void) | null = null
+    const timeout = setTimeout(() => {
+      aiReviewContent.value += '\n\n[AI 审查超时]'
+      aiReviewLoading.value = false
+      unlisten?.()
+    }, 120000)
+    unlisten = await listen<{ content: string; done: boolean }>('review_chunk', (event) => {
       aiReviewContent.value += event.payload.content
       if (event.payload.done) {
+        clearTimeout(timeout)
         aiReviewLoading.value = false
-        unlisten()
+        unlisten?.()
       }
     })
     await invoke('review_changes', { diff })
   } catch (e) {
-    aiReviewContent.value = `AI 审查失败: ${e}`
+    const msg = e instanceof Error ? e.message : String(e)
+    aiReviewContent.value = `AI 审查失败: ${msg}`
     aiReviewLoading.value = false
   }
 }
