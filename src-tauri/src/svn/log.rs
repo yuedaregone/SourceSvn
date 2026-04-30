@@ -87,7 +87,8 @@ pub fn svn_log(
     let mut args = vec!["log", "--xml", "-v", path];
     let limit_str;
     if let Some(l) = limit {
-        limit_str = format!("-l:{}", l);
+        args.push("-l");
+        limit_str = l.to_string();
         args.push(&limit_str);
     }
     if let Some(rev) = from_rev {
