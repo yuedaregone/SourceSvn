@@ -40,6 +40,7 @@
           <button @click="cancelCommit" class="cancel-btn">取消</button>
           <button @click="submitCommit" :disabled="!canCommit" class="commit-btn">提交</button>
         </div>
+        <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
       </div>
     </div>
     <div class="right-panel">
@@ -54,7 +55,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import type { FileStatus } from '../types/svn'
+import type { FileStatus, DiffTarget } from '../types/svn'
 
 const props = defineProps<{
   store: {
@@ -72,6 +73,7 @@ const selectedPaths = ref(new Set<string>())
 const commitMessage = ref('')
 const diffContent = ref('')
 const aiLoading = ref(false)
+const errorMessage = ref('')
 
 const selectedFiles = computed(() =>
   props.store.localChanges.filter((f) => selectedPaths.value.has(f.path)),
@@ -104,10 +106,12 @@ function toggleFile(path: string) {
 }
 
 async function selectFile(file: FileStatus) {
+  errorMessage.value = ''
   try {
+    const target: DiffTarget = { type: 'File', data: { path: file.path } }
     diffContent.value = await invoke<string>('svn_diff', {
       path: props.store.repoPath,
-      target: { type: 'File', data: { path: file.path } },
+      target,
     })
   } catch (e) {
     diffContent.value = `获取差异失败: ${e}`
@@ -117,14 +121,16 @@ async function selectFile(file: FileStatus) {
 async function generateAiMessage() {
   if (selectedPaths.value.size === 0) return
   aiLoading.value = true
+  errorMessage.value = ''
   try {
+    const target: DiffTarget = { type: 'File', data: { path: Array.from(selectedPaths.value)[0] } }
     const diff = await invoke<string>('svn_diff', {
       path: props.store.repoPath,
-      target: { type: 'File', data: { path: Array.from(selectedPaths.value)[0] } },
+      target,
     })
     commitMessage.value = await invoke<string>('generate_commit_message', { diff })
   } catch (e) {
-    console.error('AI generation failed:', e)
+    errorMessage.value = `AI 生成失败: ${e}`
   } finally {
     aiLoading.value = false
   }
@@ -132,6 +138,7 @@ async function generateAiMessage() {
 
 async function submitCommit() {
   if (!canCommit.value) return
+  errorMessage.value = ''
   try {
     await invoke('svn_commit', {
       path: props.store.repoPath,
@@ -142,7 +149,7 @@ async function submitCommit() {
     selectedPaths.value.clear()
     await props.store.refreshLocalChanges()
   } catch (e) {
-    console.error('Commit failed:', e)
+    errorMessage.value = `提交失败: ${e}`
   }
 }
 
@@ -251,6 +258,15 @@ onMounted(() => {
 .commit-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+.error-message {
+  margin-top: 8px;
+  padding: 6px 8px;
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+  border-radius: 4px;
+  color: #ff4d4f;
+  font-size: 12px;
 }
 .ai-btn {
   margin-right: auto;
