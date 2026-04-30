@@ -31,6 +31,19 @@
       <p>点击 "+ 新页签" 打开一个仓库</p>
     </div>
     <SettingsPage v-if="showSettings" @close="showSettings = false" />
+    <DiffViewer
+      :visible="showDiff"
+      :filePath="diffFilePath"
+      :diffText="diffText"
+      @close="showDiff = false"
+      @aiReview="handleAiReview"
+    />
+    <AiReviewPanel
+      :visible="showAiReview"
+      :content="aiReviewContent"
+      :loading="aiReviewLoading"
+      @close="showAiReview = false"
+    />
   </div>
 </template>
 
@@ -49,6 +62,8 @@ import LocalChangesView from './views/LocalChangesView.vue'
 import FileBrowserView from './views/FileBrowserView.vue'
 import ShelveView from './views/ShelveView.vue'
 import SettingsPage from './views/SettingsPage.vue'
+import DiffViewer from './components/DiffViewer.vue'
+import AiReviewPanel from './components/AiReviewPanel.vue'
 
 type TabStoreInstance = ReturnType<ReturnType<typeof useTabStore>>
 
@@ -57,6 +72,12 @@ const tabs = ref<TabInfo[]>([])
 const activeTabIndex = ref(0)
 const showSettings = ref(false)
 const tabStores = ref<Record<string, TabStoreInstance>>({})
+const showDiff = ref(false)
+const diffFilePath = ref('')
+const diffText = ref('')
+const showAiReview = ref(false)
+const aiReviewContent = ref('')
+const aiReviewLoading = ref(false)
 
 const currentTabStore = computed(() => {
   if (tabs.value.length === 0) return null
@@ -145,6 +166,26 @@ function saveSession() {
   configStore.config.session.openTabs = tabs.value
   configStore.config.session.activeTabIndex = activeTabIndex.value
   configStore.saveConfig()
+}
+
+async function handleAiReview(diff: string) {
+  showAiReview.value = true
+  aiReviewContent.value = ''
+  aiReviewLoading.value = true
+  try {
+    const { listen } = await import('@tauri-apps/api/event')
+    const unlisten = await listen<{ content: string; done: boolean }>('review_chunk', (event) => {
+      aiReviewContent.value += event.payload.content
+      if (event.payload.done) {
+        aiReviewLoading.value = false
+        unlisten()
+      }
+    })
+    await invoke('review_changes', { diff })
+  } catch (e) {
+    aiReviewContent.value = `AI 审查失败: ${e}`
+    aiReviewLoading.value = false
+  }
 }
 </script>
 
