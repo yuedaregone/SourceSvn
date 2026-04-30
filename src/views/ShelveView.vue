@@ -26,6 +26,7 @@
       </table>
       <div v-if="store.shelves.length === 0" class="empty">暂无 Shelve</div>
     </div>
+    <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
     <div v-if="showSaveDialog" class="dialog-overlay">
       <div class="dialog">
         <h3>保存 Shelve</h3>
@@ -53,6 +54,7 @@ const props = defineProps<{
 
 const showSaveDialog = ref(false)
 const shelveName = ref('')
+const errorMessage = ref('')
 
 function formatDate(dateStr: string) {
   try {
@@ -64,6 +66,7 @@ function formatDate(dateStr: string) {
 
 async function saveShelve() {
   if (!shelveName.value.trim()) return
+  errorMessage.value = ''
   try {
     await invoke('shelve_save', {
       path: props.store.repoPath,
@@ -73,11 +76,12 @@ async function saveShelve() {
     shelveName.value = ''
     await props.store.refreshShelves()
   } catch (e) {
-    console.error('Save shelve failed:', e)
+    errorMessage.value = `保存失败: ${e}`
   }
 }
 
 async function applyShelve(name: string) {
+  errorMessage.value = ''
   try {
     await invoke('shelve_apply', {
       path: props.store.repoPath,
@@ -85,12 +89,13 @@ async function applyShelve(name: string) {
     })
     await props.store.refreshShelves()
   } catch (e) {
-    console.error('Apply shelve failed:', e)
+    errorMessage.value = `应用失败: ${e}`
   }
 }
 
 async function deleteShelve(name: string) {
   if (!confirm(`确定要删除 '${name}' 吗？`)) return
+  errorMessage.value = ''
   try {
     await invoke('shelve_delete', {
       path: props.store.repoPath,
@@ -98,7 +103,7 @@ async function deleteShelve(name: string) {
     })
     await props.store.refreshShelves()
   } catch (e) {
-    console.error('Delete shelve failed:', e)
+    errorMessage.value = `删除失败: ${e}`
   }
 }
 
@@ -165,6 +170,15 @@ th {
 .action-btn.delete {
   color: #ff4d4f;
   border-color: #ff4d4f;
+}
+.error-message {
+  margin-top: 8px;
+  padding: 6px 8px;
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+  border-radius: 4px;
+  color: #ff4d4f;
+  font-size: 12px;
 }
 .empty {
   color: #999;

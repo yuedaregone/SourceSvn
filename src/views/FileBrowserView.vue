@@ -1,6 +1,8 @@
 <template>
   <div class="file-browser-view">
     <div class="browser-header">
+      <button v-if="currentPath" @click="goBack" class="back-btn">返回上级</button>
+      <span v-if="currentPath" class="current-path">{{ currentPath }}</span>
       <button @click="refresh" class="refresh-btn">刷新</button>
     </div>
     <div class="browser-content">
@@ -60,6 +62,18 @@ async function onEntryClick(entry: DirEntry) {
   }
 }
 
+function goBack() {
+  fileContent.value = ''
+  const parts = currentPath.value.split('/')
+  parts.pop()
+  currentPath.value = parts.join('/')
+  if (currentPath.value) {
+    props.store.refreshFileBrowser(`${props.store.repoPath}/${currentPath.value}`)
+  } else {
+    props.store.refreshFileBrowser()
+  }
+}
+
 function refresh() {
   fileContent.value = ''
   currentPath.value = ''
@@ -78,7 +92,26 @@ onMounted(() => {
   height: 100%;
 }
 .browser-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 8px;
+}
+.back-btn {
+  padding: 4px 8px;
+  border: 1px solid #d9d9d9;
+  background: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.current-path {
+  flex: 1;
+  font-size: 12px;
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .browser-content {
   display: flex;
