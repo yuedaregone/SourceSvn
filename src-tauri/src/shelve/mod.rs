@@ -1,7 +1,21 @@
-use crate::common::{AppError, ShelveInfo};
+use crate::common::AppError;
+use crate::svn::models::ShelveInfo;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::PathBuf;
+
+pub fn validate_shelve_name(name: &str) -> Result<(), String> {
+    if name.is_empty() {
+        return Err("Shelve name cannot be empty".to_string());
+    }
+    if name.contains('/') || name.contains('\\') || name.contains("..") {
+        return Err("Invalid shelve name: contains illegal characters".to_string());
+    }
+    if name.len() > 128 {
+        return Err("Shelve name is too long (max 128 characters)".to_string());
+    }
+    Ok(())
+}
 
 fn shelve_base_dir() -> PathBuf {
     dirs::data_local_dir()
@@ -18,17 +32,25 @@ fn repo_shelve_dir(repo_path: &str) -> PathBuf {
     shelve_base_dir().join(short_hash)
 }
 
-pub fn shelve_save(repo_path: &str, name: &str) -> Result<(), AppError> {
+pub async fn shelve_save(
+    repo_path: &str,
+    name: &str,
+    timeout_secs: u64,
+) -> Result<(), AppError> {
     let shelve_dir = repo_shelve_dir(repo_path);
     fs::create_dir_all(&shelve_dir)
         .map_err(|e| AppError::Fs(format!("Failed to create shelve directory: {}", e)))?;
 
     let patch_file = shelve_dir.join(format!("{}.patch", name));
     if patch_file.exists() {
-        return Err(AppError::Fs(format!("Shelve '{}' already exists", name)));
+        return Err(AppError::Fs(format!(
+            "Shelve '{}' already exists",
+            name
+        )));
     }
 
-    let diff = crate::svn::run_svn(&["diff", repo_path], 60)
+    let diff = crate::svn::run_svn_async(&["diff", repo_path], timeout_secs)
+        .await
         .map_err(|e| AppError::Svn(format!("Failed to get diff: {}", e)))?;
 
     if diff.trim().is_empty() {
@@ -76,17 +98,19 @@ pub fn shelve_list(repo_path: &str) -> Result<Vec<ShelveInfo>, AppError> {
     Ok(shelves)
 }
 
-pub fn shelve_apply(repo_path: &str, name: &str) -> Result<(), AppError> {
+pub async fn shelve_apply(
+    repo_path: &str,
+    name: &str,
+    timeout_secs: u64,
+) -> Result<(), AppError> {
     let shelve_dir = repo_shelve_dir(repo_path);
     let patch_file = shelve_dir.join(format!("{}.patch", name));
     if !patch_file.exists() {
         return Err(AppError::Fs(format!("Shelve '{}' not found", name)));
     }
 
-    crate::svn::run_svn(
-        &["patch", patch_file.to_str().unwrap_or(""), repo_path],
-        60,
-    )?;
+    let patch_path = patch_file.to_str().unwrap_or("");
+    crate::svn::run_svn_async(&["patch", patch_path, repo_path], timeout_secs).await?;
 
     Ok(())
 }

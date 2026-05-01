@@ -5,7 +5,7 @@
 ## 共享基础类型
 
 ```rust
-// Rust (common/src/lib.rs)
+// Rust (svn/models.rs — 领域模型, common/mod.rs — 配置, common/error.rs — 错误)
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FileStatus {
     pub path: String,

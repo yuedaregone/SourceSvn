@@ -1,10 +1,12 @@
 pub mod ai;
+pub mod app_state;
 pub mod common;
 pub mod commands;
 pub mod config;
 pub mod shelve;
 pub mod svn;
 
+use app_state::AppState;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -14,11 +16,17 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            let conf = config::load_config();
-            let window = app.get_webview_window("main").expect("failed to get main window");
-            if conf.window.maximized {
-                let _ = window.maximize();
+            let state = AppState::new();
+            let window = app
+                .get_webview_window("main")
+                .expect("failed to get main window");
+            {
+                let config = state.config.lock().expect("lock poisoned");
+                if config.window.maximized {
+                    let _ = window.maximize();
+                }
             }
+            app.manage(state);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -31,6 +39,7 @@ pub fn run() {
             commands::svn::svn_cat,
             commands::svn::svn_checkout,
             commands::svn::svn_update,
+            commands::svn::svn_detect_executable,
             commands::ai::generate_commit_message,
             commands::ai::review_changes,
             commands::shelve::shelve_save,

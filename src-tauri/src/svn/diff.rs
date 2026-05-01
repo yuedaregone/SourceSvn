@@ -1,13 +1,14 @@
-use crate::common::{AppError, DiffTarget};
+use crate::common::AppError;
+use crate::svn::models::DiffTarget;
 
-pub fn svn_diff(
+pub async fn svn_diff(
     path: &str,
     target: &DiffTarget,
     timeout_secs: u64,
 ) -> Result<String, AppError> {
     let rev_range;
 
-    let mut args: Vec<&str> = vec!["diff", "--xml", path];
+    let mut args: Vec<&str> = vec!["diff", path];
 
     match target {
         DiffTarget::File { path: file_path, revision } => {
@@ -24,5 +25,5 @@ pub fn svn_diff(
         }
     }
 
-    crate::svn::run_svn(&args, timeout_secs)
+    crate::svn::run_svn_async(&args, timeout_secs).await
 }

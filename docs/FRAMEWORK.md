@@ -47,7 +47,7 @@
 
 ## 二、后端模块设计
 
-后端采用**无状态设计**：每个命令均要求传入工作副本路径，不持有任何仓库级上下文。切换仓库时前端传入不同路径即可，无需后端切换。
+后端采用**托管状态设计**：通过 Tauri `Managed State` 持有全局 `AppState`（含 `Mutex<AppConfig>`），配置在启动时加载一次，运行时命令通过 `State<AppState>` 读取，避免每次命令重复读取磁盘。每个命令仍要求传入工作副本路径，不持有仓库级上下文——切换仓库时前端传入不同路径即可。
 
 ### 2.1 SVN 服务模块
 
@@ -55,11 +55,30 @@
 
 **内部接口**：
 
-- `run_svn(args: &[&str], timeout: Duration) -> Result<Output>` — 底层命令执行，统一处理超时、错误。
+- `run_svn_async(args: &[&str], timeout_secs: u64) -> Result<String>` — 底层异步命令执行，使用 `tokio::process::Command` + `tokio::time::timeout`，统一处理超时、错误。
+- `find_svn_executable() -> Result<String>` — 跨平台查找 `svn` 可执行文件（Windows 用 `where`，Unix 用 `which`）。
 - `parse_status_xml(xml: &str) -> Result<Vec<FileStatus>>`
 - `parse_log_xml(xml: &str) -> Result<Vec<LogEntry>>`
 - `parse_list_xml(xml: &str) -> Result<Vec<DirEntry>>`
 - `parse_info_xml(xml: &str) -> Result<RepoInfo>`
+- `parse_update_xml(xml: &str) -> Result<UpdateResult>`
+
+**模块文件结构**：
+
+```
+svn/
+├── mod.rs          — run_svn_async(), find_svn_executable()
+├── models.rs       — 所有 SVN 领域模型（FileStatus, LogEntry, RepoInfo 等）
+├── status.rs       — svn_status + XML 解析
+├── log.rs          — svn_log + XML 解析
+├── diff.rs         — svn_diff
+├── commit.rs       — svn_commit + revision 提取
+├── info.rs         — svn_info + XML 解析
+├── list.rs         — svn_list + XML 解析
+├── update.rs       — svn_update + XML 解析
+├── checkout.rs     — svn_checkout
+└── cat.rs          — svn_cat
+```
 
 ### 2.2 AI 服务模块
 
@@ -93,10 +112,11 @@ pub enum ProviderType { OpenAI, Local, Claude, Custom }
 
 **接口**：
 
-- `save_shelve(repo_path: &Path, name: &str) -> Result<()>` — 保存整个工作副本当前所有未提交的修改（`svn diff` 全量）。
-- `list_shelves(repo_path: &Path) -> Result<Vec<ShelveInfo>>`
-- `apply_shelve(repo_path: &Path, name: &str) -> Result<()>` — 从全局 shelve 目录恢复补丁。
-- `delete_shelve(repo_path: &Path, name: &str) -> Result<()>`
+- `validate_shelve_name(name: &str) -> Result<()>` — 校验名称安全性（禁止路径遍历字符、空名、超长）。
+- `shelve_save(repo_path: &str, name: &str, timeout_secs: u64) -> Result<()>` — 保存整个工作副本当前所有未提交的修改（`svn diff` 全量）。
+- `shelve_list(repo_path: &str) -> Result<Vec<ShelveInfo>>`
+- `shelve_apply(repo_path: &str, name: &str, timeout_secs: u64) -> Result<()>` — 从全局 shelve 目录恢复补丁。
+- `shelve_delete(repo_path: &str, name: &str) -> Result<()>`
 
 ### 2.4 配置管理模块
 
@@ -171,9 +191,14 @@ struct RepoEntry {
 
 **配置迁移策略**：定义 `ConfigMigration` trait，每个版本升级时注册迁移函数。迁移时保留用户原有值，新增配置项填入默认值，重命名或删除的配置项做相应转换。迁移后提示用户“配置文件已升级”。
 
-### 2.5 共享类型模块 (`common`)
+### 2.5 共享类型模块
 
-**职责**：定义跨模块数据结构、错误类型、统一枚举。
+模块已拆分为两个独立位置：
+
+- **`common/error.rs`**：`AppError` 错误枚举（实现 `Serialize`，前端可按 `kind` 字段区分错误类型）。
+- **`svn/models.rs`**：所有 SVN 领域模型。
+- **`common/mod.rs`**：`AppConfig` 及所有配置子结构体。
+- **`app_state.rs`**：`AppState`（托管状态，含 `Mutex<AppConfig>`）。
 
 **核心类型**：
 
@@ -181,20 +206,17 @@ struct RepoEntry {
 - `LogEntry`：版本号、作者、日期、消息、变更路径列表。
 - `RepoInfo`：仓库 URL、根路径、当前版本号等。
 - `DirEntry`：目录条目（文件/目录，版本号，作者，日期）。
-- `AIConfig`：AI 端点、Key、模型、超时等。
-- `AppConfig`：全局配置结构体（含上述所有配置项）。
+- `AppConfig`：全局配置结构体（含所有配置子项）。
 - `ActiveView` 枚举：`Log`, `LocalChanges`, `FileBrowser`, `Shelve`。
 - `DiffTarget` 枚举：
   ```rust
   enum DiffTarget {
-      /// 比较工作副本的本地修改（相对BASE）。revision为None表示与BASE比较，Some(rev)表示与指定版本比较。
       File { path: String, revision: Option<String> },
-      /// 比较两个版本间的差异
-      Revisions { old: String, new: String },
+      Revisions { old_rev: String, new_rev: String },
   }
   ```
-- `Error`：自定义错误枚举，涵盖 SVN 错误、IO 错误、AI 错误等。统一转换为字符串返给前端。
-- `ShelveInfo`：名称、创建日期、来源路径等。
+- `AppError`：结构化错误枚举，支持 `Serialize`，前端接收 `{ kind: "Svn"|"Ai"|"Fs"|"Config", message: string }`。
+- `ShelveInfo`：名称、创建日期。
 
 ---
 
@@ -202,7 +224,7 @@ struct RepoEntry {
 
 ### 3.1 统一错误处理
 
-所有后端命令返回 `Result<T, String>`。错误分类：
+所有后端命令返回 `Result<T, String>`（Tauri 命令层统一转为字符串）。内部错误类型 `AppError` 实现了 `serde::Serialize`，按 `kind` 字段区分：
 
 | 错误类型 | 用户提示 | 日志记录 |
 |----------|----------|----------|
@@ -260,6 +282,7 @@ AI 请求失败时自动重试：
 | `svn_cat` | `path: String, revision: Option<String>` | `String` | 获取指定版本的文件内容 |
 | `svn_checkout` | `url: String, dest: String` | `()` | 检出仓库 |
 | `svn_update` | `path: String` | `UpdateResult` | 更新工作副本 |
+| `svn_detect_executable` | 无 | `String` | 自动检测 svn 可执行文件路径 |
 | `generate_commit_message` | `diff: String` | `String` | AI 生成提交信息 |
 | `review_changes` | `diff: String` | `()` (事件流 `review_chunk`) | AI 代码审查，结果通过事件流推送；后端使用 `app_handle.emit` |
 | `shelve_save` | `path: String, name: String` | `()` | 保存当前工作副本所有修改为 shelve（全局存储） |
@@ -324,9 +347,9 @@ App.vue
 ## 六、关键设计决策
 
 - **前端单实例视图**：右侧功能区只有一个动态组件，切换页签仅刷新数据，节约内存。
-- **后端无状态**：所有业务函数纯由参数驱动，易于测试，避免并发冲突。
+- **后端托管状态**：配置通过 Tauri Managed State 管理，启动时加载一次，运行时通过 `State<AppState>` 读取。业务函数仍由参数驱动，易于测试。
 - **配置持久化**：使用 `confy`（`serde` + `toml`），窗口状态与页签状态的保存分别在前后端各自完成的关闭事件中。
 - **Shelve 方案**：基于补丁文件，存储在全局目录避免污染工作副本。
 - **扩展性**：自定义功能（如关联单号）通过未来扩展系统实现，不侵入核心。
-- **错误处理**：统一 `Result<T, String>` + toast，保证体验一致。
+- **错误处理**：`AppError` 结构化错误（`{ kind, message }`）+ toast，前端可按 `kind` 差异化处理。
 - **视图数据更新**：MVP 使用“切换即请求”，确保数据新鲜度，后期优化缓存。

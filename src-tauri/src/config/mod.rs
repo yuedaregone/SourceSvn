@@ -2,7 +2,6 @@ use crate::common::AppConfig;
 use std::path::PathBuf;
 
 const APP_NAME: &str = "sourcesvn";
-const CONFIG_FILE: &str = "config.toml";
 
 pub fn config_dir() -> PathBuf {
     dirs::config_dir()

@@ -1,4 +1,5 @@
-use crate::common::{AppError, FileStatus, FileStatusType};
+use crate::common::AppError;
+use crate::svn::models::{FileStatus, FileStatusType};
 use quick_xml::de::from_str;
 use serde::Deserialize;
 
@@ -27,7 +28,7 @@ struct WcStatus {
     #[serde(rename = "@item")]
     item: String,
     #[serde(rename = "@props")]
-    props: Option<String>,
+    _props: Option<String>,
     #[serde(rename = "@copy-from-url")]
     copy_from_url: Option<String>,
 }
@@ -65,8 +66,8 @@ pub fn parse_status_xml(xml: &str) -> Result<Vec<FileStatus>, AppError> {
         .collect())
 }
 
-pub fn svn_status(path: &str, timeout_secs: u64) -> Result<Vec<FileStatus>, AppError> {
-    let xml = crate::svn::run_svn(&["status", "--xml", path], timeout_secs)?;
+pub async fn svn_status(path: &str, timeout_secs: u64) -> Result<Vec<FileStatus>, AppError> {
+    let xml = crate::svn::run_svn_async(&["status", "--xml", path], timeout_secs).await?;
     parse_status_xml(&xml)
 }
 

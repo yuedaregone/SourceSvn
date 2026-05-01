@@ -91,79 +91,77 @@ SourceSvn/
 │   ├── UI_PROTOTYPE.md
 │   ├── DEVELOPMENT.md
 │   ├── I18N.md
-│   ├── TESTING.md                # 测试策略
-│   └── CODE_STYLE.md             # 代码规范
-├── i18n/                         # 国际化文件
-│   ├── zh-CN.json
-│   ├── en-US.json
+│   ├── TESTING.md
+│   ├── CODE_STYLE.md
+│   ├── FRAMEWORK.md
+│   └── superpowers/              # 设计文档与计划
+├── i18n/                         # 国际化文件（规划中）
 │   └── README.md
+├── icons/                        # 应用图标
 ├── src-tauri/                    # Rust 后端
 │   ├── src/
-│   │   ├── main.rs               # 入口，注册命令
-│   │   ├── commands/             # Tauri 命令实现
+│   │   ├── main.rs               # 入口，抑制控制台窗口
+│   │   ├── lib.rs                # Tauri Builder、命令注册、AppState 初始化
+│   │   ├── app_state.rs          # AppState（Mutex<AppConfig> 托管状态）
+│   │   ├── commands/             # Tauri 命令层（薄封装）
 │   │   │   ├── mod.rs
-│   │   │   ├── svn.rs
-│   │   │   ├── ai.rs
-│   │   │   ├── shelve.rs
-│   │   │   └── config.rs
-│   │   ├── svn/                  # SVN 服务模块
-│   │   │   ├── mod.rs
-│   │   │   ├── status.rs
-│   │   │   ├── log.rs
-│   │   │   ├── diff.rs
-│   │   │   └── commit.rs
+│   │   │   ├── svn.rs            # SVN 命令（10 个）
+│   │   │   ├── ai.rs             # AI 命令（2 个）
+│   │   │   ├── shelve.rs         # Shelve 命令（4 个）
+│   │   │   └── config.rs         # 配置命令（2 个）
+│   │   ├── svn/                  # SVN 服务模块（核心业务逻辑）
+│   │   │   ├── mod.rs            # run_svn_async(), find_svn_executable()
+│   │   │   ├── models.rs         # 所有 SVN 领域模型
+│   │   │   ├── status.rs         # svn_status + XML 解析（含测试）
+│   │   │   ├── log.rs            # svn_log + XML 解析（含测试）
+│   │   │   ├── diff.rs           # svn_diff
+│   │   │   ├── commit.rs         # svn_commit + revision 提取（含测试）
+│   │   │   ├── info.rs           # svn_info + XML 解析（含测试）
+│   │   │   ├── list.rs           # svn_list + XML 解析（含测试）
+│   │   │   ├── update.rs         # svn_update + XML 解析（含测试）
+│   │   │   ├── checkout.rs       # svn_checkout
+│   │   │   └── cat.rs            # svn_cat
 │   │   ├── ai/                   # AI 服务模块
-│   │   │   ├── mod.rs
-│   │   │   ├── provider.rs
-│   │   │   └── openai.rs
+│   │   │   ├── mod.rs            # AiProvider trait + create_provider()
+│   │   │   └── openai.rs         # OpenAI 兼容 API（流式 + 非流式）
 │   │   ├── shelve/               # Shelve 模块
-│   │   │   ├── mod.rs
-│   │   │   └── manager.rs
+│   │   │   └── mod.rs            # 补丁文件管理 + 名称校验
 │   │   ├── config/               # 配置管理模块
-│   │   │   ├── mod.rs
-│   │   │   └── migration.rs
-│   │   └── common/               # 共享类型
-│   │       └── mod.rs
+│   │   │   └── mod.rs            # confy 加载/保存 + 版本迁移
+│   │   └── common/               # 公共类型
+│   │       ├── mod.rs            # AppConfig + 配置子结构体
+│   │       └── error.rs          # AppError（实现 Serialize）
 │   ├── Cargo.toml
+│   ├── build.rs
 │   └── tauri.conf.json
 ├── src/                          # Vue 前端
 │   ├── components/
-│   │   ├── GlobalTabBar.vue
-│   │   ├── IconNavBar.vue
-│   │   ├── Toolbar.vue
-│   │   ├── DiffViewer.vue
-│   │   └── CommitDialog.vue
+│   │   ├── GlobalTabBar.vue      # 顶部页签栏
+│   │   ├── IconNavBar.vue        # 极窄图标导航
+│   │   ├── Toolbar.vue           # 仓库操作工具栏
+│   │   ├── DiffViewer.vue        # 差异查看器
+│   │   └── AiReviewPanel.vue     # AI 审查面板
 │   ├── views/
-│   │   ├── LogView.vue
-│   │   ├── LocalChangesView.vue
-│   │   ├── FileBrowserView.vue
-│   │   ├── ShelveView.vue
-│   │   └── SettingsPage.vue
+│   │   ├── LogView.vue           # 提交日志
+│   │   ├── LocalChangesView.vue  # 本地修改 + 提交
+│   │   ├── FileBrowserView.vue   # 文件浏览
+│   │   ├── ShelveView.vue        # Shelve 管理
+│   │   └── SettingsPage.vue      # 全局设置
 │   ├── stores/
-│   │   ├── configStore.ts
-│   │   └── tabStore.ts
+│   │   ├── configStore.ts        # 配置 Store
+│   │   └── tabStore.ts           # 页签 Store（工厂函数）
 │   ├── types/
-│   │   ├── svn.ts
-│   │   └── config.ts
-│   ├── App.vue
-│   └── main.ts
-├── tests/                        # 测试目录
-│   ├── unit/                     # 单元测试
-│   ├── integration/              # 集成测试
-│   └── fixtures/                 # 测试仓库模板
-├── scripts/                      # 构建脚本
+│   │   ├── svn.ts                # SVN 类型定义
+│   │   └── config.ts             # 配置类型定义
+│   ├── App.vue                   # 根组件（布局 + 页签管理）
+│   └── main.ts                   # 入口
 ├── package.json
 ├── pnpm-lock.yaml
 ├── tsconfig.json
 ├── vite.config.ts
-├── eslint.config.js
-├── .prettierrc
-├── rustfmt.toml
-├── .gitignore
 ├── README.md
 ├── CLAUDE.md
-├── MVP.md
-└── Framework.md
+└── MVP版本.md
 ```
 
 ## 开发工作流

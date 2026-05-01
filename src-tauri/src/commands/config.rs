@@ -1,12 +1,14 @@
+use crate::app_state::AppState;
 use crate::common::AppConfig;
-use crate::config;
+use tauri::State;
 
 #[tauri::command]
-pub fn get_config() -> Result<AppConfig, String> {
-    Ok(config::load_config())
+pub fn get_config(state: State<AppState>) -> Result<AppConfig, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?;
+    Ok(config.clone())
 }
 
 #[tauri::command]
-pub fn set_config(conf: AppConfig) -> Result<(), String> {
-    config::save_config(&conf)
+pub fn set_config(state: State<AppState>, conf: AppConfig) -> Result<(), String> {
+    state.update(conf)
 }

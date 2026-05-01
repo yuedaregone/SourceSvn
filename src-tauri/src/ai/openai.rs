@@ -1,5 +1,6 @@
 use super::AiProvider;
-use crate::common::{AppError, ReviewChunkEvent};
+use crate::common::AppError;
+use crate::svn::models::ReviewChunkEvent;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};

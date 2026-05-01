@@ -22,10 +22,18 @@ cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
 **覆盖范围**：
-- SVN 输出解析函数（`parse_status_xml`, `parse_log_xml` 等）
-- AI prompt 构建
+- SVN XML 解析函数（`parse_status_xml`, `parse_log_xml`, `parse_list_xml`, `parse_info_xml`, `parse_update_xml`）
+- 提交 revision 提取（`extract_revision_from_output`）
 - 配置读写与迁移
-- Shelve 路径计算
+- Shelve 路径计算与名称校验
+
+**现有测试（12 个）**：
+- `svn/status.rs`：3 个（单文件、多文件、空目标）
+- `svn/log.rs`：2 个（单条日志含路径、空日志）
+- `svn/commit.rs`：2 个（revision 提取成功/失败）
+- `svn/list.rs`：1 个（目录列表含文件和目录）
+- `svn/info.rs`：2 个（正常解析、无 entry 错误）
+- `svn/update.rs`：2 个（含修订号更新、无变更更新）
 
 **示例**：
 
@@ -35,16 +43,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_status_xml() {
+    fn test_parse_status_xml_modified() {
         let xml = r#"<?xml version="1.0"?>
 <status>
   <target>
     <entry path="src/main.rs">
-      <wc-status status="modified"/>
+      <wc-status item="modified" revision="100"/>
     </entry>
   </target>
 </status>"#;
         let result = parse_status_xml(xml).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].path, "src/main.rs");
         assert_eq!(result[0].status, FileStatusType::Modified);
     }
 }

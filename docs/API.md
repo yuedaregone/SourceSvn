@@ -161,14 +161,23 @@ interface DirEntry {
 ```
 **返回**: `void` (成功即返回空)
 
+### 1.10 检测 SVN 可执行文件
+**命令**: `svn_detect_executable`
+**参数**: 无
+**返回**: `string` (svn 可执行文件的绝对路径)
+**说明**: 跨平台自动检测。Windows 使用 `where svn`，Unix 使用 `which svn`。未找到时返回错误。
+
 ---
 
-## 2. Shelve (SVN 1.10+)
+## 2. Shelve (基于补丁文件)
+
+**名称校验规则**：`name` 不能为空、不能包含 `/`、`\`、`..`，长度不超过 128 字符。非法名称会返回 `[FS] Invalid shelve name` 错误。
 
 ### 2.1 保存 Shelve
 **命令**: `shelve_save`
 **参数**: `{ path: string; name: string }`
 **返回**: `void`
+**说明**: 保存前会校验 `name` 安全性。若同名 shelve 已存在则返回错误。
 
 ### 2.2 列出 Shelves
 **命令**: `shelve_list`
@@ -228,18 +237,18 @@ interface ReviewChunkEvent {
 
 ---
 
-## 5. 错误码约定
+## 5. 错误处理约定
 
-错误字符串格式: `[CODE] Message`，其中 `CODE` 为:
+后端内部使用结构化 `AppError` 枚举（实现 `Serialize`），命令层统一转为 `String` 返回。前端收到的错误为字符串格式 `[KIND] message`，其中 `KIND` 为:
 
 | 前缀 | 含义 | 示例 |
 |------|------|------|
-| `SVN_` | SVN 命令错误 | `SVN_TIMEOUT` |
-| `AI_` | AI 服务错误 | `AI_KEY_INVALID` |
-| `FS_` | 文件系统错误 | `FS_NOT_FOUND` |
-| `CFG_` | 配置错误 | `CFG_VERSION_MISMATCH` |
+| `[SVN]` | SVN 命令错误 | `[SVN] SVN command timed out after 60 seconds` |
+| `[AI]` | AI 服务错误 | `[AI] API error 401: Unauthorized` |
+| `[FS]` | 文件系统错误 | `[FS] Shelve 'x' not found` |
+| `[CFG]` | 配置错误 | `[CFG] Failed to save config` |
 
-前端根据错误码可显示本地化消息。
+前端可根据 `[...]` 前缀判断错误类型，进行差异化提示（如 `[SVN]` 且包含 "not found" 可引导用户配置路径）。
 
 ---
 

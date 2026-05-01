@@ -1,4 +1,5 @@
-use crate::common::{AppError, ChangedPath, LogEntry, PathAction};
+use crate::common::AppError;
+use crate::svn::models::{ChangedPath, LogEntry, PathAction};
 use quick_xml::de::from_str;
 use serde::Deserialize;
 
@@ -78,7 +79,7 @@ pub fn parse_log_xml(xml: &str) -> Result<Vec<LogEntry>, AppError> {
         .collect())
 }
 
-pub fn svn_log(
+pub async fn svn_log(
     path: &str,
     limit: Option<u32>,
     from_rev: Option<&str>,
@@ -95,7 +96,7 @@ pub fn svn_log(
         args.push("-r");
         args.push(rev);
     }
-    let xml = crate::svn::run_svn(&args, timeout_secs)?;
+    let xml = crate::svn::run_svn_async(&args, timeout_secs).await?;
     parse_log_xml(&xml)
 }
 

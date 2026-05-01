@@ -30,7 +30,17 @@
           </div>
           <div v-if="activeTab === 'svn'">
             <label>SVN 可执行文件路径</label>
-            <input v-model="config.svn.executable" placeholder="自动检测" />
+            <div class="input-group">
+              <input v-model="config.svn.executable" placeholder="请输入SVN可执行文件路径" />
+              <button 
+                @click="detectSvnPath" 
+                :disabled="isDetecting"
+                class="detect-btn"
+              >
+                {{ isDetecting ? '检测中...' : '自动检测' }}
+              </button>
+            </div>
+            <span v-if="detectStatus" class="detect-status">{{ detectStatus }}</span>
           </div>
           <div v-if="activeTab === 'ai'">
             <label>API 端点</label>
@@ -66,6 +76,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useConfigStore } from '../stores/configStore'
+import { invoke } from '@tauri-apps/api/core'
 
 defineEmits<{
   close: []
@@ -73,6 +84,8 @@ defineEmits<{
 
 const configStore = useConfigStore()
 const activeTab = ref('general')
+const isDetecting = ref(false)
+const detectStatus = ref('')
 
 const tabs = [
   { key: 'general', label: '通用' },
@@ -96,6 +109,21 @@ onMounted(() => {
     Object.assign(config.advanced, configStore.config.advanced)
   }
 })
+
+async function detectSvnPath() {
+  isDetecting.value = true
+  detectStatus.value = '正在检测...'
+  
+  try {
+    const result = await invoke('svn_detect_executable') as string
+    config.svn.executable = result
+    detectStatus.value = '✓ 检测成功'
+  } catch (error) {
+    detectStatus.value = '✗ 检测失败: ' + error
+  } finally {
+    isDetecting.value = false
+  }
+}
 
 function save() {
   if (!configStore.config) return
@@ -186,6 +214,39 @@ function save() {
   border-radius: 4px;
   font-size: 13px;
   box-sizing: border-box;
+}
+.input-group {
+  display: flex;
+  gap: 8px;
+}
+.input-group input {
+  flex: 1;
+}
+.detect-btn {
+  padding: 6px 12px;
+  border: 1px solid #1890ff;
+  background: #fff;
+  color: #1890ff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.detect-btn:hover:not(:disabled) {
+  background: #e6f7ff;
+}
+.detect-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.detect-status {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #52c41a;
+}
+.detect-status:contains('失败') {
+  color: #ff4d4f;
 }
 .settings-footer {
   display: flex;
