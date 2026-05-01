@@ -166,9 +166,7 @@ function refresh() {
 }
 
 onMounted(() => {
-  if (props.store.logEntries.length === 0) {
-    refresh()
-  }
+  refresh()
 })
 </script>
 

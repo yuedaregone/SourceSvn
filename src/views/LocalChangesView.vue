@@ -194,6 +194,7 @@ async function submitCommit() {
     selectedFile.value = ''
     diffContent.value = ''
     await props.store.refreshLocalChanges()
+    props.store.logEntries = []
     emit('refresh')
   } catch (e) {
     errorMessage.value = `提交失败: ${e}`
