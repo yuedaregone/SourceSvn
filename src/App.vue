@@ -138,6 +138,11 @@ onMounted(async () => {
     activeTabIndex.value = config.session.activeTabIndex || 0
   }
   document.addEventListener('keydown', handleKeydown)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      refreshCurrentView()
+    }
+  })
   window.addEventListener('tauri://close-requested', async () => {
     await saveSession()
     const { getCurrentWindow } = await import('@tauri-apps/api/window')

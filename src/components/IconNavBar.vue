@@ -37,7 +37,7 @@ const navItems = [
   display: flex;
   flex-direction: column;
   width: 48px;
-  background: #fafafa;
+  background: var(--bg-secondary);
   border-right: 1px solid var(--border-color);
   padding: 8px 0;
 }
@@ -55,10 +55,10 @@ const navItems = [
   transition: background 0.15s;
 }
 .nav-item:hover {
-  background: var(--hover-bg);
+  background: var(--bg-hover);
 }
 .nav-item.active {
-  background: var(--active-bg);
+  background: var(--bg-active);
   border-left: 3px solid var(--accent-color);
 }
 </style>

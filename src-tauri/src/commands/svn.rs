@@ -131,3 +131,10 @@ pub async fn svn_update(state: State<'_, AppState>, path: String) -> Result<Upda
 pub fn svn_detect_executable() -> Result<String, String> {
     svn::find_svn_executable().map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub async fn diff_unversioned_file(repo_path: String, file_path: String) -> Result<String, String> {
+    svn::diff::diff_unversioned_file(&repo_path, &file_path)
+        .await
+        .map_err(|e| e.to_string())
+}

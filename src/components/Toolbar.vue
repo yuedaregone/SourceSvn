@@ -1,12 +1,18 @@
 <template>
   <div class="toolbar">
-    <button @click="$emit('pull')" :disabled="loading">拉取</button>
-    <button @click="$emit('refresh')" :disabled="loading">刷新</button>
+    <button @click="$emit('pull')" :disabled="loading" class="icon-btn" title="拉取更新">
+      <Download :size="16" />
+    </button>
+    <button @click="$emit('refresh')" :disabled="loading" class="icon-btn" title="刷新">
+      <RefreshCw :size="16" />
+    </button>
     <span v-if="loading" class="loading-indicator">处理中...</span>
   </div>
 </template>
 
 <script setup lang="ts">
+import { Download, RefreshCw } from 'lucide-vue-next'
+
 defineProps<{
   loading: boolean
 }>()
@@ -39,6 +45,14 @@ defineEmits<{
 .toolbar button:hover:not(:disabled) {
   border-color: var(--accent-color);
   color: var(--accent-color);
+}
+.toolbar .icon-btn {
+  padding: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .toolbar button:disabled {
   opacity: 0.5;

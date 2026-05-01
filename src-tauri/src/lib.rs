@@ -15,6 +15,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let state = AppState::new();
             let window = app
@@ -40,6 +41,7 @@ pub fn run() {
             commands::svn::svn_checkout,
             commands::svn::svn_update,
             commands::svn::svn_detect_executable,
+            commands::svn::diff_unversioned_file,
             commands::ai::generate_commit_message,
             commands::ai::review_changes,
             commands::shelve::shelve_save,

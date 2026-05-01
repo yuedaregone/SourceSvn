@@ -1,7 +1,9 @@
 <template>
   <div class="file-browser-view">
     <div class="browser-header">
-      <button v-if="currentPath" @click="goBack" class="back-btn">返回上级</button>
+      <button v-if="currentPath" @click="goBack" class="back-btn icon-btn" title="返回上级">
+        <ArrowLeft :size="16" />
+      </button>
       <select v-model="selectedRevision" class="revision-select" @change="onRevisionChange">
         <option value="HEAD">HEAD</option>
       </select>
@@ -9,7 +11,9 @@
         <input type="checkbox" v-model="showHidden" @change="refresh" />
         显示隐藏文件
       </label>
-      <button @click="refresh" class="refresh-btn" :disabled="store.loading">刷新</button>
+      <button @click="refresh" class="refresh-btn icon-btn" :disabled="store.loading" title="刷新">
+        <RefreshCw :size="16" />
+      </button>
     </div>
     <div class="browser-content">
       <div class="tree-panel">
@@ -44,6 +48,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { ArrowLeft, RefreshCw } from 'lucide-vue-next'
 import type { DirEntry } from '../types/svn'
 
 const props = defineProps<{
@@ -161,10 +166,11 @@ onMounted(() => {
 }
 .revision-select {
   padding: 5px 8px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--border-input);
   border-radius: 4px;
   font-size: 13px;
-  background: #fff;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   min-width: 100px;
 }
 .checkbox-label {
@@ -173,19 +179,34 @@ onMounted(() => {
   gap: 4px;
   font-size: 13px;
   cursor: pointer;
+  color: var(--text-primary);
 }
 .refresh-btn {
   margin-left: auto;
   padding: 5px 12px;
-  border: 1px solid #d9d9d9;
-  background: #fff;
+  border: 1px solid var(--border-input);
+  background: var(--bg-primary);
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.refresh-btn:hover:not(:disabled) {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
 }
 .refresh-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+.refresh-btn.icon-btn,
+.back-btn.icon-btn {
+  padding: 5px;
+  width: 26px;
+  height: 26px;
 }
 .browser-content {
   display: flex;
@@ -196,9 +217,10 @@ onMounted(() => {
 .tree-panel {
   width: 280px;
   min-width: 200px;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   overflow: auto;
+  background: var(--bg-primary);
 }
 .tree-item {
   display: flex;
@@ -207,13 +229,14 @@ onMounted(() => {
   gap: 8px;
   cursor: pointer;
   font-size: 13px;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-primary);
 }
 .tree-item:hover {
-  background: #f5f5f5;
+  background: var(--bg-hover);
 }
 .tree-item.selected {
-  background: #e6f7ff;
+  background: var(--bg-active);
 }
 .entry-icon {
   font-size: 14px;
@@ -227,34 +250,36 @@ onMounted(() => {
 }
 .entry-size {
   font-size: 11px;
-  color: #999;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 .empty-tree {
-  color: #999;
+  color: var(--text-muted);
   text-align: center;
   padding: 24px 0;
 }
 .content-panel {
   flex: 1;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   overflow: auto;
   display: flex;
   flex-direction: column;
+  background: var(--bg-primary);
 }
 .content-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  border-bottom: 1px solid #e8e8e8;
-  background: #fafafa;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
 }
 .content-filename {
   font-size: 13px;
   font-weight: 500;
   font-family: monospace;
+  color: var(--text-primary);
 }
 .content-actions {
   display: flex;
@@ -262,22 +287,23 @@ onMounted(() => {
 }
 .action-btn {
   padding: 3px 10px;
-  border: 1px solid #d9d9d9;
-  background: #fff;
+  border: 1px solid var(--border-input);
+  background: var(--bg-primary);
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
+  color: var(--text-primary);
 }
 .action-btn:hover {
-  border-color: #1890ff;
-  color: #1890ff;
+  border-color: var(--accent-color);
+  color: var(--accent-color);
 }
 .action-btn.ai {
-  border-color: #722ed1;
-  color: #722ed1;
+  border-color: var(--purple-color);
+  color: var(--purple-color);
 }
 .action-btn.ai:hover {
-  background: #f9f0ff;
+  background: var(--bg-hover);
 }
 .file-content {
   font-family: 'Consolas', 'Monaco', monospace;
@@ -287,9 +313,10 @@ onMounted(() => {
   padding: 12px;
   margin: 0;
   line-height: 1.5;
+  color: var(--text-primary);
 }
 .content-placeholder {
-  color: #999;
+  color: var(--text-muted);
   text-align: center;
   margin-top: 40px;
 }

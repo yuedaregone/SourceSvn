@@ -1,22 +1,28 @@
 <template>
   <div class="shelve-view">
     <div class="shelve-header">
-      <button @click="showSaveDialog = true" class="primary-btn">保存当前修改</button>
-      <button @click="refresh" class="action-btn" :disabled="store.loading">刷新</button>
+      <button @click="showSaveDialog = true" class="primary-btn" title="保存当前修改">
+        <Save :size="16" />
+      </button>
+      <button @click="refresh" class="action-btn icon-btn" :disabled="store.loading" title="刷新">
+        <RefreshCw :size="16" />
+      </button>
       <div class="header-right">
         <button
           @click="bulkApply"
           :disabled="selectedNames.size === 0"
           class="action-btn"
+          title="应用选中的 shelve"
         >
-          应用 ({{ selectedNames.size }})
+          <Check :size="16" />
         </button>
         <button
           @click="bulkDelete"
           :disabled="selectedNames.size === 0"
           class="action-btn danger"
+          title="删除选中的 shelve"
         >
-          删除 ({{ selectedNames.size }})
+          <Trash2 :size="16" />
         </button>
       </div>
     </div>
@@ -48,8 +54,12 @@
             <td class="col-name">{{ shelve.name }}</td>
             <td class="col-date">{{ formatDate(shelve.date) }}</td>
             <td class="col-actions">
-              <button @click="applyShelve(shelve.name)" class="table-btn">应用</button>
-              <button @click="deleteShelve(shelve.name)" class="table-btn danger">删除</button>
+              <button @click="applyShelve(shelve.name)" class="table-btn icon-btn" title="应用">
+                <ArrowRight :size="14" />
+              </button>
+              <button @click="deleteShelve(shelve.name)" class="table-btn danger icon-btn" title="删除">
+                <X :size="14" />
+              </button>
             </td>
           </tr>
         </tbody>
@@ -79,6 +89,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { Save, RefreshCw, Check, Trash2, ArrowRight, X } from 'lucide-vue-next'
 
 const props = defineProps<{
   store: {
@@ -229,15 +240,18 @@ onMounted(() => {
 }
 .primary-btn {
   padding: 6px 14px;
-  border: 1px solid #1890ff;
-  background: #1890ff;
+  border: 1px solid var(--accent-color);
+  background: var(--accent-color);
   color: #fff;
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .primary-btn:hover:not(:disabled) {
-  background: #40a9ff;
+  background: var(--accent-hover);
 }
 .primary-btn:disabled {
   opacity: 0.5;
@@ -245,32 +259,42 @@ onMounted(() => {
 }
 .action-btn {
   padding: 6px 14px;
-  border: 1px solid #d9d9d9;
-  background: #fff;
+  border: 1px solid var(--border-input);
+  background: var(--bg-primary);
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .action-btn:hover:not(:disabled) {
-  border-color: #1890ff;
-  color: #1890ff;
+  border-color: var(--accent-color);
+  color: var(--accent-color);
 }
 .action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 .action-btn.danger {
-  color: #ff4d4f;
-  border-color: #ff4d4f;
+  color: var(--danger-color);
+  border-color: var(--danger-color);
 }
 .action-btn.danger:hover:not(:disabled) {
-  background: #fff2f0;
+  background: var(--bg-hover);
+}
+.action-btn.icon-btn {
+  padding: 6px;
+  width: 28px;
+  height: 28px;
 }
 .shelve-list {
   flex: 1;
   overflow: auto;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
+  background: var(--bg-primary);
 }
 table {
   width: 100%;
@@ -281,10 +305,11 @@ th,
 td {
   padding: 8px 12px;
   text-align: left;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-primary);
 }
 th {
-  background: #fafafa;
+  background: var(--bg-secondary);
   font-weight: 600;
   position: sticky;
   top: 0;
@@ -303,43 +328,52 @@ th {
   width: 120px;
 }
 tr:hover {
-  background: #f5f5f5;
+  background: var(--bg-hover);
 }
 tr.selected {
-  background: #e6f7ff;
+  background: var(--bg-active);
 }
 .table-btn {
   padding: 3px 10px;
-  border: 1px solid #d9d9d9;
-  background: #fff;
+  border: 1px solid var(--border-input);
+  background: var(--bg-primary);
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
   margin-right: 4px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .table-btn:hover {
-  border-color: #1890ff;
-  color: #1890ff;
+  border-color: var(--accent-color);
+  color: var(--accent-color);
 }
 .table-btn.danger {
-  color: #ff4d4f;
-  border-color: #ff4d4f;
+  color: var(--danger-color);
+  border-color: var(--danger-color);
 }
 .table-btn.danger:hover {
-  background: #fff2f0;
+  background: var(--bg-hover);
+}
+.table-btn.icon-btn {
+  padding: 3px;
+  width: 24px;
+  height: 24px;
 }
 .empty {
-  color: #999;
+  color: var(--text-muted);
   text-align: center;
   padding: 24px 0;
 }
 .error-message {
   margin-top: 8px;
   padding: 6px 8px;
-  background: #fff2f0;
-  border: 1px solid #ffccc7;
+  background: var(--bg-secondary);
+  border: 1px solid var(--danger-color);
   border-radius: 4px;
-  color: #ff4d4f;
+  color: var(--danger-color);
   font-size: 12px;
 }
 .dialog-overlay {
@@ -348,33 +382,36 @@ tr.selected {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--overlay-bg);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
 }
 .dialog {
-  background: #fff;
+  background: var(--bg-primary);
   padding: 20px;
   border-radius: 8px;
   min-width: 320px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow);
 }
 .dialog h3 {
   margin: 0 0 12px;
   font-size: 15px;
+  color: var(--text-primary);
 }
 .dialog-input {
   width: 100%;
   padding: 8px 10px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--border-input);
   border-radius: 4px;
   font-size: 13px;
   box-sizing: border-box;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 .dialog-input:focus {
-  border-color: #1890ff;
+  border-color: var(--accent-color);
   outline: none;
 }
 .dialog-actions {
@@ -385,10 +422,11 @@ tr.selected {
 }
 .cancel-btn {
   padding: 6px 14px;
-  border: 1px solid #d9d9d9;
-  background: #fff;
+  border: 1px solid var(--border-input);
+  background: var(--bg-primary);
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
+  color: var(--text-primary);
 }
 </style>

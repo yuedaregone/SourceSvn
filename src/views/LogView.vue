@@ -9,7 +9,9 @@
       <span class="date-separator">~</span>
       <input v-model="dateTo" type="date" class="filter-date" placeholder="结束日期" />
       <input v-model="searchText" placeholder="搜索提交信息..." class="search-input" />
-      <button @click="refresh" class="refresh-btn" :disabled="store.loading">↻</button>
+      <button @click="refresh" class="refresh-btn" :disabled="store.loading" title="刷新">
+        <RefreshCw :size="16" />
+      </button>
     </div>
     <div class="log-table">
       <table>
@@ -64,6 +66,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { RefreshCw } from 'lucide-vue-next'
 import type { LogEntry } from '../types/svn'
 
 const props = defineProps<{
@@ -185,10 +188,11 @@ onMounted(() => {
 .filter-select,
 .filter-date {
   padding: 5px 8px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--border-input);
   border-radius: 4px;
   font-size: 13px;
-  background: #fff;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 .filter-select {
   min-width: 100px;
@@ -197,24 +201,27 @@ onMounted(() => {
   width: 140px;
 }
 .date-separator {
-  color: #999;
+  color: var(--text-muted);
   font-size: 13px;
 }
 .search-input {
   flex: 1;
   min-width: 150px;
   padding: 5px 12px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--border-input);
   border-radius: 4px;
   font-size: 13px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 .refresh-btn {
   padding: 5px 12px;
-  border: 1px solid #d9d9d9;
-  background: #fff;
+  border: 1px solid var(--border-input);
+  background: var(--bg-primary);
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
+  color: var(--text-primary);
 }
 .refresh-btn:disabled {
   opacity: 0.5;
@@ -223,8 +230,9 @@ onMounted(() => {
 .log-table {
   flex: 1;
   overflow: auto;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
+  background: var(--bg-primary);
 }
 table {
   width: 100%;
@@ -235,14 +243,15 @@ th,
 td {
   padding: 8px 12px;
   text-align: left;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-light);
 }
 th {
-  background: #fafafa;
+  background: var(--bg-secondary);
   font-weight: 600;
   position: sticky;
   top: 0;
   z-index: 1;
+  color: var(--text-primary);
 }
 .col-revision {
   width: 80px;
@@ -257,15 +266,15 @@ th {
   min-width: 200px;
 }
 tr:hover {
-  background: #f5f5f5;
+  background: var(--bg-hover);
   cursor: pointer;
 }
 tr.expanded {
-  background: #e6f7ff;
+  background: var(--bg-active);
 }
 .empty-row {
   text-align: center;
-  color: #999;
+  color: var(--text-muted);
   padding: 24px 0;
 }
 .pagination {
@@ -274,36 +283,39 @@ tr.expanded {
   justify-content: center;
   gap: 12px;
   padding: 8px 0;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border-light);
   font-size: 13px;
+  background: var(--bg-primary);
 }
 .pagination button {
   padding: 4px 12px;
-  border: 1px solid #d9d9d9;
-  background: #fff;
+  border: 1px solid var(--border-input);
+  background: var(--bg-primary);
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
+  color: var(--text-primary);
 }
 .pagination button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 .page-info {
-  color: #666;
+  color: var(--text-secondary);
 }
 .detail-panel {
-  border-top: 1px solid #e8e8e8;
+  border-top: 1px solid var(--border-color);
   padding: 12px;
-  background: #fafafa;
+  background: var(--bg-secondary);
   border-radius: 0 0 4px 4px;
 }
 .detail-panel h4 {
   margin: 0 0 8px;
   font-size: 14px;
+  color: var(--text-primary);
 }
 .detail-message {
-  color: #333;
+  color: var(--text-primary);
   margin: 0 0 8px;
 }
 .changed-paths {
@@ -312,7 +324,7 @@ tr.expanded {
 .changed-paths h5 {
   margin: 0 0 4px;
   font-size: 13px;
-  color: #666;
+  color: var(--text-secondary);
 }
 .changed-path {
   font-size: 12px;
@@ -333,19 +345,19 @@ tr.expanded {
   padding: 1px 0;
 }
 .action.modified {
-  background: #faad14;
+  background: var(--warning-color);
 }
 .action.added {
-  background: #52c41a;
+  background: var(--success-color);
 }
 .action.deleted {
-  background: #ff4d4f;
+  background: var(--danger-color);
 }
 .action.replaced {
-  background: #722ed1;
+  background: var(--purple-color);
 }
 .path-text {
-  color: #333;
+  color: var(--text-primary);
 }
 .detail-actions {
   margin-top: 12px;
@@ -354,21 +366,22 @@ tr.expanded {
 }
 .action-btn {
   padding: 4px 14px;
-  border: 1px solid #d9d9d9;
-  background: #fff;
+  border: 1px solid var(--border-input);
+  background: var(--bg-primary);
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
+  color: var(--text-primary);
 }
 .action-btn:hover {
-  border-color: #1890ff;
-  color: #1890ff;
+  border-color: var(--accent-color);
+  color: var(--accent-color);
 }
 .action-btn.ai {
-  border-color: #722ed1;
-  color: #722ed1;
+  border-color: var(--purple-color);
+  color: var(--purple-color);
 }
 .action-btn.ai:hover {
-  background: #f9f0ff;
+  background: var(--bg-hover);
 }
 </style>

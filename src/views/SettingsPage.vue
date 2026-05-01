@@ -65,6 +65,7 @@
               <label>SVN 可执行文件路径</label>
               <div class="input-with-btn">
                 <input v-model="config.svn.executable" placeholder="留空则自动检测" />
+                <button @click="selectSvnPath" class="browse-btn">浏览...</button>
                 <button @click="detectSvnPath" :disabled="isDetecting" class="detect-btn">
                   {{ isDetecting ? '检测中...' : '自动检测' }}
                 </button>
@@ -146,6 +147,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useConfigStore } from '../stores/configStore'
 import { invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-dialog'
 import type { AppConfig } from '../types/config'
 
 const emit = defineEmits<{
@@ -193,6 +195,25 @@ const config = reactive<AppConfig>({
 onMounted(() => {
   if (configStore.config) {
     Object.assign(config, JSON.parse(JSON.stringify(configStore.config)))
+    // 确保字体配置有默认值
+    if (!config.appearance.uiFontFamily) {
+      config.appearance.uiFontFamily = defaultAppearance.uiFontFamily
+    }
+    if (!config.appearance.codeFontFamily) {
+      config.appearance.codeFontFamily = defaultAppearance.codeFontFamily
+    }
+    if (!config.appearance.uiFontSize) {
+      config.appearance.uiFontSize = defaultAppearance.uiFontSize
+    }
+    if (!config.appearance.codeFontSize) {
+      config.appearance.codeFontSize = defaultAppearance.codeFontSize
+    }
+    if (!config.appearance.iconSize) {
+      config.appearance.iconSize = defaultAppearance.iconSize
+    }
+    if (!config.appearance.theme) {
+      config.appearance.theme = defaultAppearance.theme
+    }
   }
 })
 
@@ -211,6 +232,24 @@ async function detectSvnPath() {
     detectStatus.value = `✗ 检测失败: ${error}`
   } finally {
     isDetecting.value = false
+  }
+}
+
+async function selectSvnPath() {
+  try {
+    const selected = await open({
+      title: '选择 SVN 可执行文件',
+      filters: [
+        { name: '可执行文件', extensions: ['exe', 'bat', 'cmd'] },
+        { name: '所有文件', extensions: ['*'] },
+      ],
+    })
+    if (selected) {
+      config.svn.executable = selected.toString()
+      detectStatus.value = ''
+    }
+  } catch (error) {
+    console.error('选择文件失败:', error)
   }
 }
 
@@ -329,15 +368,25 @@ function saveAndClose() {
 .setting-row input[type='text'],
 .setting-row input[type='password'],
 .setting-row input[type='number'],
+.setting-row input[type='search'],
+.setting-row input[type='url'],
+.setting-row input:not([type]),
 .setting-row select {
   width: 100%;
   padding: 6px 10px;
   border: 1px solid var(--border-input);
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  background: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
   border-radius: 4px;
   font-size: 13px;
   box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.setting-row input:focus,
+.setting-row select:focus {
+  border-color: var(--accent-color);
+  outline: none;
 }
 .radio-group {
   display: flex;
@@ -384,6 +433,20 @@ function saveAndClose() {
 .detect-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+.browse-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border-input);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.browse-btn:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
 }
 .detect-status {
   font-size: 12px;

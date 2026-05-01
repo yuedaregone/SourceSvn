@@ -38,12 +38,18 @@
           <span class="stat-del">-{{ diffStats.removed }}</span>
         </div>
         <div class="commit-actions">
-          <button @click="generateAiMessage" :disabled="aiLoading || selectedPaths.size === 0" class="ai-btn">
-            {{ aiLoading ? '生成中...' : 'AI 生成注释' }}
+          <button @click="generateAiMessage" :disabled="aiLoading || selectedPaths.size === 0" class="ai-btn" title="AI 生成注释">
+            <Sparkles :size="16" />
           </button>
-          <button @click="$emit('refresh')" class="action-btn">刷新</button>
-          <button @click="cancelCommit" class="cancel-btn">取消</button>
-          <button @click="submitCommit" :disabled="!canCommit" class="commit-btn">提交</button>
+          <button @click="$emit('refresh')" class="action-btn icon-btn" title="刷新">
+            <RefreshCw :size="16" />
+          </button>
+          <button @click="cancelCommit" class="cancel-btn icon-btn" title="取消">
+            <X :size="16" />
+          </button>
+          <button @click="submitCommit" :disabled="!canCommit" class="commit-btn" title="提交">
+            <Send :size="16" />
+          </button>
         </div>
         <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
       </div>
@@ -59,6 +65,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { Sparkles, RefreshCw, X, Send } from 'lucide-vue-next'
 import type { FileStatus, DiffTarget } from '../types/svn'
 
 const props = defineProps<{
@@ -361,7 +368,7 @@ onMounted(() => {
 }
 .commit-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   margin-top: 8px;
   justify-content: flex-end;
 }
@@ -373,18 +380,38 @@ onMounted(() => {
   cursor: pointer;
   font-size: 12px;
   color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.commit-actions button:hover:not(:disabled) {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+.commit-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.commit-actions .icon-btn {
+  padding: 6px;
+  width: 28px;
+  height: 28px;
 }
 .commit-btn {
   background: var(--accent-color) !important;
   color: #fff !important;
   border-color: var(--accent-color) !important;
 }
-.commit-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.commit-btn:hover:not(:disabled) {
+  background: var(--accent-hover) !important;
 }
 .ai-btn {
   margin-right: auto;
+  color: var(--purple-color);
+  border-color: var(--purple-color);
+}
+.ai-btn:hover:not(:disabled) {
+  background: rgba(114, 46, 209, 0.1);
 }
 .error-message {
   margin-top: 8px;
