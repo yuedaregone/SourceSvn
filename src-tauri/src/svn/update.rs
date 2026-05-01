@@ -1,57 +1,65 @@
 use crate::common::AppError;
 use crate::svn::models::UpdateResult;
-use quick_xml::de::from_str;
-use serde::Deserialize;
 
-#[derive(Deserialize, Debug)]
-struct UpdateXml {
-    _target: Option<String>,
-    #[serde(rename = "revision")]
-    revision: Option<String>,
-    #[serde(rename = "added")]
-    added: Option<Vec<UpdatePath>>,
-    #[serde(rename = "unversioned")]
-    unversioned: Option<Vec<UpdatePath>>,
-}
+fn parse_update_output(output: &str) -> Result<UpdateResult, AppError> {
+    let mut revision: u64 = 0;
+    let mut updated_files = Vec::new();
+    let mut merged_files = Vec::new();
+    let mut conflicts = Vec::new();
 
-#[derive(Deserialize, Debug)]
-struct UpdatePath {
-    path: Option<String>,
-}
+    for line in output.lines() {
+        let trimmed = line.trim();
 
-fn parse_update_xml(xml: &str) -> Result<UpdateResult, AppError> {
-    let report: UpdateXml =
-        from_str(xml).map_err(|e| AppError::Svn(format!("Failed to parse update XML: {}", e)))?;
+        // "Updated revision 105."
+        if let Some(rest) = trimmed.strip_prefix("Updated revision ") {
+            if let Some(rev_str) = rest.strip_suffix('.') {
+                if let Ok(rev) = rev_str.parse::<u64>() {
+                    revision = rev;
+                }
+            }
+        }
 
-    let revision = report
-        .revision
-        .as_ref()
-        .and_then(|r| r.parse::<u64>().ok())
-        .unwrap_or(0);
+        // Status lines: "A    new_file.rs" or "A   +  new_file.rs"
+        if trimmed.len() >= 2 {
+            let status_char = trimmed.as_bytes()[0];
+            let path_part = if trimmed.as_bytes().get(1) == Some(&b' ') {
+                // "A + file" format - skip status + flag
+                let after_status = &trimmed[1..];
+                if let Some(pos) = after_status.find(|c: char| c.is_alphabetic()) {
+                    after_status[pos..].trim()
+                } else {
+                    after_status.trim()
+                }
+            } else {
+                &trimmed[1..]
+            };
 
-    let updated_files = report
-        .added
-        .as_ref()
-        .map(|paths| paths.iter().filter_map(|p| p.path.clone()).collect())
-        .unwrap_or_default();
+            let path = path_part.trim();
+            if path.is_empty() || path.starts_with("Updating") || path.starts_with("Summary") {
+                continue;
+            }
 
-    let conflicts = report
-        .unversioned
-        .as_ref()
-        .map(|paths| paths.iter().filter_map(|p| p.path.clone()).collect())
-        .unwrap_or_default();
+            match status_char {
+                b'A' => updated_files.push(path.to_string()),
+                b'U' => updated_files.push(path.to_string()),
+                b'M' => merged_files.push(path.to_string()),
+                b'C' => conflicts.push(path.to_string()),
+                _ => {}
+            }
+        }
+    }
 
     Ok(UpdateResult {
         revision,
         updated_files,
-        merged_files: vec![],
+        merged_files,
         conflicts,
     })
 }
 
 pub async fn svn_update(path: &str, timeout_secs: u64) -> Result<UpdateResult, AppError> {
-    let output = crate::svn::run_svn_async(&["update", "--xml", path], timeout_secs).await?;
-    parse_update_xml(&output)
+    let output = crate::svn::run_svn_async_in_dir(&["update"], timeout_secs, Some(path)).await?;
+    parse_update_output(&output)
 }
 
 #[cfg(test)]
@@ -59,33 +67,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_update_xml_with_revision() {
-        let xml = r#"<?xml version="1.0"?>
-<update-report>
-  <target>.</target>
-  <revision>105</revision>
-  <added>
-    <path>new_file.rs</path>
-  </added>
-  <added>
-    <path>src/lib.rs</path>
-  </added>
-</update-report>"#;
-        let result = parse_update_xml(xml).unwrap();
+    fn test_parse_update_output_with_changes() {
+        let output = "Updating '.':\nA    new_file.rs\nU    existing.rs\nUpdated revision 105.\n";
+        let result = parse_update_output(output).unwrap();
         assert_eq!(result.revision, 105);
         assert_eq!(result.updated_files.len(), 2);
-        assert_eq!(result.updated_files[0], "new_file.rs");
+        assert!(result.merged_files.is_empty());
     }
 
     #[test]
-    fn test_parse_update_xml_no_changes() {
-        let xml = r#"<?xml version="1.0"?>
-<update-report>
-  <target>.</target>
-  <revision>100</revision>
-</update-report>"#;
-        let result = parse_update_xml(xml).unwrap();
-        assert_eq!(result.revision, 100);
+    fn test_parse_update_output_no_changes() {
+        let output = "Updating '.':\nAt revision 100.\n";
+        let result = parse_update_output(output).unwrap();
+        assert_eq!(result.revision, 0);
         assert!(result.updated_files.is_empty());
+    }
+
+    #[test]
+    fn test_parse_update_output_conflicts() {
+        let output = "Updating '.':\nC    conflict.rs\nA    ok.rs\nUpdated revision 200.\n";
+        let result = parse_update_output(output).unwrap();
+        assert_eq!(result.revision, 200);
+        assert_eq!(result.conflicts.len(), 1);
+        assert_eq!(result.conflicts[0], "conflict.rs");
     }
 }

@@ -6,24 +6,25 @@ pub async fn svn_diff(
     target: &DiffTarget,
     timeout_secs: u64,
 ) -> Result<String, AppError> {
-    let rev_range;
-
-    let mut args: Vec<&str> = vec!["diff", path];
+    let mut args = vec!["diff".to_string()];
 
     match target {
-        DiffTarget::File { path: file_path, revision } => {
-            args.push(file_path);
+        DiffTarget::File {
+            path: file_path,
+            revision,
+        } => {
+            args.push(file_path.clone());
             if let Some(rev) = revision {
-                args.push("-r");
-                args.push(rev);
+                args.push("-r".to_string());
+                args.push(rev.clone());
             }
         }
         DiffTarget::Revisions { old_rev, new_rev } => {
-            rev_range = format!("{}:{}", old_rev, new_rev);
-            args.push("-r");
-            args.push(&rev_range);
+            args.push("-r".to_string());
+            args.push(format!("{}:{}", old_rev, new_rev));
         }
     }
 
-    crate::svn::run_svn_async(&args, timeout_secs).await
+    let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    crate::svn::run_svn_async_in_dir(&args_refs, timeout_secs, Some(path)).await
 }

@@ -41,7 +41,26 @@ async fn auto_add_unversioned(
 
     let to_add: Vec<&String> = files
         .iter()
-        .filter(|f| unversioned.contains(f.as_str()))
+        .filter(|f| {
+            // Match both absolute and relative paths
+            if unversioned.contains(f.as_str()) {
+                return true;
+            }
+            // Strip repo path prefix to get relative path
+            std::path::Path::new(f)
+                .strip_prefix(path)
+                .ok()
+                .and_then(|rel| rel.to_str())
+                .map(|rel| {
+                    // "D:\repo\trunk\file.txt" -> "trunk/file.txt" or "file.txt" depending on strip
+                    let rel_normalized = rel.trim_start_matches('\\').trim_start_matches('/');
+                    unversioned.contains(rel_normalized)
+                        || rel_normalized.split(['\\', '/']).last().map_or(false, |name| {
+                            unversioned.iter().any(|u| u.ends_with(name))
+                        })
+                })
+                .unwrap_or(false)
+        })
         .collect();
 
     if to_add.is_empty() {

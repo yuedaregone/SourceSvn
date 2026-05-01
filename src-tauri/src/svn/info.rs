@@ -11,13 +11,12 @@ struct InfoXml {
 
 #[derive(Deserialize)]
 struct InfoDetail {
-    #[serde(rename = "@url")]
-    url: String,
-    #[serde(rename = "@revision")]
-    revision: u64,
+    url: Option<String>,
+    revision: Option<String>,
     repository: Option<InfoRepository>,
     #[serde(rename = "wc-info")]
     wc_info: Option<InfoWcInfo>,
+    commit: Option<InfoCommit>,
 }
 
 #[derive(Deserialize)]
@@ -28,7 +27,15 @@ struct InfoRepository {
 #[derive(Deserialize)]
 struct InfoWcInfo {
     #[serde(rename = "revision")]
+    revision: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct InfoCommit {
+    #[serde(rename = "@revision")]
     revision: Option<u64>,
+    author: Option<String>,
+    date: Option<String>,
 }
 
 fn parse_info_xml(xml: &str) -> Result<RepoInfo, AppError> {
@@ -39,24 +46,39 @@ fn parse_info_xml(xml: &str) -> Result<RepoInfo, AppError> {
         .entry
         .ok_or_else(|| AppError::Svn("No entry found in info XML".to_string()))?;
 
+    let url = entry.url.unwrap_or_default();
+    let revision = entry
+        .revision
+        .and_then(|r| r.parse::<u64>().ok())
+        .unwrap_or(0);
     let root = entry
         .repository
         .and_then(|r| r.root)
         .unwrap_or_default();
 
     let last_changed_rev = entry
-        .wc_info
+        .commit
         .as_ref()
-        .and_then(|w| w.revision)
-        .unwrap_or(entry.revision);
+        .and_then(|c| c.revision)
+        .unwrap_or(revision);
+    let last_changed_date = entry
+        .commit
+        .as_ref()
+        .and_then(|c| c.date.clone())
+        .unwrap_or_default();
+    let last_changed_author = entry
+        .commit
+        .as_ref()
+        .and_then(|c| c.author.clone())
+        .unwrap_or_default();
 
     Ok(RepoInfo {
-        url: entry.url,
+        url,
         root,
-        revision: entry.revision,
+        revision,
         last_changed_rev,
-        last_changed_date: String::new(),
-        last_changed_author: String::new(),
+        last_changed_date,
+        last_changed_author,
     })
 }
 
@@ -73,20 +95,26 @@ mod tests {
     fn test_parse_info_xml() {
         let xml = r#"<?xml version="1.0"?>
 <info>
-  <entry kind="dir" url="svn://repo/trunk" revision="42">
+  <entry kind="dir" path="/trunk" revision="1">
+    <url>svn://repo/trunk</url>
     <repository>
       <root>svn://repo</root>
     </repository>
     <wc-info>
-      <revision>30</revision>
+      <revision>1</revision>
     </wc-info>
+    <commit revision="1">
+      <author>alice</author>
+      <date>2026-04-30T10:00:00Z</date>
+    </commit>
   </entry>
 </info>"#;
         let result = parse_info_xml(xml).unwrap();
         assert_eq!(result.url, "svn://repo/trunk");
         assert_eq!(result.root, "svn://repo");
-        assert_eq!(result.revision, 42);
-        assert_eq!(result.last_changed_rev, 30);
+        assert_eq!(result.revision, 1);
+        assert_eq!(result.last_changed_rev, 1);
+        assert_eq!(result.last_changed_author, "alice");
     }
 
     #[test]

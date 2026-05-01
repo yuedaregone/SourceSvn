@@ -67,7 +67,8 @@
       </div>
       <div class="settings-footer">
         <button @click="$emit('close')" class="cancel-btn">取消</button>
-        <button @click="save" class="save-btn">保存</button>
+        <button @click="saveAndClose" class="save-btn">保存</button>
+        <button @click="apply" class="apply-btn">应用</button>
       </div>
     </div>
   </div>
@@ -125,13 +126,22 @@ async function detectSvnPath() {
   }
 }
 
-function save() {
+function applyConfig() {
   if (!configStore.config) return
   Object.assign(configStore.config.appearance, config.appearance)
   Object.assign(configStore.config.svn, config.svn)
   Object.assign(configStore.config.ai, config.ai)
   Object.assign(configStore.config.advanced, config.advanced)
+}
+
+function apply() {
+  applyConfig()
+}
+
+function saveAndClose() {
+  applyConfig()
   configStore.saveConfig()
+  $emit('close')
 }
 </script>
 
@@ -262,6 +272,14 @@ function save() {
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
+}
+.apply-btn {
+  background: #fff !important;
+  color: #1890ff !important;
+  border-color: #1890ff !important;
+}
+.apply-btn:hover {
+  background: #e6f7ff !important;
 }
 .save-btn {
   background: #1890ff !important;
