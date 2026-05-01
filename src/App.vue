@@ -12,7 +12,6 @@
       v-if="tabs.length > 0"
       :loading="currentTabStore?.loading ?? false"
       @pull="handlePull"
-      @commit="handleCommit"
       @refresh="handleRefresh"
     />
     <div class="main-content" v-if="tabs.length > 0">

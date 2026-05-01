@@ -1,7 +1,6 @@
 <template>
   <div class="toolbar">
     <button @click="$emit('pull')" :disabled="loading">拉取</button>
-    <button @click="$emit('commit')" :disabled="loading">提交</button>
     <button @click="$emit('refresh')" :disabled="loading">刷新</button>
     <span v-if="loading" class="loading-indicator">处理中...</span>
   </div>
@@ -14,7 +13,6 @@ defineProps<{
 
 defineEmits<{
   pull: []
-  commit: []
   refresh: []
 }>()
 </script>
