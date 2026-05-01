@@ -30,8 +30,6 @@
           v-if="currentTabStore?.activeView === 'localChanges'"
           :store="currentTabStore!"
           @refresh="handleRefresh"
-          @pull="handlePull"
-          @commit="handleCommit"
         />
         <FileBrowserView
           v-if="currentTabStore?.activeView === 'fileBrowser'"
@@ -140,7 +138,11 @@ onMounted(async () => {
     activeTabIndex.value = config.session.activeTabIndex || 0
   }
   document.addEventListener('keydown', handleKeydown)
-  window.addEventListener('tauri://close-requested', saveSession)
+  window.addEventListener('tauri://close-requested', async () => {
+    await saveSession()
+    const { getCurrentWindow } = await import('@tauri-apps/api/window')
+    getCurrentWindow().destroy()
+  })
   startAutoRefresh()
 })
 
@@ -251,10 +253,6 @@ function handlePull() {
     .catch((e) => console.error('Pull failed:', e))
 }
 
-function handleCommit() {
-  switchView('localChanges')
-}
-
 function handleRefresh() {
   refreshCurrentView()
 }
@@ -290,11 +288,11 @@ function handleAiReviewRevision(revision: number) {
     .catch((e) => console.error('Diff failed:', e))
 }
 
-function saveSession() {
+async function saveSession() {
   if (!configStore.config) return
   configStore.config.session.openTabs = tabs.value
   configStore.config.session.activeTabIndex = activeTabIndex.value
-  configStore.saveConfig()
+  await configStore.saveConfig()
 }
 
 async function handleAiReview(diff: string) {
