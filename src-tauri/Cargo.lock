@@ -3718,6 +3718,7 @@ dependencies = [
  "chrono",
  "confy",
  "dirs 5.0.1",
+ "encoding_rs",
  "env_logger",
  "futures-util",
  "log",

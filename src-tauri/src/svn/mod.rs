@@ -13,6 +13,21 @@ use crate::common::AppError;
 use std::time::Duration;
 use tokio::process::Command;
 
+fn decode_bytes(bytes: &[u8]) -> String {
+    if std::str::from_utf8(bytes).is_ok() {
+        return String::from_utf8_lossy(bytes).into_owned();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let (decoded, _, _) = encoding_rs::GBK.decode(bytes);
+        return decoded.into_owned();
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        String::from_utf8_lossy(bytes).into_owned()
+    }
+}
+
 pub async fn run_svn_async(args: &[&str], timeout_secs: u64) -> Result<String, AppError> {
     run_svn_async_in_dir(args, timeout_secs, None).await
 }
@@ -41,14 +56,14 @@ pub async fn run_svn_async_in_dir(
         .map_err(|e| AppError::Svn(format!("Failed to execute svn: {}", e)))?;
 
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stderr = decode_bytes(&output.stderr);
         return Err(AppError::Svn(format!(
             "SVN command failed: {}",
             stderr.trim()
         )));
     }
 
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    Ok(decode_bytes(&output.stdout))
 }
 
 pub fn find_svn_executable() -> Result<String, AppError> {
@@ -72,7 +87,7 @@ pub fn find_svn_executable() -> Result<String, AppError> {
         .map_err(|e| AppError::Svn(format!("Failed to find svn: {}", e)))?;
 
     if output.status.success() {
-        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let path = decode_bytes(&output.stdout).trim().to_string();
         if !path.is_empty() {
             return Ok(path);
         }
