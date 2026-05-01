@@ -7,11 +7,6 @@
           <span>全选</span>
         </label>
         <span class="selected-count">已选 {{ selectedPaths.size }} 个文件</span>
-        <div class="header-actions">
-          <button @click="$emit('pull')" class="action-btn">拉取</button>
-          <button @click="$emit('commit')" class="action-btn primary" :disabled="!canCommit">提交</button>
-          <button @click="$emit('refresh')" class="action-btn">刷新</button>
-        </div>
       </div>
       <div class="file-list">
         <div
@@ -46,6 +41,7 @@
           <button @click="generateAiMessage" :disabled="aiLoading || selectedPaths.size === 0" class="ai-btn">
             {{ aiLoading ? '生成中...' : 'AI 生成注释' }}
           </button>
+          <button @click="$emit('refresh')" class="action-btn">刷新</button>
           <button @click="cancelCommit" class="cancel-btn">取消</button>
           <button @click="submitCommit" :disabled="!canCommit" class="commit-btn">提交</button>
         </div>
@@ -73,10 +69,8 @@ const props = defineProps<{
   }
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   refresh: []
-  pull: []
-  commit: []
 }>()
 
 const selectedPaths = ref(new Set<string>())
@@ -142,11 +136,18 @@ async function selectFile(file: FileStatus) {
   selectedFile.value = file.path
   selectedPaths.value = new Set([file.path])
   try {
-    const target: DiffTarget = { type: 'File', data: { path: file.path } }
-    diffContent.value = await invoke<string>('svn_diff', {
-      path: props.store.repoPath,
-      target,
-    })
+    if (file.status === 'unversioned') {
+      diffContent.value = await invoke<string>('diff_unversioned_file', {
+        repoPath: props.store.repoPath,
+        filePath: file.path,
+      })
+    } else {
+      const target: DiffTarget = { type: 'File', data: { path: file.path } }
+      diffContent.value = await invoke<string>('svn_diff', {
+        path: props.store.repoPath,
+        target,
+      })
+    }
   } catch (e) {
     diffContent.value = ''
     errorMessage.value = `获取差异失败: ${e}`
@@ -186,6 +187,7 @@ async function submitCommit() {
     selectedFile.value = ''
     diffContent.value = ''
     await props.store.refreshLocalChanges()
+    emit('refresh')
   } catch (e) {
     errorMessage.value = `提交失败: ${e}`
   }
@@ -217,10 +219,11 @@ onMounted(() => {
 }
 .right-panel {
   flex: 1;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   overflow: auto;
   min-width: 0;
+  background: var(--bg-primary);
 }
 .file-list-header {
   display: flex;
@@ -236,7 +239,7 @@ onMounted(() => {
   cursor: pointer;
 }
 .selected-count {
-  color: #666;
+  color: var(--text-secondary);
 }
 .header-actions {
   margin-left: auto;
@@ -245,34 +248,36 @@ onMounted(() => {
 }
 .action-btn {
   padding: 4px 12px;
-  border: 1px solid #d9d9d9;
-  background: #fff;
+  border: 1px solid var(--border-input);
+  background: var(--bg-primary);
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
+  color: var(--text-primary);
 }
 .action-btn:hover:not(:disabled) {
-  border-color: #1890ff;
-  color: #1890ff;
+  border-color: var(--accent-color);
+  color: var(--accent-color);
 }
 .action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 .action-btn.primary {
-  background: #1890ff;
+  background: var(--accent-color);
   color: #fff;
-  border-color: #1890ff;
+  border-color: var(--accent-color);
 }
 .action-btn.primary:hover:not(:disabled) {
-  background: #40a9ff;
+  background: var(--accent-hover);
 }
 .file-list {
   flex: 1;
   overflow: auto;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   min-height: 0;
+  background: var(--bg-primary);
 }
 .file-item {
   display: flex;
@@ -281,13 +286,13 @@ onMounted(() => {
   gap: 8px;
   cursor: pointer;
   font-size: 13px;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--border-light);
 }
 .file-item:hover {
-  background: #f5f5f5;
+  background: var(--bg-hover);
 }
 .file-item.selected {
-  background: #e6f7ff;
+  background: var(--bg-active);
 }
 .status-badge {
   display: inline-flex;
@@ -301,10 +306,10 @@ onMounted(() => {
   color: #fff;
   flex-shrink: 0;
 }
-.status-badge.modified { background: #faad14; }
-.status-badge.added { background: #52c41a; }
-.status-badge.deleted { background: #ff4d4f; }
-.status-badge.unversioned { background: #999; }
+.status-badge.modified { background: var(--warning-color); }
+.status-badge.added { background: var(--success-color); }
+.status-badge.deleted { background: var(--danger-color); }
+.status-badge.unversioned { background: var(--text-muted); }
 .status-badge.missing { background: #ff7a45; }
 .status-badge.conflicted { background: #f5222d; }
 .file-path {
@@ -314,9 +319,10 @@ onMounted(() => {
   white-space: nowrap;
   font-family: monospace;
   font-size: 12px;
+  color: var(--text-primary);
 }
 .empty-list {
-  color: #999;
+  color: var(--text-muted);
   text-align: center;
   padding: 24px 0;
 }
@@ -326,15 +332,17 @@ onMounted(() => {
 .commit-input {
   width: 100%;
   padding: 8px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--border-input);
   border-radius: 4px;
   font-size: 13px;
   resize: vertical;
   font-family: inherit;
   box-sizing: border-box;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 .commit-input:focus {
-  border-color: #1890ff;
+  border-color: var(--accent-color);
   outline: none;
 }
 .commit-stats {
@@ -344,11 +352,11 @@ onMounted(() => {
   gap: 8px;
 }
 .stat-add {
-  color: #52c41a;
+  color: var(--success-color);
   font-weight: 500;
 }
 .stat-del {
-  color: #ff4d4f;
+  color: var(--danger-color);
   font-weight: 500;
 }
 .commit-actions {
@@ -359,16 +367,17 @@ onMounted(() => {
 }
 .commit-actions button {
   padding: 6px 16px;
-  border: 1px solid #d9d9d9;
-  background: #fff;
+  border: 1px solid var(--border-input);
+  background: var(--bg-primary);
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
+  color: var(--text-primary);
 }
 .commit-btn {
-  background: #1890ff !important;
+  background: var(--accent-color) !important;
   color: #fff !important;
-  border-color: #1890ff !important;
+  border-color: var(--accent-color) !important;
 }
 .commit-btn:disabled {
   opacity: 0.5;
@@ -380,10 +389,10 @@ onMounted(() => {
 .error-message {
   margin-top: 8px;
   padding: 6px 8px;
-  background: #fff2f0;
-  border: 1px solid #ffccc7;
+  background: var(--bg-secondary);
+  border: 1px solid var(--danger-color);
   border-radius: 4px;
-  color: #ff4d4f;
+  color: var(--danger-color);
   font-size: 12px;
 }
 .diff-content {
@@ -395,19 +404,19 @@ onMounted(() => {
   line-height: 1.6;
 }
 .diff-add {
-  background: #e6ffed;
-  color: #22863a;
+  background: var(--diff-add-bg);
+  color: var(--diff-add-text);
 }
 .diff-del {
-  background: #ffeef0;
-  color: #cb2431;
+  background: var(--diff-del-bg);
+  color: var(--diff-del-text);
 }
 .diff-hunk {
-  background: #f0f0ff;
-  color: #666;
+  background: var(--diff-hunk-bg);
+  color: var(--text-secondary);
 }
 .diff-placeholder {
-  color: #999;
+  color: var(--text-muted);
   text-align: center;
   margin-top: 40px;
   font-size: 13px;
