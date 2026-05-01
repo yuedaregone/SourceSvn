@@ -6,7 +6,7 @@
       class="nav-item"
       :class="{ active: activeView === item.view }"
       @click="$emit('switchView', item.view)"
-      :title="item.label"
+      :title="`${item.label} (${item.shortcut})`"
     >
       <span class="nav-icon">{{ item.icon }}</span>
     </button>
@@ -25,10 +25,10 @@ defineEmits<{
 }>()
 
 const navItems = [
-  { view: 'log' as ActiveView, icon: '📋', label: '日志' },
-  { view: 'localChanges' as ActiveView, icon: '📝', label: '本地修改' },
-  { view: 'fileBrowser' as ActiveView, icon: '📂', label: '文件浏览' },
-  { view: 'shelve' as ActiveView, icon: '📦', label: 'Shelve' },
+  { view: 'log' as ActiveView, icon: '📋', label: '日志', shortcut: 'Ctrl+1' },
+  { view: 'localChanges' as ActiveView, icon: '📝', label: '本地修改', shortcut: 'Ctrl+2' },
+  { view: 'fileBrowser' as ActiveView, icon: '📂', label: '文件浏览', shortcut: 'Ctrl+3' },
+  { view: 'shelve' as ActiveView, icon: '📦', label: 'Shelve', shortcut: 'Ctrl+4' },
 ]
 </script>
 
@@ -38,7 +38,7 @@ const navItems = [
   flex-direction: column;
   width: 48px;
   background: #fafafa;
-  border-right: 1px solid #e8e8e8;
+  border-right: 1px solid var(--border-color);
   padding: 8px 0;
 }
 .nav-item {
@@ -52,12 +52,13 @@ const navItems = [
   align-items: center;
   justify-content: center;
   position: relative;
+  transition: background 0.15s;
 }
 .nav-item:hover {
-  background: #f0f0f0;
+  background: var(--hover-bg);
 }
 .nav-item.active {
-  background: #e6f7ff;
-  border-left: 3px solid #1890ff;
+  background: var(--active-bg);
+  border-left: 3px solid var(--accent-color);
 }
 </style>

@@ -1,12 +1,12 @@
 <template>
-  <div class="app-container">
+  <div class="app-container" :data-theme="theme">
     <GlobalTabBar
       :tabs="tabs"
       :activeTabIndex="activeTabIndex"
       @openSettings="showSettings = true"
       @switchTab="switchTab"
       @closeTab="closeTab"
-      @addTab="addTab"
+      @addTab="showAddRepo = true"
     />
     <Toolbar
       v-if="tabs.length > 0"
@@ -21,16 +21,42 @@
         @switchView="switchView"
       />
       <div class="view-area">
-        <LogView v-if="currentTabStore?.activeView === 'log'" :store="currentTabStore!" />
-        <LocalChangesView v-if="currentTabStore?.activeView === 'localChanges'" :store="currentTabStore!" />
-        <FileBrowserView v-if="currentTabStore?.activeView === 'fileBrowser'" :store="currentTabStore!" />
-        <ShelveView v-if="currentTabStore?.activeView === 'shelve'" :store="currentTabStore!" />
+        <LogView
+          v-if="currentTabStore?.activeView === 'log'"
+          :store="currentTabStore!"
+          @viewDiff="handleViewDiff"
+          @aiReview="handleAiReviewRevision"
+        />
+        <LocalChangesView
+          v-if="currentTabStore?.activeView === 'localChanges'"
+          :store="currentTabStore!"
+          @refresh="handleRefresh"
+          @pull="handlePull"
+          @commit="handleCommit"
+        />
+        <FileBrowserView
+          v-if="currentTabStore?.activeView === 'fileBrowser'"
+          :store="currentTabStore!"
+        />
+        <ShelveView
+          v-if="currentTabStore?.activeView === 'shelve'"
+          :store="currentTabStore!"
+        />
       </div>
     </div>
     <div class="empty-state" v-else>
-      <p>点击 "+ 新页签" 打开一个仓库</p>
+      <div class="empty-content">
+        <p class="empty-title">SourceSvn</p>
+        <p class="empty-hint">点击上方 "+ 新页签" 打开一个仓库</p>
+      </div>
     </div>
     <SettingsPage v-if="showSettings" @close="showSettings = false" />
+    <AddRepoDialog
+      :visible="showAddRepo"
+      :recentRepos="recentRepos"
+      @close="showAddRepo = false"
+      @openRepo="openRepo"
+    />
     <DiffViewer
       :visible="showDiff"
       :filePath="diffFilePath"
@@ -48,11 +74,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useConfigStore } from './stores/configStore'
 import { useTabStore } from './stores/tabStore'
-import type { TabInfo } from './types/config'
+import type { TabInfo, RepoEntry } from './types/config'
 import type { ActiveView } from './types/svn'
 import GlobalTabBar from './components/GlobalTabBar.vue'
 import IconNavBar from './components/IconNavBar.vue'
@@ -64,6 +90,7 @@ import ShelveView from './views/ShelveView.vue'
 import SettingsPage from './views/SettingsPage.vue'
 import DiffViewer from './components/DiffViewer.vue'
 import AiReviewPanel from './components/AiReviewPanel.vue'
+import AddRepoDialog from './components/AddRepoDialog.vue'
 
 type TabStoreInstance = ReturnType<ReturnType<typeof useTabStore>>
 
@@ -71,6 +98,7 @@ const configStore = useConfigStore()
 const tabs = ref<TabInfo[]>([])
 const activeTabIndex = ref(0)
 const showSettings = ref(false)
+const showAddRepo = ref(false)
 const tabStores = ref<Record<string, TabStoreInstance>>({})
 const showDiff = ref(false)
 const diffFilePath = ref('')
@@ -78,6 +106,18 @@ const diffText = ref('')
 const showAiReview = ref(false)
 const aiReviewContent = ref('')
 const aiReviewLoading = ref(false)
+
+const recentRepos = computed<RepoEntry[]>(() => {
+  return configStore.config?.session.recentRepos ?? []
+})
+
+const theme = computed(() => {
+  const t = configStore.config?.appearance.theme ?? 'light'
+  if (t === 'system') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  }
+  return t
+})
 
 const currentTabStore = computed(() => {
   if (tabs.value.length === 0) return null
@@ -100,7 +140,74 @@ onMounted(async () => {
     tabs.value = config.session.openTabs
     activeTabIndex.value = config.session.activeTabIndex || 0
   }
+  document.addEventListener('keydown', handleKeydown)
+  window.addEventListener('tauri://close-requested', saveSession)
+  startAutoRefresh()
 })
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown)
+  stopAutoRefresh()
+})
+
+let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
+
+function startAutoRefresh() {
+  stopAutoRefresh()
+  const secs = configStore.config?.behavior.autoRefreshSecs
+  if (secs && secs > 0) {
+    autoRefreshTimer = setInterval(() => {
+      if (tabs.value.length > 0 && !currentTabStore.value?.loading) {
+        refreshCurrentView()
+      }
+    }, secs * 1000)
+  }
+}
+
+function stopAutoRefresh() {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer)
+    autoRefreshTimer = null
+  }
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return
+  const views: ActiveView[] = ['log', 'localChanges', 'fileBrowser', 'shelve']
+  if (e.ctrlKey && e.key >= '1' && e.key <= '4') {
+    e.preventDefault()
+    switchView(views[parseInt(e.key) - 1])
+  } else if (e.key === 'F5') {
+    e.preventDefault()
+    handleRefresh()
+  } else if (e.ctrlKey && e.key === 'Enter') {
+    e.preventDefault()
+    handlePull()
+  }
+}
+
+function openRepo(path: string) {
+  showAddRepo.value = false
+  tabs.value.push({ repoPath: path, activeView: 'log' })
+  activeTabIndex.value = tabs.value.length - 1
+  addRecentRepo(path)
+  saveSession()
+  refreshCurrentView()
+}
+
+function addRecentRepo(path: string) {
+  if (!configStore.config) return
+  const repos = configStore.config.session.recentRepos
+  const existing = repos.findIndex((r) => r.path === path)
+  if (existing >= 0) {
+    repos[existing].lastOpened = new Date().toISOString()
+  } else {
+    repos.unshift({ path, lastOpened: new Date().toISOString() })
+    if (repos.length > configStore.config.session.maxRecentRepos) {
+      repos.pop()
+    }
+  }
+}
 
 function switchTab(index: number) {
   activeTabIndex.value = index
@@ -115,14 +222,6 @@ function closeTab(index: number) {
   if (activeTabIndex.value >= tabs.value.length) {
     activeTabIndex.value = Math.max(0, tabs.value.length - 1)
   }
-  saveSession()
-}
-
-function addTab() {
-  const path = prompt('请输入仓库工作副本路径:')
-  if (!path) return
-  tabs.value.push({ repoPath: path, activeView: 'log' })
-  activeTabIndex.value = tabs.value.length - 1
   saveSession()
 }
 
@@ -154,11 +253,42 @@ function handlePull() {
 }
 
 function handleCommit() {
-  // TODO: open commit dialog
+  switchView('localChanges')
 }
 
 function handleRefresh() {
   refreshCurrentView()
+}
+
+function handleViewDiff(revision: number) {
+  if (!currentTabStore.value) return
+  // Fetch diff for the revision's changed paths
+  const entry = currentTabStore.value.logEntries.find((e) => e.revision === revision)
+  if (!entry?.changedPaths?.length) return
+  const firstPath = entry.changedPaths[0].path
+  diffFilePath.value = firstPath
+  invoke<string>('svn_diff', {
+    path: currentTabStore.value.repoPath,
+    target: { type: 'File', data: { path: firstPath, revision: String(revision) } },
+  })
+    .then((d) => {
+      diffText.value = d
+      showDiff.value = true
+    })
+    .catch((e) => console.error('Diff failed:', e))
+}
+
+function handleAiReviewRevision(revision: number) {
+  if (!currentTabStore.value) return
+  const entry = currentTabStore.value.logEntries.find((e) => e.revision === revision)
+  if (!entry?.changedPaths?.length) return
+  const firstPath = entry.changedPaths[0].path
+  invoke<string>('svn_diff', {
+    path: currentTabStore.value.repoPath,
+    target: { type: 'File', data: { path: firstPath, revision: String(revision) } },
+  })
+    .then((d) => handleAiReview(d))
+    .catch((e) => console.error('Diff failed:', e))
 }
 
 function saveSession() {
@@ -198,12 +328,71 @@ async function handleAiReview(diff: string) {
 }
 </script>
 
+<style>
+:root,
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #fafafa;
+  --bg-tertiary: #f5f5f5;
+  --bg-hover: #f5f5f5;
+  --bg-active: #e6f7ff;
+  --text-primary: #333333;
+  --text-secondary: #666666;
+  --text-muted: #999999;
+  --border-color: #e8e8e8;
+  --border-light: #f0f0f0;
+  --border-input: #d9d9d9;
+  --accent-color: #1890ff;
+  --accent-hover: #40a9ff;
+  --success-color: #52c41a;
+  --danger-color: #ff4d4f;
+  --warning-color: #faad14;
+  --purple-color: #722ed1;
+  --diff-add-bg: #e6ffed;
+  --diff-add-text: #22863a;
+  --diff-del-bg: #ffeef0;
+  --diff-del-text: #cb2431;
+  --diff-hunk-bg: #f0f0ff;
+  --overlay-bg: rgba(0, 0, 0, 0.4);
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="dark"] {
+  --bg-primary: #1e1e1e;
+  --bg-secondary: #252526;
+  --bg-tertiary: #2d2d2d;
+  --bg-hover: #333333;
+  --bg-active: #1a3a5c;
+  --text-primary: #cccccc;
+  --text-secondary: #999999;
+  --text-muted: #666666;
+  --border-color: #3e3e3e;
+  --border-light: #333333;
+  --border-input: #555555;
+  --accent-color: #3794ff;
+  --accent-hover: #5ba8f5;
+  --success-color: #6cc070;
+  --danger-color: #f48771;
+  --warning-color: #cca700;
+  --purple-color: #b07cd8;
+  --diff-add-bg: #1a3a1a;
+  --diff-add-text: #6cc070;
+  --diff-del-bg: #3a1a1a;
+  --diff-del-text: #f48771;
+  --diff-hunk-bg: #1a1a3a;
+  --overlay-bg: rgba(0, 0, 0, 0.6);
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+</style>
+
 <style scoped>
 .app-container {
   display: flex;
   flex-direction: column;
   height: 100vh;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 .main-content {
   display: flex;
@@ -220,6 +409,18 @@ async function handleAiReview(diff: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #999;
+}
+.empty-content {
+  text-align: center;
+}
+.empty-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.empty-hint {
+  color: var(--text-muted);
+  font-size: 14px;
 }
 </style>

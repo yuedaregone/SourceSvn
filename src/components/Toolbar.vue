@@ -24,22 +24,23 @@ defineEmits<{
   display: flex;
   align-items: center;
   height: 32px;
-  background: #fff;
-  border-bottom: 1px solid #e8e8e8;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
   padding: 0 8px;
   gap: 4px;
 }
 .toolbar button {
   padding: 4px 12px;
-  border: 1px solid #d9d9d9;
-  background: #fff;
+  border: 1px solid var(--border-input);
+  background: var(--bg-primary);
+  color: var(--text-primary);
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
 }
 .toolbar button:hover:not(:disabled) {
-  border-color: #1890ff;
-  color: #1890ff;
+  border-color: var(--accent-color);
+  color: var(--accent-color);
 }
 .toolbar button:disabled {
   opacity: 0.5;
@@ -48,6 +49,6 @@ defineEmits<{
 .loading-indicator {
   margin-left: auto;
   font-size: 12px;
-  color: #999;
+  color: var(--text-muted);
 }
 </style>
