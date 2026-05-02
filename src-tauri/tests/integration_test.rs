@@ -132,11 +132,9 @@ async fn test_svn_update() {
     let result = svn::update::svn_update(REPO_PATH, TIMEOUT).await;
     assert!(result.is_ok(), "svn_update failed: {:?}", result);
     let update_result = result.unwrap();
-    println!("update: rev={}, updated={}, merged={}, conflicts={}",
+    println!("update: rev={}, files={}",
         update_result.revision,
-        update_result.updated_files.len(),
-        update_result.merged_files.len(),
-        update_result.conflicts.len()
+        update_result.files.len()
     );
 }
 
