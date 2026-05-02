@@ -21,6 +21,7 @@ pub enum FileStatusType {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct LogEntry {
     pub revision: u64,
     pub author: String,
@@ -31,6 +32,7 @@ pub struct LogEntry {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ChangedPath {
     pub path: String,
     pub action: PathAction,
