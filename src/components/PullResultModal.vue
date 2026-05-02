@@ -43,7 +43,7 @@
           </thead>
           <tbody>
             <tr
-              v-for="(file, idx) in sortedFiles"
+              v-for="file in sortedFiles"
               :key="file.path"
               :class="{ 'row-conflict': file.status === 'C' }"
             >
@@ -91,10 +91,6 @@ import type { UpdateResult, UpdateFileItem } from '../types/svn'
 const props = defineProps<{
   visible: boolean
   result: UpdateResult | null
-}>()
-
-const emit = defineEmits<{
-  close: []
 }>()
 
 const STATUS_ORDER: Record<string, number> = { C: 0, M: 1, A: 2, U: 2 }
