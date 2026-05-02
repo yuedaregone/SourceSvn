@@ -116,11 +116,18 @@ async fn run_cmd_output(
 
     if !output.status.success() {
         let stderr = decode_bytes(&output.stderr);
+        // DIAGNOSTIC: log raw stderr bytes on failure
+        let hex: Vec<String> = output.stderr.iter().take(200).map(|b| format!("{:02x}", b)).collect();
+        eprintln!("[sourcesvn] svn stderr raw hex: {}", hex.join(" "));
         return Err(AppError::Svn(format!(
             "SVN command failed: {}",
             stderr.trim()
         )));
     }
+
+    // DIAGNOSTIC: log raw stdout bytes
+    let hex: Vec<String> = output.stdout.iter().take(200).map(|b| format!("{:02x}", b)).collect();
+    eprintln!("[sourcesvn] svn stdout raw hex (first 200 bytes): {}", hex.join(" "));
 
     Ok(decode_bytes(&output.stdout))
 }
