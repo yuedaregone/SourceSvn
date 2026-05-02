@@ -30,12 +30,12 @@ async fn commit_with_message_file(
 ) -> Result<String, AppError> {
     let msg_file = std::path::PathBuf::from(path).join(".svn_commit_msg");
 
-    // Write message in GBK (system code page on Chinese Windows).
+    // Write message as UTF-8 bytes.
+    // svn.exe on Windows reads -F files as UTF-8, so the bytes must be UTF-8.
     #[cfg(target_os = "windows")]
     {
-        let (gbk_bytes, _, _) = encoding_rs::GBK.encode(message);
-        debug_log_bytes("temp file GBK bytes", &gbk_bytes);
-        std::fs::write(&msg_file, &gbk_bytes)
+        debug_log_bytes("temp file UTF-8 bytes", message.as_bytes());
+        std::fs::write(&msg_file, message.as_bytes())
             .map_err(|e| AppError::Fs(format!("Failed to write commit message file: {}", e)))?;
     }
     #[cfg(not(target_os = "windows"))]
