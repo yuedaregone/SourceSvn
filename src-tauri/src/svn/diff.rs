@@ -7,35 +7,38 @@ pub async fn svn_diff(
     target: &DiffTarget,
     timeout_secs: u64,
 ) -> Result<String, AppError> {
-    let mut args = vec!["diff".to_string()];
-
     match target {
         DiffTarget::File {
             path: file_path,
             revision,
-            base_revision,
         } => {
-            args.push(file_path.clone());
-            match (base_revision, revision) {
-                (Some(base), Some(rev)) => {
-                    args.push("-r".to_string());
-                    args.push(format!("{}:{}", base, rev));
-                }
-                (None, Some(rev)) => {
-                    args.push("-r".to_string());
-                    args.push(rev.clone());
-                }
-                _ => {}
+            let mut args = vec!["diff".to_string(), file_path.clone()];
+            if let Some(rev) = revision {
+                args.push("-r".to_string());
+                args.push(rev.clone());
             }
+            let args_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+            crate::svn::run_svn_utf8_async_in_dir(&args_refs, timeout_secs, Some(path)).await
+        }
+        DiffTarget::FileAtRevision {
+            path: file_path,
+            base_revision,
+            revision,
+        } => {
+            let info_xml =
+                crate::svn::run_svn_utf8_async(&["info", "--xml", path], timeout_secs).await?;
+            let info = crate::svn::info::parse_info_for_log(&info_xml)?;
+            let file_url = format!("{}{}", info.url, file_path);
+            let rev_range = format!("{}:{}", base_revision, revision);
+            let args = vec!["diff", "-r", &rev_range, &file_url];
+            crate::svn::run_svn_utf8_async(&args, timeout_secs).await
         }
         DiffTarget::Revisions { old_rev, new_rev } => {
-            args.push("-r".to_string());
-            args.push(format!("{}:{}", old_rev, new_rev));
+            let rev_range = format!("{}:{}", old_rev, new_rev);
+            let args = vec!["diff", "-r", &rev_range];
+            crate::svn::run_svn_utf8_async_in_dir(&args, timeout_secs, Some(path)).await
         }
     }
-
-    let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-    crate::svn::run_svn_utf8_async_in_dir(&args_refs, timeout_secs, Some(path)).await
 }
 
 pub async fn diff_unversioned_file(repo_path: &str, file_path: &str) -> Result<String, AppError> {

@@ -51,7 +51,8 @@ export interface ShelveInfo {
 }
 
 export type DiffTarget =
-  | { type: 'File'; data: { path: string; revision?: string; baseRevision?: string } }
+  | { type: 'File'; data: { path: string; revision?: string } }
+  | { type: 'FileAtRevision'; data: { path: string; baseRevision: string; revision: string } }
   | { type: 'Revisions'; data: { oldRev: string; newRev: string } }
 
 export interface CommitResult {

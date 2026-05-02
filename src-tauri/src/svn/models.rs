@@ -92,8 +92,11 @@ pub enum DiffTarget {
         path: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         revision: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        base_revision: Option<String>,
+    },
+    FileAtRevision {
+        path: String,
+        base_revision: String,
+        revision: String,
     },
     Revisions {
         old_rev: String,
