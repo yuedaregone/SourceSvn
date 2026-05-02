@@ -18,8 +18,14 @@ pub fn load_config() -> AppConfig {
 }
 
 pub fn save_config(config: &AppConfig) -> Result<(), String> {
-    confy::store(APP_NAME, Some("config"), config)
-        .map_err(|e| format!("[CFG] Failed to save config: {}", e))
+    log::debug!("Attempting to save config: {:?}", config);
+    match confy::store(APP_NAME, Some("config"), config) {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            log::error!("Failed to serialize config to TOML: {}", e);
+            Err(format!("[CFG] Failed to save config: {}", e))
+        }
+    }
 }
 
 fn migrate_if_needed(mut cfg: AppConfig) -> AppConfig {

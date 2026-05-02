@@ -12,22 +12,15 @@ struct InfoXml {
 #[derive(Deserialize)]
 struct InfoDetail {
     url: Option<String>,
+    #[serde(rename = "@revision")]
     revision: Option<String>,
     repository: Option<InfoRepository>,
-    #[serde(rename = "wc-info")]
-    wc_info: Option<InfoWcInfo>,
     commit: Option<InfoCommit>,
 }
 
 #[derive(Deserialize)]
 struct InfoRepository {
     root: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct InfoWcInfo {
-    #[serde(rename = "revision")]
-    revision: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -99,13 +92,11 @@ pub fn parse_info_for_log(xml: &str) -> Result<RepoInfoParsed, AppError> {
         .entry
         .ok_or_else(|| AppError::Svn("No entry found in info XML".to_string()))?;
     let url = entry.url.unwrap_or_default();
-    eprintln!("[parse_info_for_log] wc_info={:?}", entry.wc_info);
     let wc_revision = entry
-        .wc_info
-        .and_then(|w| w.revision)
+        .revision
         .and_then(|r| r.parse::<u64>().ok())
         .unwrap_or(0);
-    eprintln!("[parse_info_for_log] url={}, wc_revision={}", url, wc_revision);
+    
     Ok(RepoInfoParsed { url, wc_revision })
 }
 

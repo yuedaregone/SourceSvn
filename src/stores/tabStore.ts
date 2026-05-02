@@ -26,6 +26,7 @@ export const useTabStore = (id: string) =>
             path: this.repoPath,
             limit: limit ?? 100,
           })
+          console.log('[refreshLog] svn_log_server raw result:', JSON.stringify(result))
           console.log('[refreshLog] svn_log_server returned:', result.entries.length, 'entries, wcRevision=', result.wcRevision)
           this.logEntries = result.entries
           this.wcRevision = result.wcRevision

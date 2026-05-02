@@ -56,16 +56,7 @@ pub struct SessionConfig {
 #[serde(rename_all = "camelCase")]
 pub struct TabInfo {
     pub repo_path: String,
-    pub active_view: ActiveView,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub enum ActiveView {
-    Log,
-    LocalChanges,
-    FileBrowser,
-    Shelve,
+    pub active_view: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
