@@ -106,8 +106,11 @@ pub async fn svn_log_server(
     timeout_secs: u64,
 ) -> Result<WcLogResult, AppError> {
     // Get repo URL and working copy revision via svn info
+    eprintln!("[svn_log_server] path={}", path);
     let info_xml = crate::svn::run_svn_utf8_async(&["info", "--xml", path], timeout_secs).await?;
+    eprintln!("[svn_log_server] info_xml={}", &info_xml[..info_xml.len().min(500)]);
     let info = crate::svn::info::parse_info_for_log(&info_xml)?;
+    eprintln!("[svn_log_server] repo_url={}, wc_rev={}", info.url, info.wc_revision);
     let repo_url = info.url;
     let wc_rev = info.wc_revision;
 
@@ -119,8 +122,11 @@ pub async fn svn_log_server(
         limit_str = l.to_string();
         args.push(&limit_str);
     }
+    eprintln!("[svn_log_server] svn log args={:?}", args);
     let xml = crate::svn::run_svn_utf8_async(&args, timeout_secs).await?;
+    eprintln!("[svn_log_server] log_xml len={}", xml.len());
     let entries = parse_log_xml(&xml)?;
+    eprintln!("[svn_log_server] parsed {} entries", entries.len());
 
     let entries = entries
         .into_iter()

@@ -27,7 +27,15 @@ export const useTabStore = (id: string) =>
           this.logEntries = result.entries
           this.wcRevision = result.wcRevision
         } catch (e) {
-          console.error('Failed to refresh log:', e)
+          console.warn('svn_log_server failed, falling back to svn_log:', e)
+          try {
+            this.logEntries = await invoke<LogEntry[]>('svn_log', {
+              path: this.repoPath,
+              limit: limit ?? 100,
+            })
+          } catch (e2) {
+            console.error('Failed to refresh log (fallback):', e2)
+          }
         } finally {
           this.loading = false
         }
