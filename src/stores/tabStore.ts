@@ -20,21 +20,25 @@ export const useTabStore = (id: string) =>
       async refreshLog(limit?: number) {
         this.loading = true
         try {
+          console.log('[refreshLog] calling svn_log_server, path=', this.repoPath)
           const result = await invoke<WcLogResult>('svn_log_server', {
             path: this.repoPath,
             limit: limit ?? 100,
           })
+          console.log('[refreshLog] svn_log_server returned:', result.entries.length, 'entries, wcRevision=', result.wcRevision)
           this.logEntries = result.entries
           this.wcRevision = result.wcRevision
         } catch (e) {
-          console.warn('svn_log_server failed, falling back to svn_log:', e)
+          console.warn('[refreshLog] svn_log_server FAILED:', e)
+          console.warn('[refreshLog] falling back to svn_log...')
           try {
             this.logEntries = await invoke<LogEntry[]>('svn_log', {
               path: this.repoPath,
               limit: limit ?? 100,
             })
+            console.log('[refreshLog] svn_log fallback returned:', this.logEntries.length, 'entries')
           } catch (e2) {
-            console.error('Failed to refresh log (fallback):', e2)
+            console.error('[refreshLog] svn_log fallback also FAILED:', e2)
           }
         } finally {
           this.loading = false

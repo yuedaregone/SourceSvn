@@ -105,16 +105,18 @@ pub async fn svn_log_server(
     limit: Option<u32>,
     timeout_secs: u64,
 ) -> Result<WcLogResult, AppError> {
-    // Get repo URL and working copy revision via svn info
-    eprintln!("[svn_log_server] path={}", path);
+    eprintln!("[svn_log_server] === START ===");
+    eprintln!("[svn_log_server] path={}, limit={:?}", path, limit);
+
+    // Step 1: svn info
     let info_xml = crate::svn::run_svn_utf8_async(&["info", "--xml", path], timeout_secs).await?;
-    eprintln!("[svn_log_server] info_xml={}", &info_xml[..info_xml.len().min(500)]);
+    eprintln!("[svn_log_server] step1 svn info xml ({} chars):\n{}", info_xml.len(), info_xml);
     let info = crate::svn::info::parse_info_for_log(&info_xml)?;
-    eprintln!("[svn_log_server] repo_url={}, wc_rev={}", info.url, info.wc_revision);
+    eprintln!("[svn_log_server] step1 parsed: url=\"{}\", wc_revision={}", info.url, info.wc_revision);
     let repo_url = info.url;
     let wc_rev = info.wc_revision;
 
-    // Query full log from server using repo URL (not local path)
+    // Step 2: svn log via URL
     let mut args = vec!["log", "--xml", "-v", &repo_url];
     let limit_str;
     if let Some(l) = limit {
@@ -122,18 +124,22 @@ pub async fn svn_log_server(
         limit_str = l.to_string();
         args.push(&limit_str);
     }
-    eprintln!("[svn_log_server] svn log args={:?}", args);
+    eprintln!("[svn_log_server] step2 svn log args={:?}", args);
     let xml = crate::svn::run_svn_utf8_async(&args, timeout_secs).await?;
-    eprintln!("[svn_log_server] log_xml len={}", xml.len());
+    eprintln!("[svn_log_server] step2 svn log xml ({} chars)", xml.len());
     let entries = parse_log_xml(&xml)?;
-    eprintln!("[svn_log_server] parsed {} entries", entries.len());
 
-    let entries = entries
+    // Step 3: classify local vs non-local
+    let mut local_count = 0u32;
+    let mut remote_count = 0u32;
+    let entries: Vec<LogEntry> = entries
         .into_iter()
         .map(|e| {
             if e.revision <= wc_rev {
+                local_count += 1;
                 e
             } else {
+                remote_count += 1;
                 LogEntry {
                     revision: e.revision,
                     author: e.author,
@@ -144,6 +150,8 @@ pub async fn svn_log_server(
             }
         })
         .collect();
+    eprintln!("[svn_log_server] step3 total={}, local={}, remote={}", entries.len(), local_count, remote_count);
+    eprintln!("[svn_log_server] === END ===");
 
     Ok(WcLogResult {
         entries,
