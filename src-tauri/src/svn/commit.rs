@@ -2,6 +2,48 @@ use crate::common::AppError;
 use crate::svn::models::{CommitResult, FileStatusType};
 use std::collections::HashSet;
 
+/// Write the commit message to a temp file and commit with -F,
+/// avoiding command-line argument encoding issues on Windows.
+///
+/// On Chinese Windows, `svn commit -m "中文"` can corrupt the message because
+/// SVN's internal handling may re-encode UTF-16 args through the system code page.
+/// Writing to a file and using `-F` bypasses this: the bytes are read from disk
+/// directly by SVN using the system code page, avoiding the argv encoding round-trip.
+async fn commit_with_message_file(
+    path: &str,
+    message: &str,
+    files: &[String],
+    timeout_secs: u64,
+) -> Result<String, AppError> {
+    let msg_file = std::path::PathBuf::from(path).join(".svn_commit_msg");
+
+    // Write message in GBK (system code page on Chinese Windows).
+    // SVN reads the file using the system code page, so the bytes must match.
+    #[cfg(target_os = "windows")]
+    {
+        let (gbk_bytes, _, _) = encoding_rs::GBK.encode(message);
+        std::fs::write(&msg_file, &gbk_bytes)
+            .map_err(|e| AppError::Fs(format!("Failed to write commit message file: {}", e)))?;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::fs::write(&msg_file, message.as_bytes())
+            .map_err(|e| AppError::Fs(format!("Failed to write commit message file: {}", e)))?;
+    }
+
+    let msg_file_str = msg_file.to_str().unwrap_or("");
+    let mut args = vec!["commit", "-F", msg_file_str];
+    for f in files {
+        args.push(f);
+    }
+    let result = crate::svn::run_svn_async_in_dir(&args, timeout_secs, Some(path)).await;
+
+    // Clean up temp file
+    let _ = std::fs::remove_file(&msg_file);
+
+    result
+}
+
 pub async fn svn_commit(
     path: &str,
     message: &str,
@@ -10,11 +52,7 @@ pub async fn svn_commit(
 ) -> Result<CommitResult, AppError> {
     auto_add_unversioned(path, files, timeout_secs).await?;
 
-    let mut args = vec!["commit", "-m", message];
-    for f in files {
-        args.push(f);
-    }
-    let output = crate::svn::run_svn_async_in_dir(&args, timeout_secs, Some(path)).await?;
+    let output = commit_with_message_file(path, message, files, timeout_secs).await?;
 
     let revision = extract_revision_from_output(&output);
     Ok(CommitResult {
