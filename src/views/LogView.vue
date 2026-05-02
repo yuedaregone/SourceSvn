@@ -174,15 +174,16 @@ async function selectFile(filePath: string) {
   try {
     const result = await invoke<string>('svn_diff', {
       path: props.store.repoPath,
-      target: { type: 'FileAtRevision', data: { path: filePath, revision: String(expandedRevision.value), baseRevision: String(expandedRevision.value! - 1) } },
+      target: { type: 'fileAtRevision', data: { path: filePath, revision: String(expandedRevision.value), baseRevision: String(expandedRevision.value! - 1) } },
     })
     if (result.includes('Binary files')) {
       isBinaryFile.value = true
     } else {
       fileDiffText.value = result
     }
-  } catch {
-    fileDiffText.value = '获取差异失败'
+  } catch (error) {
+    console.error('SVN diff error:', error)
+    fileDiffText.value = `获取差异失败: ${error.message || JSON.stringify(error)}`
   } finally {
     fileDiffLoading.value = false
   }

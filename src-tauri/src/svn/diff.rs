@@ -28,7 +28,21 @@ pub async fn svn_diff(
             let info_xml =
                 crate::svn::run_svn_utf8_async(&["info", "--xml", path], timeout_secs).await?;
             let info = crate::svn::info::parse_info_for_log(&info_xml)?;
-            let file_url = format!("{}{}", info.url, file_path);
+            let file_url = if info.root.is_empty() {
+                // 如果无法获取根 URL，使用当前 URL（降级方案）
+                if info.url.ends_with('/') {
+                    format!("{}{}", info.url, file_path)
+                } else {
+                    format!("{}/{}", info.url, file_path)
+                }
+            } else {
+                // 使用仓库根 URL + 相对路径构建完整 URL
+                if info.root.ends_with('/') {
+                    format!("{}{}", info.root, file_path)
+                } else {
+                    format!("{}/{}", info.root, file_path)
+                }
+            };
             let rev_range = format!("{}:{}", base_revision, revision);
             let args = vec!["diff", "-r", &rev_range, &file_url];
             crate::svn::run_svn_utf8_async(&args, timeout_secs).await

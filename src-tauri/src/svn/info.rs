@@ -82,6 +82,7 @@ pub async fn svn_info(path: &str, timeout_secs: u64) -> Result<RepoInfo, AppErro
 
 pub struct RepoInfoParsed {
     pub url: String,
+    pub root: String,
     pub wc_revision: u64,
 }
 
@@ -92,12 +93,16 @@ pub fn parse_info_for_log(xml: &str) -> Result<RepoInfoParsed, AppError> {
         .entry
         .ok_or_else(|| AppError::Svn("No entry found in info XML".to_string()))?;
     let url = entry.url.unwrap_or_default();
+    let root = entry
+        .repository
+        .and_then(|r| r.root)
+        .unwrap_or_default();
     let wc_revision = entry
         .revision
         .and_then(|r| r.parse::<u64>().ok())
         .unwrap_or(0);
     
-    Ok(RepoInfoParsed { url, wc_revision })
+    Ok(RepoInfoParsed { url, root, wc_revision })
 }
 
 #[cfg(test)]
