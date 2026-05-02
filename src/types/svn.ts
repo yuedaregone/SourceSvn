@@ -60,11 +60,15 @@ export interface CommitResult {
   errors?: string[]
 }
 
+export interface UpdateFileItem {
+  path: string
+  status: 'A' | 'U' | 'M' | 'C'
+  author: string
+}
+
 export interface UpdateResult {
   revision: number
-  updatedFiles: string[]
-  mergedFiles: string[]
-  conflicts: string[]
+  files: UpdateFileItem[]
 }
 
 export type ActiveView = 'log' | 'localChanges' | 'fileBrowser' | 'shelve'
