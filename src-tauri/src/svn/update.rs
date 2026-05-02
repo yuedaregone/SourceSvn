@@ -80,7 +80,11 @@ async fn fetch_authors_for_revision(
     if let Some(entry) = entries.into_iter().next() {
         if let Some(changed_paths) = entry.changed_paths {
             for cp in changed_paths {
-                author_map.insert(cp.path, entry.author.clone());
+                // SVN log paths have leading "/" and are repo-relative
+                // (e.g., "/trunk/file.rs"). Strip leading "/" to match
+                // the local relative paths from svn update output.
+                let normalized = cp.path.trim_start_matches('/');
+                author_map.insert(normalized.to_string(), entry.author.clone());
             }
         }
     }
@@ -104,10 +108,10 @@ pub async fn svn_update(path: &str, timeout_secs: u64) -> Result<UpdateResult, A
 
     let files = raw_files
         .into_iter()
-        .map(|(path, status)| {
-            let author = author_map.get(&path).cloned().unwrap_or_default();
+        .map(|(file_path, status)| {
+            let author = author_map.get(&file_path).cloned().unwrap_or_default();
             UpdateFileItem {
-                path,
+                path: file_path,
                 status,
                 author,
             }
