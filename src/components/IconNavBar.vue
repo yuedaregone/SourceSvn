@@ -8,12 +8,13 @@
       @click="$emit('switchView', item.view)"
       :title="`${item.label} (${item.shortcut})`"
     >
-      <span class="nav-icon">{{ item.icon }}</span>
+      <component :is="item.icon" :size="20" class="nav-icon" />
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ClipboardList, FileEdit, FolderTree, Package } from 'lucide-vue-next'
 import type { ActiveView } from '../types/svn'
 
 defineProps<{
@@ -25,10 +26,10 @@ defineEmits<{
 }>()
 
 const navItems = [
-  { view: 'log' as ActiveView, icon: '📋', label: '日志', shortcut: 'Ctrl+1' },
-  { view: 'localChanges' as ActiveView, icon: '📝', label: '本地修改', shortcut: 'Ctrl+2' },
-  { view: 'fileBrowser' as ActiveView, icon: '📂', label: '文件浏览', shortcut: 'Ctrl+3' },
-  { view: 'shelve' as ActiveView, icon: '📦', label: 'Shelve', shortcut: 'Ctrl+4' },
+  { view: 'log' as ActiveView, icon: ClipboardList, label: '日志', shortcut: 'Ctrl+1' },
+  { view: 'localChanges' as ActiveView, icon: FileEdit, label: '本地修改', shortcut: 'Ctrl+2' },
+  { view: 'fileBrowser' as ActiveView, icon: FolderTree, label: '文件浏览', shortcut: 'Ctrl+3' },
+  { view: 'shelve' as ActiveView, icon: Package, label: 'Shelve', shortcut: 'Ctrl+4' },
 ]
 </script>
 
@@ -47,18 +48,32 @@ const navItems = [
   border: none;
   background: transparent;
   cursor: pointer;
-  font-size: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  transition: background 0.15s;
+  transition: background 0.15s, color 0.15s;
+  color: var(--text-secondary);
 }
 .nav-item:hover {
   background: var(--bg-hover);
+  color: var(--text-primary);
 }
 .nav-item.active {
   background: var(--bg-active);
-  border-left: 3px solid var(--accent-color);
+  color: var(--accent-color);
+}
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  background: var(--accent-color);
+  border-radius: 0 2px 2px 0;
+}
+.nav-icon {
+  flex-shrink: 0;
 }
 </style>

@@ -2,60 +2,25 @@ use crate::common::AppError;
 use crate::svn::models::{CommitResult, FileStatusType};
 use std::collections::HashSet;
 
-fn debug_log(msg: &str) {
-    let path = std::env::temp_dir().join("sourcesvn_debug.log");
-    use std::io::Write;
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
-        let _ = writeln!(f, "{}", msg);
-    }
-}
-
-fn debug_log_bytes(label: &str, bytes: &[u8]) {
-    let hex: Vec<String> = bytes.iter().map(|b| format!("{:02x}", b)).collect();
-    debug_log(&format!("{}: [hex] {}  [len] {}", label, hex.join(" "), bytes.len()));
-}
-
-/// Write the commit message to a temp file and commit with -F,
-/// avoiding command-line argument encoding issues on Windows.
-///
-/// On Chinese Windows, `svn commit -m "中文"` can corrupt the message because
-/// SVN's internal handling may re-encode UTF-16 args through the system code page.
-/// Writing to a file and using `-F` bypasses this: the bytes are read from disk
-/// directly by SVN using the system code page, avoiding the argv encoding round-trip.
-async fn commit_with_message_file(
+/// Commit with -m and platform-specific encoding parameter.
+/// On Windows, Rust's Command converts UTF-8 strings to GBK (system code page),
+/// so we specify --encoding GBK. On other platforms, UTF-8 is preserved.
+async fn commit_with_message(
     path: &str,
     message: &str,
     files: &[String],
     timeout_secs: u64,
 ) -> Result<String, AppError> {
-    let msg_file = std::path::PathBuf::from(path).join(".svn_commit_msg");
-
-    // Write message as UTF-8 bytes.
-    // svn.exe on Windows reads -F files as UTF-8, so the bytes must be UTF-8.
     #[cfg(target_os = "windows")]
-    {
-        debug_log_bytes("temp file UTF-8 bytes", message.as_bytes());
-        std::fs::write(&msg_file, message.as_bytes())
-            .map_err(|e| AppError::Fs(format!("Failed to write commit message file: {}", e)))?;
-    }
+    let encoding = "GBK";
     #[cfg(not(target_os = "windows"))]
-    {
-        std::fs::write(&msg_file, message.as_bytes())
-            .map_err(|e| AppError::Fs(format!("Failed to write commit message file: {}", e)))?;
-    }
+    let encoding = "UTF-8";
 
-    let msg_file_str = msg_file.to_str().unwrap_or("");
-    debug_log(&format!("svn args: commit -F {} {}", msg_file_str, files.join(" ")));
-    let mut args = vec!["commit", "-F", msg_file_str];
+    let mut args = vec!["commit", "-m", message, "--encoding", encoding];
     for f in files {
         args.push(f);
     }
-    let result = crate::svn::run_svn_async_in_dir(&args, timeout_secs, Some(path)).await;
-
-    // Clean up temp file
-    let _ = std::fs::remove_file(&msg_file);
-
-    result
+    crate::svn::run_svn_async_in_dir(&args, timeout_secs, Some(path)).await
 }
 
 pub async fn svn_commit(
@@ -64,31 +29,11 @@ pub async fn svn_commit(
     files: &[String],
     timeout_secs: u64,
 ) -> Result<CommitResult, AppError> {
-    // ===== DIAGNOSTIC: log message encoding at every stage =====
-    debug_log("====== svn_commit called ======");
-    debug_log(&format!("message (Rust String): {:?}", message));
-    debug_log_bytes("message UTF-8 bytes", message.as_bytes());
-    #[cfg(target_os = "windows")]
-    {
-        let (gbk, _, _) = encoding_rs::GBK.encode(message);
-        debug_log_bytes("message GBK bytes", &gbk);
-    }
-    // Check what the system code page is
-    debug_log(&format!("FILES: {:?}", files));
-    // ===== END DIAGNOSTIC =====
-
     auto_add_unversioned(path, files, timeout_secs).await?;
 
-    let output = commit_with_message_file(path, message, files, timeout_secs).await?;
-
-    // ===== DIAGNOSTIC: log subprocess output =====
-    debug_log(&format!("svn output: {}", output));
-    debug_log_bytes("svn output UTF-8 bytes", output.as_bytes());
-    // ===== END DIAGNOSTIC =====
+    let output = commit_with_message(path, message, files, timeout_secs).await?;
 
     let revision = extract_revision_from_output(&output);
-    debug_log(&format!("committed revision: {}", revision));
-    debug_log("====== svn_commit done ======\n");
 
     Ok(CommitResult {
         revision,
