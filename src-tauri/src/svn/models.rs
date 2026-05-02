@@ -120,6 +120,7 @@ pub struct ReviewChunkEvent {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct WcLogResult {
     pub entries: Vec<LogEntry>,
     pub wc_revision: u64,
