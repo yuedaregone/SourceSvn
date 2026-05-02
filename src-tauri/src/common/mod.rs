@@ -47,9 +47,9 @@ pub struct AppearanceConfig {
 #[serde(rename_all = "camelCase")]
 pub struct SessionConfig {
     pub open_tabs: Vec<TabInfo>,
-    pub active_tab_index: usize,
+    pub active_tab_index: u64,
     pub recent_repos: Vec<RepoEntry>,
-    pub max_recent_repos: usize,
+    pub max_recent_repos: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
