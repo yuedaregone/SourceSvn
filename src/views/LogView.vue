@@ -174,7 +174,7 @@ async function selectFile(filePath: string) {
   try {
     const result = await invoke<string>('svn_diff', {
       path: props.store.repoPath,
-      target: { type: 'File', data: { path: filePath, revision: String(expandedRevision.value) } },
+      target: { type: 'File', data: { path: filePath, revision: String(expandedRevision.value), baseRevision: String(expandedRevision.value! - 1) } },
     })
     if (result.includes('Binary files')) {
       isBinaryFile.value = true

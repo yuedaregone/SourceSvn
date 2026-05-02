@@ -13,11 +13,19 @@ pub async fn svn_diff(
         DiffTarget::File {
             path: file_path,
             revision,
+            base_revision,
         } => {
             args.push(file_path.clone());
-            if let Some(rev) = revision {
-                args.push("-r".to_string());
-                args.push(rev.clone());
+            match (base_revision, revision) {
+                (Some(base), Some(rev)) => {
+                    args.push("-r".to_string());
+                    args.push(format!("{}:{}", base, rev));
+                }
+                (None, Some(rev)) => {
+                    args.push("-r".to_string());
+                    args.push(rev.clone());
+                }
+                _ => {}
             }
         }
         DiffTarget::Revisions { old_rev, new_rev } => {

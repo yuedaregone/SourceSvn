@@ -86,12 +86,14 @@ pub struct ShelveInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "type", content = "data")]
+#[serde(tag = "type", content = "data", rename_all = "camelCase")]
 pub enum DiffTarget {
     File {
         path: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         revision: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        base_revision: Option<String>,
     },
     Revisions {
         old_rev: String,
