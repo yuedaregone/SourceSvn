@@ -1,6 +1,8 @@
 <template>
   <div class="tab-bar">
-    <button class="settings-btn" @click="$emit('openSettings')" title="设置">⚙</button>
+    <button class="settings-btn" @click="$emit('openSettings')" title="设置">
+      <Settings :size="16" />
+    </button>
     <div class="tabs">
       <div
         v-for="(tab, index) in tabs"
@@ -19,6 +21,7 @@
 </template>
 
 <script setup lang="ts">
+import { Settings } from 'lucide-vue-next'
 import type { TabInfo } from '../types/config'
 
 defineProps<{

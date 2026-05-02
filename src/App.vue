@@ -21,23 +21,23 @@
       />
       <div class="view-area">
         <LogView
-          v-if="currentTabStore?.activeView === 'log'"
-          :store="currentTabStore!"
+          v-if="currentTabStore && currentTabStore.activeView === 'log'"
+          :store="currentTabStore"
           @viewDiff="handleViewDiff"
           @aiReview="handleAiReviewRevision"
         />
         <LocalChangesView
-          v-if="currentTabStore?.activeView === 'localChanges'"
-          :store="currentTabStore!"
+          v-if="currentTabStore && currentTabStore.activeView === 'localChanges'"
+          :store="currentTabStore"
           @refresh="handleRefresh"
         />
         <FileBrowserView
-          v-if="currentTabStore?.activeView === 'fileBrowser'"
-          :store="currentTabStore!"
+          v-if="currentTabStore && currentTabStore.activeView === 'fileBrowser'"
+          :store="currentTabStore"
         />
         <ShelveView
-          v-if="currentTabStore?.activeView === 'shelve'"
-          :store="currentTabStore!"
+          v-if="currentTabStore && currentTabStore.activeView === 'shelve'"
+          :store="currentTabStore"
         />
       </div>
     </div>
@@ -130,6 +130,12 @@ const currentTabStore = computed(() => {
   return tabStores.value[key]
 })
 
+const handleVisibilityChange = () => {
+  if (document.visibilityState === 'visible') {
+    refreshCurrentView()
+  }
+}
+
 onMounted(async () => {
   await configStore.loadConfig()
   const config = configStore.config
@@ -138,11 +144,7 @@ onMounted(async () => {
     activeTabIndex.value = config.session.activeTabIndex || 0
   }
   document.addEventListener('keydown', handleKeydown)
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      refreshCurrentView()
-    }
-  })
+  document.addEventListener('visibilitychange', handleVisibilityChange)
   window.addEventListener('tauri://close-requested', async () => {
     await saveSession()
     const { getCurrentWindow } = await import('@tauri-apps/api/window')
@@ -153,6 +155,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
   stopAutoRefresh()
 })
 
@@ -221,7 +224,9 @@ function switchTab(index: number) {
 
 function closeTab(index: number) {
   const key = `${index}`
-  if (tabStores.value[key]) {
+  const store = tabStores.value[key]
+  if (store) {
+    store.$dispose()
     delete tabStores.value[key]
   }
   tabs.value.splice(index, 1)
@@ -245,10 +250,13 @@ function switchView(view: ActiveView) {
 function refreshCurrentView() {
   if (!currentTabStore.value) return
   const view = currentTabStore.value.activeView
-  if (view === 'log') currentTabStore.value.refreshLog()
-  else if (view === 'localChanges') currentTabStore.value.refreshLocalChanges()
-  else if (view === 'fileBrowser') currentTabStore.value.refreshFileBrowser()
-  else if (view === 'shelve') currentTabStore.value.refreshShelves()
+  const refreshMap: Record<ActiveView, () => void> = {
+    log: () => currentTabStore.value!.refreshLog(),
+    localChanges: () => currentTabStore.value!.refreshLocalChanges(),
+    fileBrowser: () => currentTabStore.value!.refreshFileBrowser(),
+    shelve: () => currentTabStore.value!.refreshShelves(),
+  }
+  refreshMap[view]?.()
 }
 
 function handlePull() {

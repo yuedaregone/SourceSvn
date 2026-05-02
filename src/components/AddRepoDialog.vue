@@ -15,6 +15,9 @@
           <label>工作副本路径</label>
           <div class="input-with-btn">
             <input v-model="localPath" placeholder="C:\path\to\working\copy" @keyup.enter="openLocal" />
+            <button @click="browseLocalPath" class="browse-btn" title="浏览...">
+              <FolderOpen :size="16" />
+            </button>
           </div>
         </div>
 
@@ -66,6 +69,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-dialog'
+import { FolderOpen } from 'lucide-vue-next'
 import type { RepoEntry } from '../types/config'
 
 defineProps<{
@@ -95,6 +100,16 @@ function formatDate(dateStr: string) {
 function selectRecent(path: string) {
   localPath.value = path
   mode.value = 'local'
+}
+
+async function browseLocalPath() {
+  const selected = await open({
+    title: '选择工作副本目录',
+    directory: true,
+  })
+  if (selected) {
+    localPath.value = selected.toString()
+  }
 }
 
 function openLocal() {
@@ -217,6 +232,20 @@ async function doCheckout() {
 }
 .input-with-btn input {
   flex: 1;
+}
+.browse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border: 1px solid var(--border-input);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.browse-btn:hover {
+  background: var(--bg-hover);
 }
 .recent-section {
   margin-top: 8px;
