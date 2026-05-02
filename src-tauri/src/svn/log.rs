@@ -1,5 +1,5 @@
 use crate::common::AppError;
-use crate::svn::models::{ChangedPath, LogEntry, PathAction};
+use crate::svn::models::{ChangedPath, LogEntry, PathAction, WcLogResult};
 use quick_xml::de::from_str;
 use serde::Deserialize;
 
@@ -98,6 +98,53 @@ pub async fn svn_log(
     }
     let xml = crate::svn::run_svn_utf8_async(&args, timeout_secs).await?;
     parse_log_xml(&xml)
+}
+
+pub async fn svn_log_server(
+    path: &str,
+    limit: Option<u32>,
+    timeout_secs: u64,
+) -> Result<WcLogResult, AppError> {
+    // Get repo URL and working copy revision via svn info
+    let info_xml = crate::svn::run_svn_async(&["info", "--xml", path], timeout_secs).await?;
+    let info: crate::svn::info::RepoInfoParsed =
+        crate::svn::info::parse_info_for_log(&info_xml)?;
+    let repo_url = info.url;
+    let wc_rev = info.wc_revision;
+
+    // Query full log from server using URL (not local path)
+    let mut args = vec!["log", "--xml", "-v", &repo_url];
+    let limit_str;
+    if let Some(l) = limit {
+        args.push("-l");
+        limit_str = l.to_string();
+        args.push(&limit_str);
+    }
+    let xml = crate::svn::run_svn_async(&args, timeout_secs).await?;
+    let entries = parse_log_xml(&xml)?;
+
+    let entries = entries
+        .into_iter()
+        .map(|e| {
+            if e.revision <= wc_rev {
+                e
+            } else {
+                // Non-local entries: clear changed_paths (not available locally)
+                LogEntry {
+                    revision: e.revision,
+                    author: e.author,
+                    date: e.date,
+                    message: e.message,
+                    changed_paths: None,
+                }
+            }
+        })
+        .collect();
+
+    Ok(WcLogResult {
+        entries,
+        wc_revision: wc_rev,
+    })
 }
 
 #[cfg(test)]

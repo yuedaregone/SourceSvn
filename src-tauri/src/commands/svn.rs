@@ -2,6 +2,7 @@ use crate::app_state::AppState;
 use crate::svn;
 use crate::svn::models::{
     CommitResult, DiffTarget, DirEntry, FileStatus, LogEntry, RepoInfo, UpdateResult,
+    WcLogResult,
 };
 use tauri::State;
 
@@ -35,6 +36,21 @@ pub async fn svn_log(
         config.advanced.svn_timeout_secs
     };
     svn::log::svn_log(&path, limit, from_rev.as_deref(), timeout)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn svn_log_server(
+    state: State<'_, AppState>,
+    path: String,
+    limit: Option<u32>,
+) -> Result<WcLogResult, String> {
+    let timeout = {
+        let config = state.config.lock().map_err(|e| e.to_string())?;
+        config.advanced.svn_timeout_secs
+    };
+    svn::log::svn_log_server(&path, limit, timeout)
         .await
         .map_err(|e| e.to_string())
 }

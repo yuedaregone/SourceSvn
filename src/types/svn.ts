@@ -15,6 +15,11 @@ export interface LogEntry {
   changedPaths?: ChangedPath[]
 }
 
+export interface WcLogResult {
+  entries: LogEntry[]
+  wcRevision: number
+}
+
 export interface ChangedPath {
   path: string
   action: 'A' | 'M' | 'D' | 'R'

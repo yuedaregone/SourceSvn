@@ -34,6 +34,7 @@ pub fn run() {
             commands::svn::svn_status,
             commands::svn::svn_info,
             commands::svn::svn_log,
+            commands::svn::svn_log_server,
             commands::svn::svn_diff,
             commands::svn::svn_commit,
             commands::svn::svn_list,

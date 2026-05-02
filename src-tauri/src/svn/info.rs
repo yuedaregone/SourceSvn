@@ -87,6 +87,26 @@ pub async fn svn_info(path: &str, timeout_secs: u64) -> Result<RepoInfo, AppErro
     parse_info_xml(&xml)
 }
 
+pub struct RepoInfoParsed {
+    pub url: String,
+    pub wc_revision: u64,
+}
+
+pub fn parse_info_for_log(xml: &str) -> Result<RepoInfoParsed, AppError> {
+    let info_xml: InfoXml =
+        quick_xml::de::from_str(xml).map_err(|e| AppError::Svn(format!("Failed to parse info XML: {}", e)))?;
+    let entry = info_xml
+        .entry
+        .ok_or_else(|| AppError::Svn("No entry found in info XML".to_string()))?;
+    let url = entry.url.unwrap_or_default();
+    let wc_revision = entry
+        .wc_info
+        .and_then(|w| w.revision)
+        .and_then(|r| r.parse::<u64>().ok())
+        .unwrap_or(0);
+    Ok(RepoInfoParsed { url, wc_revision })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

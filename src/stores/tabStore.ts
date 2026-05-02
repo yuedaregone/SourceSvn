@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
-import type { FileStatus, LogEntry, DirEntry, ShelveInfo, ActiveView } from '../types/svn'
+import type { FileStatus, LogEntry, DirEntry, ShelveInfo, ActiveView, WcLogResult } from '../types/svn'
 
 export const useTabStore = (id: string) =>
   defineStore(`tab-${id}`, {
@@ -8,6 +8,7 @@ export const useTabStore = (id: string) =>
       repoPath: '',
       activeView: 'log' as ActiveView,
       logEntries: [] as LogEntry[],
+      wcRevision: 0,
       fileTree: [] as DirEntry[],
       localChanges: [] as FileStatus[],
       shelves: [] as ShelveInfo[],
@@ -19,10 +20,12 @@ export const useTabStore = (id: string) =>
       async refreshLog(limit?: number) {
         this.loading = true
         try {
-          this.logEntries = await invoke<LogEntry[]>('svn_log', {
+          const result = await invoke<WcLogResult>('svn_log_server', {
             path: this.repoPath,
             limit: limit ?? 100,
           })
+          this.logEntries = result.entries
+          this.wcRevision = result.wcRevision
         } catch (e) {
           console.error('Failed to refresh log:', e)
         } finally {

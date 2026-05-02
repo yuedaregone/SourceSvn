@@ -28,7 +28,7 @@
             v-for="entry in pagedEntries"
             :key="entry.revision"
             @click="toggleDetail(entry.revision)"
-            :class="{ expanded: expandedRevision === entry.revision }"
+            :class="{ expanded: expandedRevision === entry.revision, 'non-local': !isLocal(entry) }"
           >
             <td class="col-revision">{{ entry.revision }}</td>
             <td class="col-author">{{ entry.author }}</td>
@@ -73,6 +73,7 @@ const props = defineProps<{
   store: {
     repoPath: string
     logEntries: LogEntry[]
+    wcRevision: number
     loading: boolean
     refreshLog: () => Promise<void>
   }
@@ -159,6 +160,10 @@ function actionClass(action: string) {
   if (action === 'D') return 'deleted'
   if (action === 'R') return 'replaced'
   return 'modified'
+}
+
+function isLocal(entry: LogEntry): boolean {
+  return entry.revision <= props.store.wcRevision
 }
 
 function refresh() {
@@ -274,6 +279,12 @@ tr.expanded {
   text-align: center;
   color: var(--text-muted);
   padding: 24px 0;
+}
+tr.non-local {
+  opacity: 0.45;
+}
+tr.non-local:hover {
+  opacity: 0.7;
 }
 .pagination {
   display: flex;

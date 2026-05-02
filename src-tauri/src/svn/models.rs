@@ -118,3 +118,9 @@ pub struct ReviewChunkEvent {
     pub content: String,
     pub done: bool,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WcLogResult {
+    pub entries: Vec<LogEntry>,
+    pub wc_revision: u64,
+}
