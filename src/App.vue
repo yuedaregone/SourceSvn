@@ -65,6 +65,11 @@
       :loading="aiReviewLoading"
       @close="showAiReview = false"
     />
+    <PullResultModal
+      :visible="showPullResult"
+      :result="pullResult"
+      @close="showPullResult = false"
+    />
     <Toast />
   </div>
 </template>
@@ -88,6 +93,9 @@ import SettingsPage from './views/SettingsPage.vue'
 import DiffViewer from './components/DiffViewer.vue'
 import AiReviewPanel from './components/AiReviewPanel.vue'
 import AddRepoDialog from './components/AddRepoDialog.vue'
+import PullResultModal from './components/PullResultModal.vue'
+import { useToastStore } from './stores/toastStore'
+import type { UpdateResult } from './types/svn'
 
 type TabStoreInstance = ReturnType<ReturnType<typeof useTabStore>>
 
@@ -103,6 +111,8 @@ const diffText = ref('')
 const showAiReview = ref(false)
 const aiReviewContent = ref('')
 const aiReviewLoading = ref(false)
+const showPullResult = ref(false)
+const pullResult = ref<UpdateResult | null>(null)
 
 const recentRepos = computed<RepoEntry[]>(() => {
   return configStore.config?.session.recentRepos ?? []
@@ -259,11 +269,23 @@ function refreshCurrentView() {
   refreshMap[view]?.()
 }
 
-function handlePull() {
+async function handlePull() {
   if (!currentTabStore.value) return
-  invoke('svn_update', { path: currentTabStore.value.repoPath })
-    .then(() => refreshCurrentView())
-    .catch((e) => console.error('Pull failed:', e))
+  try {
+    const result = await invoke<UpdateResult>('svn_update', {
+      path: currentTabStore.value.repoPath,
+    })
+    if (result.files.length === 0) {
+      useToastStore().info('已是最新版本')
+    } else {
+      pullResult.value = result
+      showPullResult.value = true
+    }
+    refreshCurrentView()
+  } catch (e) {
+    console.error('Pull failed:', e)
+    useToastStore().error('拉取失败')
+  }
 }
 
 function handleRefresh() {
