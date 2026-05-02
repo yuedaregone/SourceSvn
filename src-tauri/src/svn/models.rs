@@ -106,11 +106,18 @@ pub struct CommitResult {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateFileItem {
+    pub path: String,
+    pub status: String,
+    pub author: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateResult {
     pub revision: u64,
-    pub updated_files: Vec<String>,
-    pub merged_files: Vec<String>,
-    pub conflicts: Vec<String>,
+    pub files: Vec<UpdateFileItem>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
