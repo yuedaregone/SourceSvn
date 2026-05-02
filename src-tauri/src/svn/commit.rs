@@ -30,7 +30,7 @@ async fn auto_add_unversioned(
     timeout_secs: u64,
 ) -> Result<(), AppError> {
     let status_xml =
-        crate::svn::run_svn_async_in_dir(&["status", "--xml"], timeout_secs, Some(path)).await?;
+        crate::svn::run_svn_utf8_async_in_dir(&["status", "--xml"], timeout_secs, Some(path)).await?;
     let statuses = crate::svn::status::parse_status_xml(&status_xml)?;
 
     let unversioned: HashSet<&str> = statuses

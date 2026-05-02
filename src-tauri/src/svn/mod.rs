@@ -46,7 +46,31 @@ pub async fn run_svn_async(args: &[&str], timeout_secs: u64) -> Result<String, A
     run_svn_async_in_dir(args, timeout_secs, None).await
 }
 
+pub async fn run_svn_utf8_async(args: &[&str], timeout_secs: u64) -> Result<String, AppError> {
+    run_svn_utf8_async_in_dir(args, timeout_secs, None).await
+}
+
+/// Execute SVN command directly (safe for arguments containing non-ASCII characters).
 pub async fn run_svn_async_in_dir(
+    args: &[&str],
+    timeout_secs: u64,
+    work_dir: Option<&str>,
+) -> Result<String, AppError> {
+    let svn_path = find_svn_executable()?;
+    let mut cmd = Command::new(&svn_path);
+    cmd.args(args);
+    if let Some(dir) = work_dir {
+        cmd.current_dir(dir);
+    }
+    cmd.env("OUTPUT_CHARSET", "UTF-8");
+    cmd.env("LANG", "en_US.UTF-8");
+    run_cmd_output(cmd, timeout_secs).await
+}
+
+/// Execute SVN command with UTF-8 output forcing via chcp 65001 (Windows).
+/// Use this for read-only operations (log, status, info, etc.) where you need
+/// correct UTF-8 output but do not pass non-ASCII arguments.
+pub async fn run_svn_utf8_async_in_dir(
     args: &[&str],
     timeout_secs: u64,
     work_dir: Option<&str>,
@@ -55,7 +79,6 @@ pub async fn run_svn_async_in_dir(
 
     #[cfg(target_os = "windows")]
     let mut cmd = {
-        // Force UTF-8 output via cmd.exe + chcp 65001
         let mut shell = Command::new("cmd.exe");
         shell.arg("/C").arg("chcp").arg("65001").arg(">nul").arg("&&");
         shell.arg(&svn_path);
@@ -72,10 +95,15 @@ pub async fn run_svn_async_in_dir(
     if let Some(dir) = work_dir {
         cmd.current_dir(dir);
     }
-    // Ensure subprocess inherits UTF-8 locale hints
     cmd.env("OUTPUT_CHARSET", "UTF-8");
     cmd.env("LANG", "en_US.UTF-8");
+    run_cmd_output(cmd, timeout_secs).await
+}
 
+async fn run_cmd_output(
+    mut cmd: Command,
+    timeout_secs: u64,
+) -> Result<String, AppError> {
     let output = tokio::time::timeout(Duration::from_secs(timeout_secs), cmd.output())
         .await
         .map_err(|_| {

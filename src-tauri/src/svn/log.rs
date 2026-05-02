@@ -96,7 +96,7 @@ pub async fn svn_log(
         args.push("-r");
         args.push(rev);
     }
-    let xml = crate::svn::run_svn_async(&args, timeout_secs).await?;
+    let xml = crate::svn::run_svn_utf8_async(&args, timeout_secs).await?;
     parse_log_xml(&xml)
 }
 

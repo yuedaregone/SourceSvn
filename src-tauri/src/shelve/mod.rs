@@ -49,7 +49,7 @@ pub async fn shelve_save(
         )));
     }
 
-    let diff = crate::svn::run_svn_async(&["diff", repo_path], timeout_secs)
+    let diff = crate::svn::run_svn_utf8_async(&["diff", repo_path], timeout_secs)
         .await
         .map_err(|e| AppError::Svn(format!("Failed to get diff: {}", e)))?;
 

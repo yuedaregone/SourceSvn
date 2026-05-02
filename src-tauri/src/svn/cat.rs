@@ -10,5 +10,5 @@ pub async fn svn_cat(
         args.push("-r");
         args.push(rev);
     }
-    crate::svn::run_svn_async(&args, timeout_secs).await
+    crate::svn::run_svn_utf8_async(&args, timeout_secs).await
 }

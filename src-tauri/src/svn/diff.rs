@@ -27,7 +27,7 @@ pub async fn svn_diff(
     }
 
     let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-    crate::svn::run_svn_async_in_dir(&args_refs, timeout_secs, Some(path)).await
+    crate::svn::run_svn_utf8_async_in_dir(&args_refs, timeout_secs, Some(path)).await
 }
 
 pub async fn diff_unversioned_file(repo_path: &str, file_path: &str) -> Result<String, AppError> {
