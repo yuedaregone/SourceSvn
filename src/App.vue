@@ -23,8 +23,6 @@
         <LogView
           v-if="currentTabStore && currentTabStore.activeView === 'log'"
           :store="currentTabStore"
-          @viewDiff="handleViewDiff"
-          @aiReview="handleAiReviewRevision"
         />
         <LocalChangesView
           v-if="currentTabStore && currentTabStore.activeView === 'localChanges'"
@@ -270,37 +268,6 @@ function handlePull() {
 
 function handleRefresh() {
   refreshCurrentView()
-}
-
-function handleViewDiff(revision: number) {
-  if (!currentTabStore.value) return
-  // Fetch diff for the revision's changed paths
-  const entry = currentTabStore.value.logEntries.find((e) => e.revision === revision)
-  if (!entry?.changedPaths?.length) return
-  const firstPath = entry.changedPaths[0].path
-  diffFilePath.value = firstPath
-  invoke<string>('svn_diff', {
-    path: currentTabStore.value.repoPath,
-    target: { type: 'File', data: { path: firstPath, revision: String(revision) } },
-  })
-    .then((d) => {
-      diffText.value = d
-      showDiff.value = true
-    })
-    .catch((e) => console.error('Diff failed:', e))
-}
-
-function handleAiReviewRevision(revision: number) {
-  if (!currentTabStore.value) return
-  const entry = currentTabStore.value.logEntries.find((e) => e.revision === revision)
-  if (!entry?.changedPaths?.length) return
-  const firstPath = entry.changedPaths[0].path
-  invoke<string>('svn_diff', {
-    path: currentTabStore.value.repoPath,
-    target: { type: 'File', data: { path: firstPath, revision: String(revision) } },
-  })
-    .then((d) => handleAiReview(d))
-    .catch((e) => console.error('Diff failed:', e))
 }
 
 async function saveSession() {

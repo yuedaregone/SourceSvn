@@ -49,16 +49,27 @@
     <div v-if="expandedRevision" class="detail-panel">
       <h4>版本 {{ expandedRevision }} 详细信息</h4>
       <p class="detail-message">{{ expandedEntry?.message }}</p>
-      <div v-if="expandedEntry?.changedPaths?.length" class="changed-paths">
-        <h5>变更文件:</h5>
-        <div v-for="cp in expandedEntry.changedPaths" :key="cp.path" class="changed-path">
-          <span class="action" :class="actionClass(cp.action)">{{ cp.action }}</span>
-          <span class="path-text">{{ cp.path }}</span>
+      <div class="detail-split">
+        <div class="detail-left">
+          <h5>变更文件:</h5>
+          <div
+            v-for="cp in expandedEntry?.changedPaths"
+            :key="cp.path"
+            class="changed-path"
+            :class="{ active: selectedFilePath === cp.path }"
+            @click="selectFile(cp.path)"
+          >
+            <span class="action" :class="actionClass(cp.action)">{{ cp.action }}</span>
+            <span class="path-text">{{ cp.path }}</span>
+          </div>
         </div>
-      </div>
-      <div class="detail-actions">
-        <button @click="$emit('viewDiff', expandedRevision)" class="action-btn">查看差异</button>
-        <button @click="$emit('aiReview', expandedRevision)" class="action-btn ai">AI 审查</button>
+        <div class="detail-right">
+          <div v-if="fileDiffLoading" class="diff-loading">加载中...</div>
+          <div v-else-if="isBinaryFile" class="diff-binary">二进制文件，无法显示差异</div>
+          <pre v-else-if="fileDiffText" class="diff-content"><template v-for="(line, i) in fileDiffLines" :key="i"><span :class="diffLineClass(line)">{{ line }}</span>
+</template></pre>
+          <div v-else class="diff-placeholder">点击左侧文件查看差异</div>
+        </div>
       </div>
     </div>
   </div>
@@ -66,6 +77,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { RefreshCw } from 'lucide-vue-next'
 import type { LogEntry } from '../types/svn'
 
@@ -79,10 +91,7 @@ const props = defineProps<{
   }
 }>()
 
-defineEmits<{
-  viewDiff: [revision: number]
-  aiReview: [revision: number]
-}>()
+defineEmits<{}>()
 
 const searchText = ref('')
 const authorFilter = ref('')
@@ -91,6 +100,10 @@ const dateTo = ref('')
 const expandedRevision = ref<number | null>(null)
 const currentPage = ref(1)
 const pageSize = 50
+const selectedFilePath = ref<string | null>(null)
+const fileDiffText = ref('')
+const fileDiffLoading = ref(false)
+const isBinaryFile = ref(false)
 
 const authors = computed(() => {
   const set = new Set(props.store.logEntries.map((e) => e.author))
@@ -139,7 +152,52 @@ watch([authorFilter, dateFrom, dateTo, searchText], () => {
 })
 
 function toggleDetail(revision: number) {
-  expandedRevision.value = expandedRevision.value === revision ? null : revision
+  if (expandedRevision.value === revision) {
+    expandedRevision.value = null
+    selectedFilePath.value = null
+    fileDiffText.value = ''
+    isBinaryFile.value = false
+  } else {
+    expandedRevision.value = revision
+    selectedFilePath.value = null
+    fileDiffText.value = ''
+    isBinaryFile.value = false
+  }
+}
+
+async function selectFile(filePath: string) {
+  if (selectedFilePath.value === filePath) return
+  selectedFilePath.value = filePath
+  fileDiffText.value = ''
+  isBinaryFile.value = false
+  fileDiffLoading.value = true
+  try {
+    const result = await invoke<string>('svn_diff', {
+      path: props.store.repoPath,
+      target: { type: 'File', data: { path: filePath, revision: String(expandedRevision.value) } },
+    })
+    if (result.includes('Binary files')) {
+      isBinaryFile.value = true
+    } else {
+      fileDiffText.value = result
+    }
+  } catch {
+    fileDiffText.value = '获取差异失败'
+  } finally {
+    fileDiffLoading.value = false
+  }
+}
+
+const fileDiffLines = computed(() => {
+  if (!fileDiffText.value) return []
+  return fileDiffText.value.split('\n')
+})
+
+function diffLineClass(line: string) {
+  if (line.startsWith('+') && !line.startsWith('+++')) return 'diff-add'
+  if (line.startsWith('-') && !line.startsWith('---')) return 'diff-del'
+  if (line.startsWith('@@')) return 'diff-hunk'
+  return ''
 }
 
 function formatDate(dateStr: string) {
@@ -373,24 +431,75 @@ tr.non-local:hover {
   display: flex;
   gap: 8px;
 }
-.action-btn {
-  padding: 4px 14px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary);
+.detail-split {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  min-height: 200px;
+  max-height: 400px;
+}
+.detail-left {
+  width: 280px;
+  flex-shrink: 0;
+  overflow: auto;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
-  cursor: pointer;
+  background: var(--bg-primary);
+}
+.detail-left h5 {
+  margin: 0;
+  padding: 6px 8px;
   font-size: 12px;
-  color: var(--text-primary);
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-light);
+  position: sticky;
+  top: 0;
 }
-.action-btn:hover {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
+.detail-left .changed-path {
+  cursor: pointer;
 }
-.action-btn.ai {
-  border-color: var(--purple-color);
-  color: var(--purple-color);
-}
-.action-btn.ai:hover {
+.detail-left .changed-path:hover {
   background: var(--bg-hover);
+}
+.detail-left .changed-path.active {
+  background: var(--bg-active);
+}
+.detail-right {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+}
+.diff-loading,
+.diff-binary,
+.diff-placeholder {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 40px 16px;
+  font-size: 13px;
+}
+.diff-content {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+  white-space: pre;
+  padding: 8px 12px;
+  margin: 0;
+  line-height: 1.6;
+}
+.diff-add {
+  background: var(--diff-add-bg);
+  color: var(--diff-add-text);
+}
+.diff-del {
+  background: var(--diff-del-bg);
+  color: var(--diff-del-text);
+}
+.diff-hunk {
+  background: var(--diff-hunk-bg);
+  color: var(--text-secondary);
 }
 </style>
