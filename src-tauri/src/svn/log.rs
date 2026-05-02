@@ -111,8 +111,8 @@ pub async fn svn_log_server(
     let repo_url = info.url;
     let wc_rev = info.wc_revision;
 
-    // Query full log from server using URL + path (not local path)
-    let mut args = vec!["log", "--xml", "-v", &repo_url, path];
+    // Query full log from server using repo URL (not local path)
+    let mut args = vec!["log", "--xml", "-v", &repo_url];
     let limit_str;
     if let Some(l) = limit {
         args.push("-l");
