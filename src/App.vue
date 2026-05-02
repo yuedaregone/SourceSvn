@@ -67,11 +67,13 @@
       :loading="aiReviewLoading"
       @close="showAiReview = false"
     />
+    <Toast />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import Toast from './components/Toast.vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useConfigStore } from './stores/configStore'
 import { useTabStore } from './stores/tabStore'
@@ -337,63 +339,6 @@ async function handleAiReview(diff: string) {
   }
 }
 </script>
-
-<style>
-:root,
-[data-theme="light"] {
-  --bg-primary: #ffffff;
-  --bg-secondary: #fafafa;
-  --bg-tertiary: #f5f5f5;
-  --bg-hover: #f5f5f5;
-  --bg-active: #e6f7ff;
-  --text-primary: #333333;
-  --text-secondary: #666666;
-  --text-muted: #999999;
-  --border-color: #e8e8e8;
-  --border-light: #f0f0f0;
-  --border-input: #d9d9d9;
-  --accent-color: #1890ff;
-  --accent-hover: #40a9ff;
-  --success-color: #52c41a;
-  --danger-color: #ff4d4f;
-  --warning-color: #faad14;
-  --purple-color: #722ed1;
-  --diff-add-bg: #e6ffed;
-  --diff-add-text: #22863a;
-  --diff-del-bg: #ffeef0;
-  --diff-del-text: #cb2431;
-  --diff-hunk-bg: #f0f0ff;
-  --overlay-bg: rgba(0, 0, 0, 0.4);
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
-}
-
-[data-theme="dark"] {
-  --bg-primary: #1e1e1e;
-  --bg-secondary: #252526;
-  --bg-tertiary: #2d2d2d;
-  --bg-hover: #333333;
-  --bg-active: #1a3a5c;
-  --text-primary: #cccccc;
-  --text-secondary: #999999;
-  --text-muted: #666666;
-  --border-color: #3e3e3e;
-  --border-light: #333333;
-  --border-input: #555555;
-  --accent-color: #3794ff;
-  --accent-hover: #5ba8f5;
-  --success-color: #6cc070;
-  --danger-color: #f48771;
-  --warning-color: #cca700;
-  --purple-color: #b07cd8;
-  --diff-add-bg: #1a3a1a;
-  --diff-add-text: #6cc070;
-  --diff-del-bg: #3a1a1a;
-  --diff-del-text: #f48771;
-  --diff-hunk-bg: #1a1a3a;
-  --overlay-bg: rgba(0, 0, 0, 0.6);
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-}
-</style>
 
 <style scoped>
 .app-container {

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import type { FileStatus, LogEntry, DirEntry, ShelveInfo, ActiveView, WcLogResult } from '../types/svn'
+import { useToastStore } from './toastStore'
 
 export const useTabStore = (id: string) =>
   defineStore(`tab-${id}`, {
@@ -38,7 +39,8 @@ export const useTabStore = (id: string) =>
             })
             console.log('[refreshLog] svn_log fallback returned:', this.logEntries.length, 'entries')
           } catch (e2) {
-            console.error('[refreshLog] svn_log fallback also FAILED:', e2)
+            console.error('Failed to refresh log (fallback):', e2)
+            useToastStore().error('刷新日志失败: ' + (e2 as Error).message)
           }
         } finally {
           this.loading = false
@@ -52,6 +54,7 @@ export const useTabStore = (id: string) =>
           })
         } catch (e) {
           console.error('Failed to refresh local changes:', e)
+          useToastStore().error('刷新本地修改失败: ' + (e as Error).message)
         } finally {
           this.loading = false
         }
@@ -65,6 +68,7 @@ export const useTabStore = (id: string) =>
           })
         } catch (e) {
           console.error('Failed to refresh file browser:', e)
+          useToastStore().error('刷新文件浏览器失败: ' + (e as Error).message)
         } finally {
           this.loading = false
         }
@@ -77,6 +81,7 @@ export const useTabStore = (id: string) =>
           })
         } catch (e) {
           console.error('Failed to refresh shelves:', e)
+          useToastStore().error('刷新 Shelve 列表失败: ' + (e as Error).message)
         } finally {
           this.loading = false
         }

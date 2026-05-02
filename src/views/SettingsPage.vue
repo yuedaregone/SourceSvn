@@ -182,13 +182,13 @@ const config = reactive<AppConfig>({
   window: { width: 1200, height: 800, maximized: false },
   appearance: { ...defaultAppearance },
   session: { openTabs: [], activeTabIndex: 0, recentRepos: [], maxRecentRepos: 20 },
-  svn: { executable: '' },
+  svn: {},
   ai: { provider: 'openai', endpoint: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-4o-mini', timeoutSecs: 30 },
   diff: { contextLines: 3, ignoreWhitespace: false, viewMode: 'unified' },
   log: { fetchLimit: 100, showChangedPaths: true },
   commit: {},
   fileBrowser: { showHidden: false },
-  behavior: { confirmBeforeCommit: true, confirmBeforeRevert: true, autoRefreshSecs: 0 },
+  behavior: { confirmBeforeCommit: true, confirmBeforeRevert: true },
   advanced: { svnTimeoutSecs: 60, logLevel: 'warn' },
 })
 

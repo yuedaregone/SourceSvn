@@ -8,7 +8,10 @@
         </label>
         <span class="selected-count">已选 {{ selectedPaths.size }} 个文件</span>
       </div>
-      <div class="file-list">
+      <div class="file-list" :class="{ loading: store.loading }">
+        <div v-if="store.loading" class="loading-overlay">
+          <RefreshCw :size="24" class="spin" />
+        </div>
         <div
           v-for="file in store.localChanges"
           :key="file.path"
@@ -20,11 +23,12 @@
             type="checkbox"
             :checked="selectedPaths.has(file.path)"
             @click.stop="toggleFile(file.path)"
+            :disabled="store.loading"
           />
           <span class="status-badge" :class="file.status">{{ file.status[0].toUpperCase() }}</span>
           <span class="file-path">{{ file.path }}</span>
         </div>
-        <div v-if="store.localChanges.length === 0" class="empty-list">无本地修改</div>
+        <div v-if="!store.loading && store.localChanges.length === 0" class="empty-list">无本地修改</div>
       </div>
       <div class="commit-section">
         <textarea
@@ -285,6 +289,25 @@ onMounted(() => {
   border-radius: 4px;
   min-height: 0;
   background: var(--bg-primary);
+  position: relative;
+}
+.file-list.loading {
+  pointer-events: none;
+}
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+  opacity: 0.9;
+}
+.loading-overlay .spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 .file-item {
   display: flex;
