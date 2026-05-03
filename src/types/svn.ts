@@ -72,4 +72,16 @@ export interface UpdateResult {
   files: UpdateFileItem[]
 }
 
+export type SvnUpdateEvent =
+  | { type: 'file'; status: string; path: string }
+  | { type: 'done'; revision: number }
+  | { type: 'error'; message: string }
+  | { type: 'upToDate'; revision: number }
+
 export type ActiveView = 'log' | 'localChanges' | 'fileBrowser' | 'shelve'
+
+export interface BlameEntry {
+  revision: number
+  author: string
+  lineNumber: number
+}

@@ -18,6 +18,7 @@
           class="file-item"
           :class="{ selected: selectedFile === file.path }"
           @click="selectFile(file)"
+          @contextmenu.prevent="openContextMenu($event, file)"
         >
           <input
             type="checkbox"
@@ -63,14 +64,24 @@
 </template></pre>
       <div v-else class="diff-placeholder">{{ t('common.clickToViewDiff') }}</div>
     </div>
+    <ContextMenu
+      :visible="ctxMenu.visible"
+      :x="ctxMenu.x"
+      :y="ctxMenu.y"
+      :items="ctxMenuItems"
+      @close="ctxMenu.visible = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { Sparkles, RefreshCw, X, Send } from 'lucide-vue-next'
+import { Sparkles, RefreshCw, X, Send, RotateCcw, Plus, Trash2, ExternalLink, FolderOpen, Copy, CheckSquare, Square } from 'lucide-vue-next'
+import { useToastStore } from '../stores/toastStore'
 import type { FileStatus, DiffTarget } from '../types/svn'
+import type { MenuItem } from '../components/ContextMenu.vue'
+import ContextMenu from '../components/ContextMenu.vue'
 import { t } from '../locales'
 
 const props = defineProps<{
@@ -90,6 +101,8 @@ const commitMessage = ref('')
 const diffContent = ref('')
 const aiLoading = ref(false)
 const errorMessage = ref('')
+
+const ctxMenu = ref({ visible: false, x: 0, y: 0, file: null as FileStatus | null })
 
 const allSelected = computed(
   () =>
@@ -216,6 +229,123 @@ function cancelCommit() {
   selectedFile.value = ''
   diffContent.value = ''
 }
+
+function openContextMenu(e: MouseEvent, file: FileStatus) {
+  ctxMenu.value = { visible: true, x: e.clientX, y: e.clientY, file }
+  selectedFile.value = file.path
+}
+
+const ctxMenuItems = computed<MenuItem[]>(() => {
+  const file = ctxMenu.value.file
+  if (!file) return []
+  const isUnversioned = file.status === 'unversioned'
+  const isModified = file.status === 'modified' || file.status === 'conflicted' || file.status === 'missing'
+  const toast = useToastStore()
+
+  return [
+    {
+      label: t('contextMenu.diff'),
+      action: () => selectFile(file),
+      disabled: file.isDirectory,
+    },
+    { divider: true },
+    {
+      label: t('contextMenu.revert'),
+      icon: RotateCcw,
+      disabled: !isModified,
+      action: async () => {
+        if (confirm(t('contextMenu.revertConfirm'))) {
+          try {
+            await invoke('svn_revert', { path: props.repoPath, paths: [file.path] })
+            emit('refreshLocalChanges')
+            toast.success(t('contextMenu.revert'))
+          } catch (e) { toast.error(String(e)) }
+        }
+      },
+    },
+    {
+      label: t('contextMenu.add'),
+      icon: Plus,
+      disabled: !isUnversioned,
+      action: async () => {
+        try {
+          await invoke('svn_add', { path: props.repoPath, paths: [file.path] })
+          emit('refreshLocalChanges')
+          toast.success(t('contextMenu.add'))
+        } catch (e) { toast.error(String(e)) }
+      },
+    },
+    {
+      label: t('contextMenu.delete'),
+      icon: Trash2,
+      disabled: isUnversioned,
+      action: async () => {
+        try {
+          await invoke('svn_delete', { path: props.repoPath, paths: [file.path], keepLocal: false })
+          emit('refreshLocalChanges')
+          toast.success(t('contextMenu.delete'))
+        } catch (e) { toast.error(String(e)) }
+      },
+    },
+    {
+      label: t('contextMenu.deleteKeepLocal'),
+      icon: Trash2,
+      disabled: isUnversioned,
+      action: async () => {
+        try {
+          await invoke('svn_delete', { path: props.repoPath, paths: [file.path], keepLocal: true })
+          emit('refreshLocalChanges')
+          toast.success(t('contextMenu.delete'))
+        } catch (e) { toast.error(String(e)) }
+      },
+    },
+    {
+      label: t('contextMenu.deleteFromDisk'),
+      icon: Trash2,
+      action: async () => {
+        try {
+          await invoke('delete_files_from_disk', { path: props.repoPath, paths: [file.path] })
+          emit('refreshLocalChanges')
+          toast.success(t('contextMenu.deleteFromDisk'))
+        } catch (e) { toast.error(String(e)) }
+      },
+    },
+    { divider: true },
+    {
+      label: t('contextMenu.openWithEditor'),
+      icon: ExternalLink,
+      action: async () => {
+        try { await invoke('open_in_system', { path: file.path }) } catch (e) { toast.error(String(e)) }
+      },
+    },
+    {
+      label: t('contextMenu.showInExplorer'),
+      icon: FolderOpen,
+      action: async () => {
+        try { await invoke('open_in_system', { path: file.path }) } catch (e) { toast.error(String(e)) }
+      },
+    },
+    { divider: true },
+    {
+      label: t('contextMenu.copyPath'),
+      icon: Copy,
+      action: () => {
+        navigator.clipboard.writeText(file.path)
+        toast.success(t('contextMenu.copySuccess'))
+      },
+    },
+    {
+      label: t('contextMenu.selectAll'),
+      icon: CheckSquare,
+      action: () => { selectedPaths.value = new Set(props.localChanges.map(f => f.path)) },
+    },
+    {
+      label: t('contextMenu.deselectAll'),
+      icon: Square,
+      action: () => { selectedPaths.value = new Set() },
+    },
+  ]
+})
 
 onMounted(() => {
   emit('refreshLocalChanges')

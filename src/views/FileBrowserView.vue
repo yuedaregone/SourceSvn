@@ -23,6 +23,7 @@
           class="tree-item"
           :class="{ selected: selectedFile === entry.name }"
           @click="onEntryClick(entry)"
+          @contextmenu.prevent="openContextMenu($event, entry)"
         >
           <span class="entry-icon">{{ entry.kind === 'dir' ? '📁' : '📄' }}</span>
           <span class="entry-name">{{ entry.name }}</span>
@@ -42,14 +43,24 @@
         <div v-else class="content-placeholder">{{ t('common.clickToViewContent') }}</div>
       </div>
     </div>
+    <ContextMenu
+      :visible="ctxMenu.visible"
+      :x="ctxMenu.x"
+      :y="ctxMenu.y"
+      :items="ctxMenuItems"
+      @close="ctxMenu.visible = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { ArrowLeft, RefreshCw } from 'lucide-vue-next'
+import { ArrowLeft, RefreshCw, ExternalLink, FolderOpen, Copy, History, Terminal } from 'lucide-vue-next'
+import { useToastStore } from '../stores/toastStore'
 import type { DirEntry } from '../types/svn'
+import type { MenuItem } from '../components/ContextMenu.vue'
+import ContextMenu from '../components/ContextMenu.vue'
 import { t } from '../locales'
 
 const props = defineProps<{
@@ -145,6 +156,99 @@ function refresh() {
   currentPath.value = ''
   emit('refreshFileBrowser')
 }
+
+const ctxMenu = ref({ visible: false, x: 0, y: 0, entry: null as DirEntry | null })
+
+function openContextMenu(e: MouseEvent, entry: DirEntry) {
+  ctxMenu.value = { visible: true, x: e.clientX, y: e.clientY, entry }
+}
+
+function getEntryRelativePath(entry: DirEntry) {
+  return currentPath.value
+    ? `${currentPath.value}/${entry.name}`
+    : entry.name
+}
+
+function getEntryFullPath(entry: DirEntry) {
+  return `${props.repoPath}/${getEntryRelativePath(entry)}`
+}
+
+const ctxMenuItems = computed<MenuItem[]>(() => {
+  const entry = ctxMenu.value.entry
+  if (!entry) return []
+  const isFile = entry.kind === 'file'
+  const toast = useToastStore()
+
+  const items: MenuItem[] = []
+
+  if (isFile) {
+    items.push({
+      label: t('contextMenu.openWithEditor'),
+      icon: ExternalLink,
+      action: async () => {
+        try { await invoke('open_in_system', { path: getEntryFullPath(entry) }) } catch (e) { toast.error(String(e)) }
+      },
+    })
+  }
+  items.push({
+    label: t('contextMenu.showInExplorer'),
+    icon: FolderOpen,
+    action: async () => {
+      try { await open(getEntryFullPath(entry)) } catch (e) { toast.error(String(e)) }
+    },
+  })
+  items.push({ divider: true })
+  items.push({
+    label: t('contextMenu.showLog'),
+    icon: History,
+    action: () => { emit('viewHistory', getEntryFullPath(entry)) },
+  })
+  if (isFile) {
+    items.push({
+      label: t('contextMenu.showBlame'),
+      icon: Terminal,
+      action: async () => {
+        try {
+          const entries = await invoke<{ revision: number; author: string; lineNumber: number }[]>('svn_blame', {
+            path: getEntryFullPath(entry),
+          })
+          const blameText = entries.map(e => `  ${e.revision}  ${e.author.padEnd(12)}  L${e.lineNumber}`).join('\n')
+          await navigator.clipboard.writeText(blameText)
+          toast.success('Blame result copied to clipboard')
+        } catch (e) { toast.error(String(e)) }
+      },
+    })
+  } else {
+    items.push({
+      label: t('contextMenu.cleanup'),
+      action: async () => {
+        try {
+          await invoke('svn_cleanup', { path: getEntryFullPath(entry) })
+          toast.success(t('contextMenu.cleanup'))
+        } catch (e) { toast.error(String(e)) }
+      },
+    })
+  }
+  items.push({ divider: true })
+  items.push({
+    label: t('contextMenu.copyPath'),
+    icon: Copy,
+    action: () => {
+      navigator.clipboard.writeText(getEntryRelativePath(entry))
+      toast.success(t('contextMenu.copySuccess'))
+    },
+  })
+  items.push({
+    label: t('contextMenu.copyAbsPath'),
+    icon: Copy,
+    action: () => {
+      navigator.clipboard.writeText(getEntryFullPath(entry))
+      toast.success(t('contextMenu.copySuccess'))
+    },
+  })
+
+  return items
+})
 
 onMounted(() => {
   emit('refreshFileBrowser')

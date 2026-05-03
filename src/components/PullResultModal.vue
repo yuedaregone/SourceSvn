@@ -7,12 +7,12 @@
             <Download :size="16" />
           </div>
           <span class="modal-title">{{ t('common.pullResult') }}</span>
-          <span class="modal-rev" v-if="result">r{{ result.revision }}</span>
+          <span class="modal-rev" v-if="result && result.revision">r{{ result.revision }}</span>
         </div>
         <button class="close-btn" @click="$emit('close')">&times;</button>
       </div>
 
-      <div class="stats-bar" v-if="result">
+      <div class="stats-bar" v-if="result && result.files.length > 0">
         <div class="stat-item">
           <span class="stat-dot conflict" />
           <span class="stat-label">{{ t('common.conflict') }}</span>
@@ -31,7 +31,11 @@
       </div>
 
       <div class="file-table-wrapper" v-if="result">
-        <table class="file-table">
+        <div v-if="result.files.length === 0" class="loading-state">
+          <div class="spinner" />
+          <span>{{ t('common.pulling') }}</span>
+        </div>
+        <table v-else class="file-table">
           <thead>
             <tr>
               <th style="width: 44px"></th>
@@ -257,6 +261,30 @@ function handleViewDiff(_file: UpdateFileItem) {
 .file-table-wrapper::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 3px;
+}
+
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 20px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 2.5px solid var(--border);
+  border-top-color: var(--accent, #7c6ff7);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .file-table {

@@ -136,6 +136,19 @@ pub struct UpdateResult {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum SvnUpdateEvent {
+    #[serde(rename_all = "camelCase")]
+    File { status: String, path: String },
+    #[serde(rename_all = "camelCase")]
+    Done { revision: u64 },
+    #[serde(rename_all = "camelCase")]
+    Error { message: String },
+    #[serde(rename_all = "camelCase")]
+    UpToDate { revision: u64 },
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewChunkEvent {
     pub content: String,
@@ -147,4 +160,12 @@ pub struct ReviewChunkEvent {
 pub struct WcLogResult {
     pub entries: Vec<LogEntry>,
     pub wc_revision: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct BlameEntry {
+    pub revision: i32,
+    pub author: String,
+    pub line_number: u32,
 }

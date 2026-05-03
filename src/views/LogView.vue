@@ -28,6 +28,7 @@
             v-for="entry in pagedEntries"
             :key="entry.revision"
             @click="toggleDetail(entry.revision)"
+            @contextmenu.prevent="openContextMenu($event, entry)"
             :class="{ expanded: expandedRevision === entry.revision, 'non-local': !isLocal(entry) }"
           >
             <td class="col-revision">{{ entry.revision }}</td>
@@ -66,6 +67,7 @@
             class="changed-path"
             :class="{ active: selectedFilePath === cp.path }"
             @click="selectFile(cp.path)"
+            @contextmenu.prevent="openFileContextMenu($event, cp)"
           >
             <span class="action" :class="actionClass(cp.action)">{{ cp.action }}</span>
             <span class="path-text">{{ cp.path }}</span>
@@ -80,14 +82,31 @@
         </div>
       </div>
     </div>
+    <ContextMenu
+      :visible="ctxMenu.visible"
+      :x="ctxMenu.x"
+      :y="ctxMenu.y"
+      :items="ctxMenuItems"
+      @close="ctxMenu.visible = false"
+    />
+    <ContextMenu
+      :visible="fileCtxMenu.visible"
+      :x="fileCtxMenu.x"
+      :y="fileCtxMenu.y"
+      :items="fileCtxMenuItems"
+      @close="fileCtxMenu.visible = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { RefreshCw, X } from 'lucide-vue-next'
-import type { LogEntry } from '../types/svn'
+import { RefreshCw, X, Copy, RotateCcw, ExternalLink, FolderOpen, Eye, Download } from 'lucide-vue-next'
+import { useToastStore } from '../stores/toastStore'
+import type { LogEntry, ChangedPath } from '../types/svn'
+import type { MenuItem } from '../components/ContextMenu.vue'
+import ContextMenu from '../components/ContextMenu.vue'
 import { t } from '../locales'
 
 const props = defineProps<{
@@ -272,6 +291,103 @@ function refresh() {
   emit('refreshLog')
 }
 
+const ctxMenu = ref({ visible: false, x: 0, y: 0, entry: null as LogEntry | null })
+
+function openContextMenu(e: MouseEvent, entry: LogEntry) {
+  ctxMenu.value = { visible: true, x: e.clientX, y: e.clientY, entry }
+}
+
+const ctxMenuItems = computed<MenuItem[]>(() => {
+  const entry = ctxMenu.value.entry
+  if (!entry) return []
+  const toast = useToastStore()
+
+  return [
+    {
+      label: t('contextMenu.showChanges'),
+      icon: Eye,
+      action: () => { toggleDetail(entry.revision) },
+    },
+    {
+      label: t('contextMenu.copyRevision'),
+      icon: Copy,
+      action: () => {
+        navigator.clipboard.writeText(String(entry.revision))
+        toast.success(t('contextMenu.copySuccess'))
+      },
+    },
+    { divider: true },
+    {
+      label: t('contextMenu.updateToRevision'),
+      icon: Download,
+      action: async () => {
+        const rev = prompt(t('contextMenu.revisionInput'))
+        if (rev) {
+          try {
+            await invoke('svn_update_to_revision', { path: props.repoPath, revision: parseInt(rev) })
+            toast.success(t('contextMenu.updateToRevision'))
+          } catch (e) { toast.error(String(e)) }
+        }
+      },
+    },
+    {
+      label: t('contextMenu.revertToRevision'),
+      icon: RotateCcw,
+      action: async () => {
+        if (confirm(`Revert to revision ${entry.revision - 1}?`)) {
+          try {
+            await invoke('svn_update_to_revision', { path: props.repoPath, revision: entry.revision - 1 })
+            toast.success(t('contextMenu.revertToRevision'))
+          } catch (e) { toast.error(String(e)) }
+        }
+      },
+    },
+  ]
+})
+
+const fileCtxMenu = ref({ visible: false, x: 0, y: 0, filePath: '', _revision: 0 })
+
+function repoPathToLocal(repoRelativePath: string): string {
+  const rel = repoRelativePath.replace(/^\//, '').replace(/\//g, '\\')
+  return rel ? `${props.repoPath}\\${rel}` : props.repoPath
+}
+
+function openFileContextMenu(e: MouseEvent, cp: ChangedPath) {
+  fileCtxMenu.value = { visible: true, x: e.clientX, y: e.clientY, filePath: cp.path, _revision: expandedRevision.value ?? 0 }
+}
+
+const fileCtxMenuItems = computed<MenuItem[]>(() => {
+  const { filePath } = fileCtxMenu.value
+  if (!filePath) return []
+  const localPath = repoPathToLocal(filePath)
+  const toast = useToastStore()
+
+  return [
+    {
+      label: t('contextMenu.copyPath'),
+      icon: Copy,
+      action: () => {
+        navigator.clipboard.writeText(localPath)
+        toast.success(t('contextMenu.copySuccess'))
+      },
+    },
+    {
+      label: t('contextMenu.showInExplorer'),
+      icon: FolderOpen,
+      action: async () => {
+        try { await invoke('open_in_system', { path: localPath }) } catch (e) { toast.error(String(e)) }
+      },
+    },
+    {
+      label: t('contextMenu.openWithEditor'),
+      icon: ExternalLink,
+      action: async () => {
+        try { await invoke('open_in_system', { path: localPath }) } catch (e) { toast.error(String(e)) }
+      },
+    },
+  ]
+})
+
 onMounted(() => {
   refresh()
 })
@@ -286,13 +402,13 @@ onMounted(() => {
 .filter-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
   flex-wrap: wrap;
 }
 .filter-select,
 .filter-date {
-  padding: 5px 8px;
+  padding: 5px var(--spacing-sm);
   border: 1px solid var(--border-input);
   border-radius: 4px;
   font-size: 13px;
@@ -312,21 +428,27 @@ onMounted(() => {
 .search-input {
   flex: 1;
   min-width: 150px;
-  padding: 5px 12px;
+  padding: 5px var(--spacing-md);
   border: 1px solid var(--border-input);
   border-radius: 4px;
   font-size: 13px;
   background: var(--bg-primary);
   color: var(--text-primary);
+  order: 1;
 }
 .refresh-btn {
-  padding: 5px 12px;
+  padding: 5px var(--spacing-md);
   border: 1px solid var(--border-input);
   background: var(--bg-primary);
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
   color: var(--text-primary);
+  transition: all 0.2s ease;
+}
+.refresh-btn:hover:not(:disabled) {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
 }
 .refresh-btn:disabled {
   opacity: 0.5;
@@ -336,19 +458,22 @@ onMounted(() => {
   flex: 1;
   overflow: auto;
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: 8px;
   background: var(--bg-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 13px;
 }
 th,
 td {
-  padding: 8px 12px;
+  padding: var(--spacing-sm) var(--spacing-md);
   text-align: left;
   border-bottom: 1px solid var(--border-light);
+  white-space: nowrap;
 }
 th {
   background: var(--bg-secondary);
@@ -357,18 +482,25 @@ th {
   top: 0;
   z-index: 1;
   color: var(--text-primary);
+  user-select: none;
 }
 .col-revision {
-  width: 80px;
+  width: 70px;
+  min-width: 70px;
 }
 .col-author {
-  width: 100px;
+  width: 120px;
+  min-width: 100px;
 }
 .col-date {
-  width: 120px;
+  width: 130px;
+  min-width: 110px;
 }
 .col-message {
-  min-width: 200px;
+  flex: 1;
+  min-width: 150px;
+  white-space: normal;
+  word-break: break-word;
 }
 tr:hover {
   background: var(--bg-hover);
@@ -380,7 +512,7 @@ tr.expanded {
 .empty-row {
   text-align: center;
   color: var(--text-muted);
-  padding: 24px 0;
+  padding: var(--spacing-xl) 0;
 }
 tr.non-local {
   opacity: 0.45;
@@ -392,20 +524,26 @@ tr.non-local:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding: 8px 0;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) 0;
   border-top: 1px solid var(--border-light);
   font-size: 13px;
   background: var(--bg-primary);
+  border-radius: 0 0 8px 8px;
 }
 .pagination button {
-  padding: 4px 12px;
+  padding: 4px var(--spacing-md);
   border: 1px solid var(--border-input);
   background: var(--bg-primary);
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
   color: var(--text-primary);
+  transition: all 0.2s ease;
+}
+.pagination button:hover:not(:disabled) {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
 }
 .pagination button:disabled {
   opacity: 0.4;
@@ -418,10 +556,12 @@ tr.non-local:hover {
   border-top: 1px solid var(--border-color);
   padding: 0;
   background: var(--bg-secondary);
-  border-radius: 0 0 4px 4px;
+  border-radius: 0 0 8px 8px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-height: 200px;
+  max-height: 50vh;
 }
 .drag-bar {
   height: 6px;
@@ -448,8 +588,8 @@ tr.non-local:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 12px;
-  margin: 8px 0;
+  padding: 0 var(--spacing-md);
+  margin: var(--spacing-sm) 0;
 }
 .detail-header h4 {
   margin: 0;
@@ -467,6 +607,7 @@ tr.non-local:hover {
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.2s ease;
 }
 .close-btn:hover {
   background: var(--bg-hover);
@@ -474,10 +615,10 @@ tr.non-local:hover {
 }
 .detail-message {
   color: var(--text-primary);
-  margin: 0 12px 8px;
+  margin: 0 var(--spacing-md) var(--spacing-sm);
 }
 .changed-paths {
-  margin-top: 8px;
+  margin-top: var(--spacing-sm);
 }
 .changed-paths h5 {
   margin: 0 0 4px;
@@ -518,29 +659,29 @@ tr.non-local:hover {
   color: var(--text-primary);
 }
 .detail-actions {
-  margin-top: 12px;
+  margin-top: var(--spacing-md);
   display: flex;
-  gap: 8px;
+  gap: var(--spacing-sm);
 }
 .detail-split {
   display: flex;
-  gap: 12px;
-  margin: 0 12px 12px;
+  gap: var(--spacing-md);
+  margin: 0 var(--spacing-md) var(--spacing-md);
   flex: 1;
-  min-height: 100px;
+  min-height: 150px;
   overflow: hidden;
 }
 .detail-left {
-  width: 280px;
+  width: 300px;
   flex-shrink: 0;
   overflow: auto;
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: 6px;
   background: var(--bg-primary);
 }
 .detail-left h5 {
   margin: 0;
-  padding: 6px 8px;
+  padding: 6px var(--spacing-sm);
   font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
@@ -551,6 +692,7 @@ tr.non-local:hover {
 }
 .detail-left .changed-path {
   cursor: pointer;
+  padding: 2px var(--spacing-sm);
 }
 .detail-left .changed-path:hover {
   background: var(--bg-hover);
@@ -563,7 +705,7 @@ tr.non-local:hover {
   min-width: 0;
   overflow: auto;
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: 6px;
   background: var(--bg-primary);
 }
 .diff-loading,
@@ -571,14 +713,14 @@ tr.non-local:hover {
 .diff-placeholder {
   color: var(--text-muted);
   text-align: center;
-  padding: 40px 16px;
+  padding: 40px var(--spacing-md);
   font-size: 13px;
 }
 .diff-content {
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 13px;
   white-space: pre;
-  padding: 8px 12px;
+  padding: var(--spacing-sm) var(--spacing-md);
   margin: 0;
   line-height: 1.6;
 }
@@ -593,5 +735,22 @@ tr.non-local:hover {
 .diff-hunk {
   background: var(--diff-hunk-bg);
   color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+  .filter-bar {
+    gap: var(--spacing-xs);
+  }
+  .search-input {
+    min-width: 100%;
+    order: 1;
+  }
+  .detail-split {
+    flex-direction: column;
+  }
+  .detail-left {
+    width: 100%;
+    max-height: 150px;
+  }
 }
 </style>

@@ -55,6 +55,13 @@
               </select>
             </div>
             <div class="setting-row">
+              <label>外部编辑器（可执行文件路径，留空使用系统默认）</label>
+              <div class="input-with-btn">
+                <input v-model="config.externalEditor" placeholder="例如 C:\Program Files\VS Code\Code.exe" />
+                <button @click="selectEditorPath" class="browse-btn">浏览...</button>
+              </div>
+            </div>
+            <div class="setting-row">
               <button @click="resetAppearance" class="reset-btn">恢复默认</button>
             </div>
           </div>
@@ -192,6 +199,8 @@ const config = reactive<AppConfig>({
   fileBrowser: { showHidden: false },
   behavior: { confirmBeforeCommit: true, confirmBeforeRevert: true },
   advanced: { svnTimeoutSecs: 60, logLevel: 'warn' },
+  cleanup: { vacuumPristines: false, vacuumPrunables: false, includeExternals: false, removeUnversionedTrees: false, removeIgnoredTrees: false, dropDavCache: false },
+  externalEditor: '',
 })
 
 onMounted(() => {
@@ -249,6 +258,23 @@ async function selectSvnPath() {
     if (selected) {
       config.svn.executable = selected.toString()
       detectStatus.value = ''
+    }
+  } catch (error) {
+    useToastStore().error(t('toast.pathNotFound'))
+  }
+}
+
+async function selectEditorPath() {
+  try {
+    const selected = await open({
+      title: '选择外部编辑器',
+      filters: [
+        { name: '可执行文件', extensions: ['exe', 'bat', 'cmd'] },
+        { name: '所有文件', extensions: ['*'] },
+      ],
+    })
+    if (selected) {
+      config.externalEditor = selected.toString()
     }
   } catch (error) {
     useToastStore().error(t('toast.pathNotFound'))

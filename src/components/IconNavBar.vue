@@ -41,7 +41,7 @@ const navItems = [
   width: 48px;
   background: var(--bg-secondary);
   border-right: 1px solid var(--border-color);
-  padding: 8px 0;
+  padding: var(--spacing-sm) 0;
 }
 .nav-item {
   width: 48px;
@@ -53,16 +53,19 @@ const navItems = [
   align-items: center;
   justify-content: center;
   position: relative;
-  transition: background 0.15s, color 0.15s;
+  transition: all 0.2s ease;
   color: var(--text-secondary);
+  border-radius: 8px;
 }
 .nav-item:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
+  transform: scale(1.05);
 }
 .nav-item.active {
   background: var(--bg-active);
   color: var(--accent-color);
+  box-shadow: inset 0 0 0 1px var(--accent-color);
 }
 .nav-item.active::before {
   content: '';

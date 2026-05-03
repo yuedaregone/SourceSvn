@@ -1,10 +1,9 @@
 use crate::app_state::AppState;
 use crate::svn;
 use crate::svn::models::{
-    CommitResult, DiffTarget, DirEntry, FileStatus, LogEntry, RepoInfo, UpdateResult,
-    WcLogResult,
+    BlameEntry, CommitResult, DiffTarget, DirEntry, FileStatus, LogEntry, RepoInfo, WcLogResult,
 };
-use tauri::State;
+use tauri::{AppHandle, State};
 
 #[tauri::command]
 pub async fn svn_status(state: State<'_, AppState>, path: String) -> Result<Vec<FileStatus>, String> {
@@ -133,12 +132,44 @@ pub async fn svn_checkout(
 }
 
 #[tauri::command]
-pub async fn svn_update(state: State<'_, AppState>, path: String) -> Result<UpdateResult, String> {
+pub async fn svn_update(state: State<'_, AppState>, path: String, app_handle: AppHandle) -> Result<(), String> {
     let timeout = {
         let config = state.config.read().map_err(|e| e.to_string())?;
         config.advanced.svn_timeout_secs
     };
-    svn::update::svn_update(&path, timeout)
+    svn::update::svn_update_streaming(&path, timeout, &app_handle)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn svn_cleanup(
+    state: State<'_, AppState>,
+    path: String,
+    options: Option<Vec<String>>,
+) -> Result<String, String> {
+    let timeout = {
+        let config = state.config.read().map_err(|e| e.to_string())?;
+        config.advanced.svn_timeout_secs
+    };
+    const ALLOWED: &[&str] = &[
+        "--vacuum-pristines",
+        "--vacuum-prunables",
+        "--include-externals",
+        "--remove-unversioned-trees",
+        "--remove-ignored-trees",
+        "--drop-dav-cache",
+    ];
+    let mut args = vec!["cleanup"];
+    if let Some(opts) = &options {
+        for opt in opts {
+            if !ALLOWED.contains(&opt.as_str()) {
+                return Err(format!("Invalid cleanup option: {}", opt));
+            }
+            args.push(opt.as_str());
+        }
+    }
+    svn::run_svn_async_in_dir(&args, timeout, Some(&path))
         .await
         .map_err(|e| e.to_string())
 }
@@ -153,4 +184,119 @@ pub async fn diff_unversioned_file(repo_path: String, file_path: String) -> Resu
     svn::diff::diff_unversioned_file(&repo_path, &file_path)
         .await
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn svn_revert(
+    state: State<'_, AppState>,
+    path: String,
+    paths: Vec<String>,
+) -> Result<Vec<String>, String> {
+    let timeout = {
+        let config = state.config.read().map_err(|e| e.to_string())?;
+        config.advanced.svn_timeout_secs
+    };
+    svn::ops::svn_revert(&path, &paths, timeout)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn svn_add(
+    state: State<'_, AppState>,
+    path: String,
+    paths: Vec<String>,
+) -> Result<Vec<String>, String> {
+    let timeout = {
+        let config = state.config.read().map_err(|e| e.to_string())?;
+        config.advanced.svn_timeout_secs
+    };
+    svn::ops::svn_add(&path, &paths, timeout)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn svn_delete(
+    state: State<'_, AppState>,
+    path: String,
+    paths: Vec<String>,
+    keep_local: bool,
+) -> Result<Vec<String>, String> {
+    let timeout = {
+        let config = state.config.read().map_err(|e| e.to_string())?;
+        config.advanced.svn_timeout_secs
+    };
+    svn::ops::svn_delete(&path, &paths, keep_local, timeout)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn svn_blame(
+    state: State<'_, AppState>,
+    path: String,
+    revision: Option<i32>,
+) -> Result<Vec<BlameEntry>, String> {
+    let timeout = {
+        let config = state.config.read().map_err(|e| e.to_string())?;
+        config.advanced.svn_timeout_secs
+    };
+    svn::ops::svn_blame(&path, revision, timeout)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn svn_update_to_revision(
+    state: State<'_, AppState>,
+    path: String,
+    revision: i32,
+) -> Result<String, String> {
+    let timeout = {
+        let config = state.config.read().map_err(|e| e.to_string())?;
+        config.advanced.svn_timeout_secs
+    };
+    svn::ops::svn_update_to_revision(&path, revision, timeout)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_files_from_disk(path: String, paths: Vec<String>) -> Result<Vec<String>, String> {
+    let mut deleted = Vec::new();
+    for p in &paths {
+        let full_path = std::path::Path::new(&path).join(p);
+        match std::fs::remove_file(&full_path) {
+            Ok(()) => deleted.push(p.clone()),
+            Err(e) => log::warn!("Failed to delete {}: {}", full_path.display(), e),
+        }
+    }
+    Ok(deleted)
+}
+
+#[tauri::command]
+pub fn open_in_system(path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+    let cmd = if p.is_dir() {
+        #[cfg(target_os = "windows")]
+        { ("explorer", vec![path]) }
+        #[cfg(target_os = "macos")]
+        { ("open", vec![path]) }
+        #[cfg(target_os = "linux")]
+        { ("xdg-open", vec![path]) }
+    } else {
+        let parent = p.parent().unwrap_or(p);
+        #[cfg(target_os = "windows")]
+        { ("explorer", vec![format!("/select,{}", path)]) }
+        #[cfg(target_os = "macos")]
+        { ("open", vec!["-R".to_string(), path]) }
+        #[cfg(target_os = "linux")]
+        { ("xdg-open", vec![parent.to_string_lossy().into_owned()]) }
+    };
+    std::process::Command::new(cmd.0)
+        .args(&cmd.1)
+        .spawn()
+        .map_err(|e| format!("Failed to open: {}", e))?;
+    Ok(())
 }

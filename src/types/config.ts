@@ -11,6 +11,8 @@ export interface AppConfig {
   fileBrowser: FileBrowserConfig
   behavior: BehaviorConfig
   advanced: AdvancedConfig
+  cleanup: CleanupConfig
+  externalEditor?: string
 }
 
 export interface WindowConfig {
@@ -88,4 +90,13 @@ export interface BehaviorConfig {
 export interface AdvancedConfig {
   svnTimeoutSecs: number
   logLevel: 'error' | 'warn' | 'info' | 'debug'
+}
+
+export interface CleanupConfig {
+  vacuumPristines: boolean
+  vacuumPrunables: boolean
+  includeExternals: boolean
+  removeUnversionedTrees: boolean
+  removeIgnoredTrees: boolean
+  dropDavCache: boolean
 }

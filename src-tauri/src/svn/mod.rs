@@ -6,6 +6,7 @@ pub mod info;
 pub mod list;
 pub mod log;
 pub mod models;
+pub mod ops;
 pub mod status;
 pub mod update;
 
@@ -18,7 +19,7 @@ use tokio::process::Command;
 ///
 /// SVN on Chinese Windows may output GBK-encoded bytes even with --xml.
 /// This function tries UTF-8 first, then falls back to GBK on Windows.
-fn decode_bytes(bytes: &[u8]) -> String {
+pub fn decode_bytes(bytes: &[u8]) -> String {
     // Try UTF-8 first (works for well-configured SVN or --xml on modern SVN)
     if let Ok(s) = std::str::from_utf8(bytes) {
         // Check for replacement characters — indicates broken UTF-8

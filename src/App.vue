@@ -1,17 +1,21 @@
 <template>
-  <div class="app-container" :data-theme="theme">
+  <div class="app-container" @contextmenu.prevent>
     <GlobalTabBar
       :tabs="tabs"
       :activeTabIndex="activeTabIndex"
       @openSettings="showSettings = true"
       @switchTab="switchTab"
       @closeTab="closeTab"
+      @closeOtherTabs="closeOtherTabs"
+      @closeTabsToRight="closeTabsToRight"
       @addTab="showAddRepo = true"
     />
     <Toolbar
       v-if="tabs.length > 0"
-      :loading="currentTabStore?.loading ?? false"
+      :loading="(currentTabStore?.loading ?? false) || cleanupLoading"
       @pull="handlePull"
+      @cleanup="handleCleanup"
+      @cleanupOptions="handleCleanup"
       @refresh="handleRefresh"
     />
     <div class="main-content" v-if="tabs.length > 0">
@@ -42,6 +46,8 @@
           :fileTree="currentTabStore.fileTree"
           :loading="currentTabStore.loading"
           @refreshFileBrowser="currentTabStore.refreshFileBrowser"
+          @viewHistory="handleViewHistory"
+          @aiReview="handleAiReviewFromBrowser"
         />
         <ShelveView
           v-if="currentTabStore && currentTabStore.activeView === 'shelve'"
@@ -54,8 +60,14 @@
     </div>
     <div class="empty-state" v-else>
       <div class="empty-content">
+        <div class="empty-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-3.056-3.056a2.503 2.503 0 0 0-3.536 0l-2.38 2.379-1.144-1.143a2.5 2.5 0 0 0-3.535 0L3 16"/><path d="m16 6-4-4-4 4"/><path d="M12 12h8"/></svg>
+        </div>
         <p class="empty-title">SourceSvn</p>
         <p class="empty-hint">{{ t('common.addRepoHint') }}</p>
+        <button class="empty-action" @click="showAddRepo = true">
+          {{ t('globalTabBar.addRepo') }}
+        </button>
       </div>
     </div>
     <SettingsPage v-if="showSettings" @close="showSettings = false" />
@@ -108,7 +120,7 @@ import AiReviewPanel from './components/AiReviewPanel.vue'
 import AddRepoDialog from './components/AddRepoDialog.vue'
 import PullResultModal from './components/PullResultModal.vue'
 import { useToastStore } from './stores/toastStore'
-import type { UpdateResult } from './types/svn'
+import type { UpdateResult, SvnUpdateEvent } from './types/svn'
 import { t } from './locales'
 
 type TabStoreInstance = ReturnType<ReturnType<typeof useTabStore>>
@@ -128,6 +140,7 @@ const aiReviewContent = ref('')
 const aiReviewLoading = ref(false)
 const showPullResult = ref(false)
 const pullResult = ref<UpdateResult | null>(null)
+const cleanupLoading = ref(false)
 
 const recentRepos = computed<RepoEntry[]>(() => {
   return configStore.config?.session.recentRepos ?? []
@@ -140,6 +153,10 @@ const theme = computed(() => {
   }
   return t
 })
+
+watch(theme, (val) => {
+  document.documentElement.setAttribute('data-theme', val)
+}, { immediate: true })
 
 const currentTabStore = computed(() => {
   if (tabs.value.length === 0) return null
@@ -276,6 +293,39 @@ function closeTab(index: number) {
   saveSession()
 }
 
+function closeOtherTabs(keepIndex: number) {
+  const keepTab = tabs.value[keepIndex]
+  if (!keepTab) return
+  for (const tab of tabs.value) {
+    if (tab.id !== keepTab.id) {
+      const store = tabStores.value[tab.id]
+      if (store) {
+        store.$dispose()
+        delete tabStores.value[tab.id]
+      }
+    }
+  }
+  tabs.value = [keepTab]
+  activeTabIndex.value = 0
+  saveSession()
+}
+
+function closeTabsToRight(fromIndex: number) {
+  const toClose = tabs.value.slice(fromIndex + 1)
+  for (const tab of toClose) {
+    const store = tabStores.value[tab.id]
+    if (store) {
+      store.$dispose()
+      delete tabStores.value[tab.id]
+    }
+  }
+  tabs.value = tabs.value.slice(0, fromIndex + 1)
+  if (activeTabIndex.value >= tabs.value.length) {
+    activeTabIndex.value = tabs.value.length - 1
+  }
+  saveSession()
+}
+
 function switchView(view: ActiveView) {
   if (!currentTabStore.value) return
   currentTabStore.value.activeView = view
@@ -302,19 +352,84 @@ function refreshCurrentView() {
 
 async function handlePull() {
   if (!currentTabStore.value) return
+
+  pullResult.value = { revision: 0, files: [] }
+  showPullResult.value = true
+
   try {
-    const result = await invoke<UpdateResult>('svn_update', {
-      path: currentTabStore.value.repoPath,
+    const { listen } = await import('@tauri-apps/api/event')
+    let unlisten: (() => void) | null = null
+
+    unlisten = await listen<SvnUpdateEvent>('svn_update_progress', (event) => {
+      const ev = event.payload
+      switch (ev.type) {
+        case 'file':
+          pullResult.value = {
+            revision: pullResult.value?.revision ?? 0,
+            files: [...(pullResult.value?.files ?? []), { path: ev.path, status: ev.status as 'A' | 'U' | 'M' | 'C', author: '' }],
+          }
+          break
+        case 'done':
+          pullResult.value = { ...pullResult.value!, revision: ev.revision }
+          unlisten?.()
+          refreshCurrentView()
+          break
+        case 'error':
+          showPullResult.value = false
+          useToastStore().error(t('common.pullFailed') + ': ' + ev.message)
+          unlisten?.()
+          break
+        case 'upToDate':
+          showPullResult.value = false
+          useToastStore().info(t('common.upToDate'))
+          unlisten?.()
+          break
+      }
     })
-    if (result.files.length === 0) {
-      useToastStore().info(t('common.upToDate'))
-    } else {
-      pullResult.value = result
-      showPullResult.value = true
-    }
+
+    await invoke('svn_update', { path: currentTabStore.value.repoPath })
+  } catch (e) {
+    showPullResult.value = false
+    useToastStore().error(t('common.pullFailed') + ': ' + (e as Error).message)
+  }
+}
+
+function hasDestructiveCleanupFlags(cfg: { removeUnversionedTrees: boolean; removeIgnoredTrees: boolean }): boolean {
+  return cfg.removeUnversionedTrees || cfg.removeIgnoredTrees
+}
+
+function cleanupConfigToArgs(cfg: { vacuumPristines: boolean; vacuumPrunables: boolean; includeExternals: boolean; removeUnversionedTrees: boolean; removeIgnoredTrees: boolean; dropDavCache: boolean }): string[] {
+  const args: string[] = []
+  if (cfg.vacuumPristines) args.push('--vacuum-pristines')
+  if (cfg.vacuumPrunables) args.push('--vacuum-prunables')
+  if (cfg.includeExternals) args.push('--include-externals')
+  if (cfg.removeUnversionedTrees) args.push('--remove-unversioned-trees')
+  if (cfg.removeIgnoredTrees) args.push('--remove-ignored-trees')
+  if (cfg.dropDavCache) args.push('--drop-dav-cache')
+  return args
+}
+
+async function handleCleanup() {
+  if (!currentTabStore.value || cleanupLoading.value) return
+  const cfg = configStore.config?.cleanup
+  if (!cfg) return
+  if (hasDestructiveCleanupFlags(cfg)) {
+    const confirmed = confirm(t('cleanup.destructiveConfirm'))
+    if (!confirmed) return
+  }
+  cleanupLoading.value = true
+  try {
+    const options = cleanupConfigToArgs(cfg)
+    await invoke<string>('svn_cleanup', {
+      path: currentTabStore.value.repoPath,
+      options,
+    })
+    useToastStore().success(t('cleanup.success'))
     refreshCurrentView()
   } catch (e) {
-    useToastStore().error(t('common.pullFailed') + ': ' + (e as Error).message)
+    useToastStore().error(t('cleanup.failed') + ': ' + (e as Error).message)
+  } finally {
+    cleanupLoading.value = false
   }
 }
 
@@ -327,6 +442,23 @@ async function saveSession() {
   configStore.config.session.openTabs = tabs.value
   configStore.config.session.activeTabIndex = activeTabIndex.value
   await configStore.saveConfig()
+}
+
+function handleViewHistory(_path: string) {
+  if (!currentTabStore.value) return
+  switchView('log')
+  currentTabStore.value.refreshLog()
+}
+
+async function handleAiReviewFromBrowser(path: string) {
+  if (aiReviewLoading.value) return
+  try {
+    const content = await invoke<string>('svn_cat', { path })
+    const diff = `--- ${path} (repository)\n+++ ${path} (repository)\n@@ -0,0 +1 @@\n${content}`
+    await handleAiReview(diff)
+  } catch (e) {
+    useToastStore().error(String(e))
+  }
 }
 
 async function handleAiReview(diff: string) {
@@ -376,25 +508,53 @@ async function handleAiReview(diff: string) {
 .view-area {
   flex: 1;
   overflow: auto;
-  padding: 12px;
+  padding: var(--spacing-md);
 }
 .empty-state {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
 }
 .empty-content {
   text-align: center;
+  padding: var(--spacing-xl);
+}
+.empty-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto var(--spacing-lg);
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-color);
 }
 .empty-title {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 28px;
+  font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 8px;
+  margin-bottom: var(--spacing-sm);
 }
 .empty-hint {
   color: var(--text-muted);
   font-size: 14px;
+  margin-bottom: var(--spacing-lg);
+}
+.empty-action {
+  padding: var(--spacing-sm) var(--spacing-xl);
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+.empty-action:hover {
+  background: var(--accent-hover);
 }
 </style>

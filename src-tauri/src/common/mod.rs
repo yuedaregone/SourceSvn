@@ -20,6 +20,10 @@ pub struct AppConfig {
     pub file_browser: FileBrowserConfig,
     pub behavior: BehaviorConfig,
     pub advanced: AdvancedConfig,
+    #[serde(default)]
+    pub cleanup: CleanupConfig,
+    #[serde(default)]
+    pub external_editor: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -124,6 +128,17 @@ pub struct AdvancedConfig {
     pub log_level: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CleanupConfig {
+    pub vacuum_pristines: bool,
+    pub vacuum_prunables: bool,
+    pub include_externals: bool,
+    pub remove_unversioned_trees: bool,
+    pub remove_ignored_trees: bool,
+    pub drop_dav_cache: bool,
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -177,6 +192,15 @@ impl Default for AppConfig {
                 svn_timeout_secs: 60,
                 log_level: "warn".to_string(),
             },
+            cleanup: CleanupConfig {
+                vacuum_pristines: false,
+                vacuum_prunables: false,
+                include_externals: false,
+                remove_unversioned_trees: false,
+                remove_ignored_trees: false,
+                drop_dav_cache: false,
+            },
+            external_editor: None,
         }
     }
 }

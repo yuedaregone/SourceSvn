@@ -43,6 +43,7 @@
             v-for="shelve in props.shelves"
             :key="shelve.name"
             :class="{ selected: selectedNames.has(shelve.name) }"
+            @contextmenu.prevent="openContextMenu($event, shelve)"
           >
             <td class="col-check">
               <input
@@ -83,13 +84,24 @@
         </div>
       </div>
     </div>
+    <ContextMenu
+      :visible="ctxMenu.visible"
+      :x="ctxMenu.x"
+      :y="ctxMenu.y"
+      :items="ctxMenuItems"
+      @close="ctxMenu.visible = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { Save, RefreshCw, Check, Trash2, ArrowRight, X } from 'lucide-vue-next'
+import { Save, RefreshCw, Check, Trash2, ArrowRight, X, Pencil } from 'lucide-vue-next'
+import { useToastStore } from '../stores/toastStore'
+import type { ShelveInfo } from '../types/svn'
+import type { MenuItem } from '../components/ContextMenu.vue'
+import ContextMenu from '../components/ContextMenu.vue'
 import { t } from '../locales'
 
 const props = defineProps<{
@@ -217,6 +229,47 @@ async function bulkDelete() {
 function refresh() {
   emit('refreshShelves')
 }
+
+const ctxMenu = ref({ visible: false, x: 0, y: 0, shelve: null as ShelveInfo | null })
+
+function openContextMenu(e: MouseEvent, shelve: ShelveInfo) {
+  ctxMenu.value = { visible: true, x: e.clientX, y: e.clientY, shelve }
+}
+
+const ctxMenuItems = computed<MenuItem[]>(() => {
+  const shelve = ctxMenu.value.shelve
+  if (!shelve) return []
+  const toast = useToastStore()
+
+  return [
+    {
+      label: t('contextMenu.applyShelve'),
+      icon: ArrowRight,
+      action: () => { applyShelve(shelve.name) },
+    },
+    { divider: true },
+    {
+      label: t('contextMenu.rename'),
+      icon: Pencil,
+      action: async () => {
+        const newName = prompt(t('contextMenu.revisionInput'), shelve.name)
+        if (newName && newName.trim() !== shelve.name) {
+          try {
+            // Rename is save + delete original
+            await invoke('shelve_save', { path: props.repoPath, name: newName.trim() })
+            await invoke('shelve_delete', { path: props.repoPath, name: shelve.name })
+            emit('refreshShelves')
+          } catch (e) { toast.error(String(e)) }
+        }
+      },
+    },
+    {
+      label: t('common.delete'),
+      icon: Trash2,
+      action: () => { deleteShelve(shelve.name) },
+    },
+  ]
+})
 
 onMounted(() => {
   emit('refreshShelves')

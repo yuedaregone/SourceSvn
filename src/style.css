@@ -21,20 +21,40 @@ body {
   height: 100%;
 }
 
-/* 日期选择器深色主题样式 */
+/* 日期选择器主题样式 */
 input[type="date"] {
-  color-scheme: dark;
   background: var(--bg-primary);
   color: var(--text-primary);
   border: 1px solid var(--border-input);
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.7);
+  filter: invert(0.3);
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  filter: invert(0.5);
+}
+
+[data-theme="dark"] input[type="date"] {
+  color-scheme: dark;
+}
+
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+}
+
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator:hover {
   filter: invert(1);
+}
+
+/* 全局间距变量 */
+:root {
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
 }
 
 /* Toast 主题变量 */
@@ -101,4 +121,23 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   --overlay-bg: rgba(0, 0, 0, 0.6);
   --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
   --border: #3e3e3e;
+}
+
+/* 全局滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
