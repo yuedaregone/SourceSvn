@@ -12,13 +12,20 @@ pub async fn svn_diff(
             path: file_path,
             revision,
         } => {
-            let mut args = vec!["diff".to_string(), file_path.clone()];
+            // Construct absolute path and normalize to forward slashes.
+            // Using an absolute path avoids issues with current_dir and
+            // non-ASCII (e.g. Chinese) paths on Windows.
+            let abs_path = Path::new(path)
+                .join(file_path)
+                .to_string_lossy()
+                .replace('\\', "/");
+            let mut args = vec!["diff".to_string(), abs_path];
             if let Some(rev) = revision {
                 args.push("-r".to_string());
                 args.push(rev.clone());
             }
             let args_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-            crate::svn::run_svn_utf8_async_in_dir(&args_refs, timeout_secs, Some(path)).await
+            crate::svn::run_svn_utf8_async(&args_refs, timeout_secs).await
         }
         DiffTarget::FileAtRevision {
             path: file_path,
@@ -29,14 +36,12 @@ pub async fn svn_diff(
                 crate::svn::run_svn_utf8_async(&["info", "--xml", path], timeout_secs).await?;
             let info = crate::svn::info::parse_info_for_log(&info_xml)?;
             let file_url = if info.root.is_empty() {
-                // 如果无法获取根 URL，使用当前 URL（降级方案）
                 if info.url.ends_with('/') {
                     format!("{}{}", info.url, file_path)
                 } else {
                     format!("{}/{}", info.url, file_path)
                 }
             } else {
-                // 使用仓库根 URL + 相对路径构建完整 URL
                 if info.root.ends_with('/') {
                     format!("{}{}", info.root, file_path)
                 } else {
@@ -57,13 +62,15 @@ pub async fn svn_diff(
 
 pub async fn diff_unversioned_file(repo_path: &str, file_path: &str) -> Result<String, AppError> {
     let full_path = Path::new(repo_path).join(file_path);
-    let content = tokio::fs::read_to_string(&full_path).await.map_err(|e| {
+    let bytes = tokio::fs::read(&full_path).await.map_err(|e| {
         AppError::Fs(format!(
             "Failed to read file {}: {}",
             full_path.display(),
             e
         ))
     })?;
+
+    let content = crate::svn::decode_bytes(&bytes);
 
     let filename = Path::new(file_path)
         .file_name()

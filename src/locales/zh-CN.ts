@@ -140,6 +140,7 @@ export default {
     settingsApplied: '设置已应用',
     pathNotFound: '路径不存在',
     notWorkingCopy: '不是有效的 SVN 工作副本',
+    clearAll: '清除全部',
   },
   logView: {
     allAuthors: '所有作者',

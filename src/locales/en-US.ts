@@ -140,6 +140,7 @@ export default {
     settingsApplied: 'Settings applied',
     pathNotFound: 'Path not found',
     notWorkingCopy: 'Not a valid SVN working copy',
+    clearAll: 'Clear All',
   },
   logView: {
     allAuthors: 'All Authors',

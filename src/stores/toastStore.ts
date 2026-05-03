@@ -5,6 +5,7 @@ export interface Toast {
   id: number
   message: string
   type: 'success' | 'error' | 'warning' | 'info'
+  expanded?: boolean
 }
 
 export const useToastStore = defineStore('toast', () => {
@@ -14,7 +15,7 @@ export const useToastStore = defineStore('toast', () => {
   function addToast(message: string, type: Toast['type'] = 'info', duration = 3000) {
     const id = nextId++
     toasts.value.push({ id, message, type })
-    
+
     if (duration > 0) {
       setTimeout(() => {
         removeToast(id)
@@ -49,6 +50,11 @@ export const useToastStore = defineStore('toast', () => {
     toasts.value = []
   }
 
+  function toggleExpand(id: number) {
+    const t = toasts.value.find(t => t.id === id)
+    if (t) t.expanded = !t.expanded
+  }
+
   return {
     toasts,
     addToast,
@@ -58,5 +64,6 @@ export const useToastStore = defineStore('toast', () => {
     info,
     removeToast,
     clearAll,
+    toggleExpand,
   }
 })

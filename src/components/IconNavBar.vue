@@ -67,16 +67,6 @@ const navItems = [
   color: var(--accent-color);
   box-shadow: inset 0 0 0 1px var(--accent-color);
 }
-.nav-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 8px;
-  bottom: 8px;
-  width: 3px;
-  background: var(--accent-color);
-  border-radius: 0 2px 2px 0;
-}
 .nav-icon {
   flex-shrink: 0;
 }

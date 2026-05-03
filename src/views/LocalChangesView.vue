@@ -56,7 +56,6 @@
             <Send :size="16" />
           </button>
         </div>
-        <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
       </div>
     </div>
     <div class="right-panel">
@@ -100,7 +99,7 @@ const selectedFile = ref('')
 const commitMessage = ref('')
 const diffContent = ref('')
 const aiLoading = ref(false)
-const errorMessage = ref('')
+const toast = useToastStore()
 
 const ctxMenu = ref({ visible: false, x: 0, y: 0, file: null as FileStatus | null })
 
@@ -158,11 +157,15 @@ function toggleFile(path: string) {
 }
 
 async function selectFile(file: FileStatus) {
-  errorMessage.value = ''
   selectedFile.value = file.path
   selectedPaths.value = new Set([file.path])
   if (file.isDirectory) {
     diffContent.value = ''
+    return
+  }
+  if (file.status === 'deleted' || file.status === 'missing') {
+    diffContent.value = ''
+    toast.warning(`${t('common.status')}: ${file.status} — ${file.path}`)
     return
   }
   try {
@@ -180,14 +183,13 @@ async function selectFile(file: FileStatus) {
     }
   } catch (e) {
     diffContent.value = ''
-    errorMessage.value = t('common.error') + ': ' + e
+    toast.error(String(e), 0)
   }
 }
 
 async function generateAiMessage() {
   if (selectedPaths.value.size === 0) return
   aiLoading.value = true
-  errorMessage.value = ''
   try {
     const firstPath = Array.from(selectedPaths.value)[0]
     const target: DiffTarget = { type: 'file', data: { path: firstPath } }
@@ -197,7 +199,7 @@ async function generateAiMessage() {
     })
     commitMessage.value = await invoke<string>('generate_commit_message', { diff })
   } catch (e) {
-    errorMessage.value = t('common.aiReviewFailed', { msg: String(e) })
+    toast.error(t('common.aiReviewFailed', { msg: String(e) }), 0)
   } finally {
     aiLoading.value = false
   }
@@ -205,7 +207,6 @@ async function generateAiMessage() {
 
 async function submitCommit() {
   if (!canCommit.value) return
-  errorMessage.value = ''
   try {
     await invoke('svn_commit', {
       path: props.repoPath,
@@ -219,7 +220,7 @@ async function submitCommit() {
     emit('refreshLocalChanges')
     emit('refresh')
   } catch (e) {
-    errorMessage.value = t('common.error') + ': ' + e
+    toast.error(String(e), 0)
   }
 }
 
@@ -478,6 +479,43 @@ onMounted(() => {
 .status-badge.unversioned { background: var(--text-muted); }
 .status-badge.missing { background: #ff7a45; }
 .status-badge.conflicted { background: #f5222d; }
+/* 复选框样式 - 完全自定义 */
+.file-item input[type="checkbox"],
+.select-all input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-input);
+  border-radius: 3px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.file-item input[type="checkbox"]::before,
+.select-all input[type="checkbox"]::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background-color: transparent;
+  border-radius: 2px;
+  transition: background-color 0.2s;
+}
+.file-item input[type="checkbox"]:checked::before,
+.select-all input[type="checkbox"]:checked::before {
+  background-color: var(--accent-color);
+}
+.file-item input[type="checkbox"]:hover,
+.select-all input[type="checkbox"]:hover {
+  border-color: var(--accent-color);
+}
+[data-theme="dark"] .file-item input[type="checkbox"],
+[data-theme="dark"] .select-all input[type="checkbox"] {
+  background-color: var(--bg-secondary);
+}
 .file-path {
   flex: 1;
   overflow: hidden;
@@ -571,15 +609,6 @@ onMounted(() => {
 }
 .ai-btn:hover:not(:disabled) {
   background: rgba(114, 46, 209, 0.1);
-}
-.error-message {
-  margin-top: 8px;
-  padding: 6px 8px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--danger-color);
-  border-radius: 4px;
-  color: var(--danger-color);
-  font-size: 12px;
 }
 .diff-content {
   font-family: 'Consolas', 'Monaco', monospace;
