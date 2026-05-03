@@ -16,6 +16,7 @@
 <script setup lang="ts">
 import { ClipboardList, FileEdit, FolderTree, Package } from 'lucide-vue-next'
 import type { ActiveView } from '../types/svn'
+import { t } from '../locales'
 
 defineProps<{
   activeView: ActiveView
@@ -26,10 +27,10 @@ defineEmits<{
 }>()
 
 const navItems = [
-  { view: 'log' as ActiveView, icon: ClipboardList, label: '日志', shortcut: 'Ctrl+1' },
-  { view: 'localChanges' as ActiveView, icon: FileEdit, label: '本地修改', shortcut: 'Ctrl+2' },
-  { view: 'fileBrowser' as ActiveView, icon: FolderTree, label: '文件浏览', shortcut: 'Ctrl+3' },
-  { view: 'shelve' as ActiveView, icon: Package, label: 'Shelve', shortcut: 'Ctrl+4' },
+  { view: 'log' as ActiveView, icon: ClipboardList, label: t('tabs.log'), shortcut: 'Ctrl+1' },
+  { view: 'localChanges' as ActiveView, icon: FileEdit, label: t('tabs.localChanges'), shortcut: 'Ctrl+2' },
+  { view: 'fileBrowser' as ActiveView, icon: FolderTree, label: t('tabs.fileBrowser'), shortcut: 'Ctrl+3' },
+  { view: 'shelve' as ActiveView, icon: Package, label: t('tabs.shelve'), shortcut: 'Ctrl+4' },
 ]
 </script>
 

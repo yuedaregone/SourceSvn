@@ -38,6 +38,7 @@ export interface SessionConfig {
 }
 
 export interface TabInfo {
+  id: string
   repoPath: string
   activeView: 'log' | 'localChanges' | 'fileBrowser' | 'shelve'
 }

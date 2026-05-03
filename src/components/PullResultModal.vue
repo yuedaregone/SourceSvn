@@ -6,7 +6,7 @@
           <div class="modal-icon">
             <Download :size="16" />
           </div>
-          <span class="modal-title">拉取结果</span>
+          <span class="modal-title">{{ t('common.pullResult') }}</span>
           <span class="modal-rev" v-if="result">r{{ result.revision }}</span>
         </div>
         <button class="close-btn" @click="$emit('close')">&times;</button>
@@ -15,17 +15,17 @@
       <div class="stats-bar" v-if="result">
         <div class="stat-item">
           <span class="stat-dot conflict" />
-          <span class="stat-label">冲突</span>
+          <span class="stat-label">{{ t('common.conflict') }}</span>
           <span class="stat-value conflict-value">{{ conflictCount }}</span>
         </div>
         <div class="stat-item">
           <span class="stat-dot merged" />
-          <span class="stat-label">合并</span>
+          <span class="stat-label">{{ t('common.merged') }}</span>
           <span class="stat-value merged-value">{{ mergedCount }}</span>
         </div>
         <div class="stat-item">
           <span class="stat-dot added" />
-          <span class="stat-label">更新</span>
+          <span class="stat-label">{{ t('common.updated') }}</span>
           <span class="stat-value added-value">{{ updatedCount }}</span>
         </div>
       </div>
@@ -35,10 +35,10 @@
           <thead>
             <tr>
               <th style="width: 44px"></th>
-              <th style="width: 44px">状态</th>
-              <th>文件路径</th>
-              <th style="width: 100px">修改者</th>
-              <th style="width: 72px; text-align: center">操作</th>
+              <th style="width: 44px">{{ t('common.status') }}</th>
+              <th>{{ t('common.filePath') }}</th>
+              <th style="width: 100px">{{ t('common.modifier') }}</th>
+              <th style="width: 72px; text-align: center">{{ t('common.actions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -61,14 +61,14 @@
                   class="diff-btn resolve-btn"
                   @click="handleResolve(file)"
                 >
-                  解决
+                  {{ t('common.resolve') }}
                 </button>
                 <button
                   v-else
                   class="diff-btn"
                   @click="handleViewDiff(file)"
                 >
-                  查看
+                  {{ t('common.view') }}
                 </button>
               </td>
             </tr>
@@ -77,7 +77,7 @@
       </div>
 
       <div class="modal-footer">
-        <button class="btn btn-primary" @click="$emit('close')">关闭</button>
+        <button class="btn btn-primary" @click="$emit('close')">{{ t('common.close') }}</button>
       </div>
     </div>
   </div>
@@ -87,6 +87,8 @@
 import { computed } from 'vue'
 import { Download } from 'lucide-vue-next'
 import type { UpdateResult, UpdateFileItem } from '../types/svn'
+import { useToastStore } from '../stores/toastStore'
+import { t } from '../locales'
 
 const props = defineProps<{
   visible: boolean
@@ -120,12 +122,12 @@ function statusClass(status: string) {
 
 function handleResolve(_file: UpdateFileItem) {
   // TODO: open third-party merge tool
-  console.log('resolve conflict:', _file.path)
+  useToastStore().info(t('common.resolve') + ': ' + _file.path)
 }
 
 function handleViewDiff(_file: UpdateFileItem) {
   // TODO: open DiffViewer (deferred to avoid nested modal complexity)
-  console.log('view diff:', _file.path)
+  useToastStore().info(t('common.view') + ': ' + _file.path)
 }
 </script>
 

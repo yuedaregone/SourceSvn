@@ -57,7 +57,7 @@ pub async fn svn_diff(
 
 pub async fn diff_unversioned_file(repo_path: &str, file_path: &str) -> Result<String, AppError> {
     let full_path = Path::new(repo_path).join(file_path);
-    let content = std::fs::read_to_string(&full_path).map_err(|e| {
+    let content = tokio::fs::read_to_string(&full_path).await.map_err(|e| {
         AppError::Fs(format!(
             "Failed to read file {}: {}",
             full_path.display(),

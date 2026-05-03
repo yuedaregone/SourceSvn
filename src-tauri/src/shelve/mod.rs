@@ -3,6 +3,43 @@ use crate::svn::models::ShelveInfo;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::PathBuf;
+use std::time::Duration;
+
+const STALE_LOCK_AGE: Duration = Duration::from_secs(3600);
+
+struct ShelveLock {
+    path: PathBuf,
+}
+
+impl ShelveLock {
+    fn acquire(dir: &PathBuf) -> Result<Self, AppError> {
+        // Clean stale locks (older than 1 hour, e.g. from a previous crash)
+        let lock_path = dir.join(".lock");
+        if lock_path.exists() {
+            if let Ok(meta) = fs::metadata(&lock_path) {
+                if let Ok(modified) = meta.modified() {
+                    if modified.elapsed().unwrap_or_default() > STALE_LOCK_AGE {
+                        let _ = fs::remove_file(&lock_path);
+                    }
+                }
+            }
+        }
+
+        // Atomic lock creation — fails if already exists
+        std::fs::File::create_new(&lock_path)
+            .map_err(|_| AppError::Fs(
+                "Shelve directory is locked by another operation. Please try again.".to_string()
+            ))?;
+
+        Ok(Self { path: lock_path })
+    }
+}
+
+impl Drop for ShelveLock {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
+    }
+}
 
 pub fn validate_shelve_name(name: &str) -> Result<(), String> {
     if name.is_empty() {
@@ -28,7 +65,7 @@ fn repo_shelve_dir(repo_path: &str) -> PathBuf {
     let mut hasher = Sha256::new();
     hasher.update(repo_path.as_bytes());
     let hash = format!("{:x}", hasher.finalize());
-    let short_hash = &hash[..12];
+    let short_hash = &hash[..16];
     shelve_base_dir().join(short_hash)
 }
 
@@ -40,6 +77,7 @@ pub async fn shelve_save(
     let shelve_dir = repo_shelve_dir(repo_path);
     fs::create_dir_all(&shelve_dir)
         .map_err(|e| AppError::Fs(format!("Failed to create shelve directory: {}", e)))?;
+    let _lock = ShelveLock::acquire(&shelve_dir)?;
 
     let patch_file = shelve_dir.join(format!("{}.patch", name));
     if patch_file.exists() {
@@ -104,6 +142,7 @@ pub async fn shelve_apply(
     timeout_secs: u64,
 ) -> Result<(), AppError> {
     let shelve_dir = repo_shelve_dir(repo_path);
+    let _lock = ShelveLock::acquire(&shelve_dir)?;
     let patch_file = shelve_dir.join(format!("{}.patch", name));
     if !patch_file.exists() {
         return Err(AppError::Fs(format!("Shelve '{}' not found", name)));
@@ -117,6 +156,7 @@ pub async fn shelve_apply(
 
 pub fn shelve_delete(repo_path: &str, name: &str) -> Result<(), AppError> {
     let shelve_dir = repo_shelve_dir(repo_path);
+    let _lock = ShelveLock::acquire(&shelve_dir)?;
     let patch_file = shelve_dir.join(format!("{}.patch", name));
     if !patch_file.exists() {
         return Err(AppError::Fs(format!("Shelve '{}' not found", name)));

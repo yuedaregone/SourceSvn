@@ -51,15 +51,61 @@ struct StreamDelta {
     content: Option<String>,
 }
 
-impl OpenAiProvider {
-    pub fn new(endpoint: &str, api_key: &str, model: &str, timeout_secs: u64) -> Self {
-        let client = Client::builder()
-            .timeout(std::time::Duration::from_secs(timeout_secs))
-            .build()
-            .expect("Failed to create HTTP client");
+/// Max diff size to send to AI (~100KB, roughly 25k tokens).
+const MAX_DIFF_BYTES: usize = 100 * 1024;
 
+fn truncate_diff(diff: &str) -> String {
+    if diff.len() <= MAX_DIFF_BYTES {
+        diff.to_string()
+    } else {
+        let truncated = &diff[..MAX_DIFF_BYTES];
+        format!(
+            "{}\n\n[... diff truncated at {}KB — total size: {}KB ...]",
+            truncated,
+            MAX_DIFF_BYTES / 1024,
+            diff.len() / 1024,
+        )
+    }
+}
+
+/// Process a single SSE data line. Returns `Ok(true)` if `[DONE]` was received.
+fn process_sse_line(line: &str, app_handle: &AppHandle) -> Result<bool, AppError> {
+    if !line.starts_with("data: ") {
+        return Ok(false);
+    }
+    let data = &line[6..];
+    if data == "[DONE]" {
+        let _ = app_handle.emit(
+            "review_chunk",
+            ReviewChunkEvent {
+                content: String::new(),
+                done: true,
+            },
+        );
+        return Ok(true);
+    }
+    if let Ok(chunk) = serde_json::from_str::<StreamChunk>(data) {
+        if let Some(choice) = chunk.choices.first() {
+            if let Some(delta) = &choice.delta {
+                if let Some(content) = &delta.content {
+                    let _ = app_handle.emit(
+                        "review_chunk",
+                        ReviewChunkEvent {
+                            content: content.clone(),
+                            done: false,
+                        },
+                    );
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
+impl OpenAiProvider {
+    pub fn new(endpoint: &str, api_key: &str, model: &str, client: &Client) -> Self {
         Self {
-            client,
+            client: client.clone(),
             endpoint: endpoint.to_string(),
             api_key: api_key.to_string(),
             model: model.to_string(),
@@ -112,7 +158,7 @@ impl AiProvider for OpenAiProvider {
             },
             ChatMessage {
                 role: "user".to_string(),
-                content: format!("Generate a concise commit message for these changes:\n\n{}", diff),
+                content: format!("Generate a concise commit message for these changes:\n\n{}", truncate_diff(diff)),
             },
         ];
         self.chat_completion(messages).await
@@ -126,7 +172,7 @@ impl AiProvider for OpenAiProvider {
             },
             ChatMessage {
                 role: "user".to_string(),
-                content: format!("Review these code changes:\n\n{}", diff),
+                content: format!("Review these code changes:\n\n{}", truncate_diff(diff)),
             },
         ];
 
@@ -165,35 +211,15 @@ impl AiProvider for OpenAiProvider {
                 let line = buffer[..line_end].trim().to_string();
                 buffer = buffer[line_end + 1..].to_string();
 
-                if line.starts_with("data: ") {
-                    let data = &line[6..];
-                    if data == "[DONE]" {
-                        let _ = app_handle.emit(
-                            "review_chunk",
-                            ReviewChunkEvent {
-                                content: String::new(),
-                                done: true,
-                            },
-                        );
-                        return Ok(());
-                    }
-                    if let Ok(chunk) = serde_json::from_str::<StreamChunk>(data) {
-                        if let Some(choice) = chunk.choices.first() {
-                            if let Some(delta) = &choice.delta {
-                                if let Some(content) = &delta.content {
-                                    let _ = app_handle.emit(
-                                        "review_chunk",
-                                        ReviewChunkEvent {
-                                            content: content.clone(),
-                                            done: false,
-                                        },
-                                    );
-                                }
-                            }
-                        }
-                    }
+                if process_sse_line(&line, app_handle)? {
+                    return Ok(());
                 }
             }
+        }
+
+        // Process any remaining data in buffer (last line may not have trailing newline)
+        if !buffer.trim().is_empty() {
+            let _ = process_sse_line(buffer.trim(), app_handle)?;
         }
 
         let _ = app_handle.emit(

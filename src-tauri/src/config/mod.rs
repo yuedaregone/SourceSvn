@@ -6,10 +6,13 @@ use std::path::PathBuf;
 const APP_NAME: &str = "sourcesvn";
 
 fn config_file_path() -> PathBuf {
-    dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(APP_NAME)
-        .join("config.toml")
+    let base = dirs::config_dir()
+        .or_else(dirs::home_dir)
+        .unwrap_or_else(|| {
+            log::warn!("No config or home directory found, using current directory");
+            PathBuf::from(".")
+        });
+    base.join(APP_NAME).join("config.toml")
 }
 
 pub fn config_dir() -> PathBuf {
@@ -41,21 +44,36 @@ pub fn save_config(config: &AppConfig) -> Result<(), String> {
         .map_err(|e| format!("TOML serialization failed: {}", e))?;
 
     let path = config_file_path();
+    let tmp_path = path.with_extension("toml.tmp");
 
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create config directory: {}", e))?;
     }
 
-    File::create(&path)
-        .and_then(|mut file| file.write_all(toml_str.as_bytes()))
-        .map_err(|e| format!("Failed to write config file: {}", e))
+    // Write to temp file first, then rename for crash safety
+    File::create(&tmp_path)
+        .and_then(|mut file| {
+            file.write_all(toml_str.as_bytes())?;
+            file.sync_all()
+        })
+        .map_err(|e| format!("Failed to write config temp file: {}", e))?;
+
+    // On Windows, rename fails if dest exists, so remove first
+    if path.exists() {
+        fs::remove_file(&path)
+            .map_err(|e| format!("Failed to remove old config file: {}", e))?;
+    }
+    fs::rename(&tmp_path, &path)
+        .map_err(|e| format!("Failed to rename config file: {}", e))
 }
 
 fn migrate_if_needed(mut cfg: AppConfig) -> AppConfig {
     if cfg.config_version < 1 {
         cfg.config_version = 1;
-        let _ = save_config(&cfg);
+        if let Err(e) = save_config(&cfg) {
+            log::warn!("Failed to save migrated config: {}", e);
+        }
     }
     cfg
 }

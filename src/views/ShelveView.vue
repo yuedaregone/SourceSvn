@@ -1,10 +1,10 @@
 <template>
   <div class="shelve-view">
     <div class="shelve-header">
-      <button @click="showSaveDialog = true" class="primary-btn" title="保存当前修改">
+      <button @click="showSaveDialog = true" class="primary-btn" :title="t('shelveView.saveCurrentChanges')">
         <Save :size="16" />
       </button>
-      <button @click="refresh" class="action-btn icon-btn" :disabled="store.loading" title="刷新">
+      <button @click="refresh" class="action-btn icon-btn" :disabled="props.loading" :title="t('common.refresh')">
         <RefreshCw :size="16" />
       </button>
       <div class="header-right">
@@ -12,7 +12,7 @@
           @click="bulkApply"
           :disabled="selectedNames.size === 0"
           class="action-btn"
-          title="应用选中的 shelve"
+          :title="t('shelveView.applySelected')"
         >
           <Check :size="16" />
         </button>
@@ -20,7 +20,7 @@
           @click="bulkDelete"
           :disabled="selectedNames.size === 0"
           class="action-btn danger"
-          title="删除选中的 shelve"
+          :title="t('shelveView.deleteSelected')"
         >
           <Trash2 :size="16" />
         </button>
@@ -33,14 +33,14 @@
             <th class="col-check">
               <input type="checkbox" :checked="allSelected" @change="toggleAll" />
             </th>
-            <th class="col-name">名称</th>
-            <th class="col-date">日期</th>
-            <th class="col-actions">操作</th>
+            <th class="col-name">{{ t('common.name') }}</th>
+            <th class="col-date">{{ t('common.date') }}</th>
+            <th class="col-actions">{{ t('common.actions') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr
-            v-for="shelve in store.shelves"
+            v-for="shelve in props.shelves"
             :key="shelve.name"
             :class="{ selected: selectedNames.has(shelve.name) }"
           >
@@ -54,32 +54,32 @@
             <td class="col-name">{{ shelve.name }}</td>
             <td class="col-date">{{ formatDate(shelve.date) }}</td>
             <td class="col-actions">
-              <button @click="applyShelve(shelve.name)" class="table-btn icon-btn" title="应用">
+              <button @click="applyShelve(shelve.name)" class="table-btn icon-btn" :title="t('common.apply')">
                 <ArrowRight :size="14" />
               </button>
-              <button @click="deleteShelve(shelve.name)" class="table-btn danger icon-btn" title="删除">
+              <button @click="deleteShelve(shelve.name)" class="table-btn danger icon-btn" :title="t('common.delete')">
                 <X :size="14" />
               </button>
             </td>
           </tr>
         </tbody>
       </table>
-      <div v-if="store.shelves.length === 0" class="empty">暂无 Shelve</div>
+      <div v-if="props.shelves.length === 0" class="empty">{{ t('common.noShelves') }}</div>
     </div>
     <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
     <div v-if="showSaveDialog" class="dialog-overlay" @click.self="showSaveDialog = false">
       <div class="dialog">
-        <h3>保存 Shelve</h3>
+        <h3>{{ t('common.saveShelve') }}</h3>
         <input
           v-model="shelveName"
-          placeholder="名称"
+          :placeholder="t('common.shelveName')"
           class="dialog-input"
           @keyup.enter="saveShelve"
           ref="nameInput"
         />
         <div class="dialog-actions">
-          <button @click="showSaveDialog = false" class="cancel-btn">取消</button>
-          <button @click="saveShelve" :disabled="!shelveName.trim()" class="primary-btn">保存</button>
+          <button @click="showSaveDialog = false" class="cancel-btn">{{ t('common.cancel') }}</button>
+          <button @click="saveShelve" :disabled="!shelveName.trim()" class="primary-btn">{{ t('common.save') }}</button>
         </div>
       </div>
     </div>
@@ -90,14 +90,16 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { Save, RefreshCw, Check, Trash2, ArrowRight, X } from 'lucide-vue-next'
+import { t } from '../locales'
 
 const props = defineProps<{
-  store: {
-    repoPath: string
-    shelves: { name: string; date: string }[]
-    loading: boolean
-    refreshShelves: () => Promise<void>
-  }
+  repoPath: string
+  shelves: { name: string; date: string }[]
+  loading: boolean
+}>()
+
+const emit = defineEmits<{
+  refreshShelves: []
 }>()
 
 const showSaveDialog = ref(false)
@@ -108,8 +110,8 @@ const nameInput = ref<HTMLInputElement | null>(null)
 
 const allSelected = computed(
   () =>
-    props.store.shelves.length > 0 &&
-    props.store.shelves.every((s) => selectedNames.value.has(s.name)),
+    props.shelves.length > 0 &&
+    props.shelves.every((s) => selectedNames.value.has(s.name)),
 )
 
 watch(showSaveDialog, (v) => {
@@ -120,7 +122,7 @@ function toggleAll() {
   if (allSelected.value) {
     selectedNames.value = new Set()
   } else {
-    selectedNames.value = new Set(props.store.shelves.map((s) => s.name))
+    selectedNames.value = new Set(props.shelves.map((s) => s.name))
   }
 }
 
@@ -150,36 +152,36 @@ async function saveShelve() {
   errorMessage.value = ''
   try {
     await invoke('shelve_save', {
-      path: props.store.repoPath,
+      path: props.repoPath,
       name: shelveName.value.trim(),
     })
     showSaveDialog.value = false
     shelveName.value = ''
-    await props.store.refreshShelves()
+    emit('refreshShelves')
   } catch (e) {
-    errorMessage.value = `保存失败: ${e}`
+    errorMessage.value = t('common.error') + ': ' + e
   }
 }
 
 async function applyShelve(name: string) {
   errorMessage.value = ''
   try {
-    await invoke('shelve_apply', { path: props.store.repoPath, name })
-    await props.store.refreshShelves()
+    await invoke('shelve_apply', { path: props.repoPath, name })
+    emit('refreshShelves')
   } catch (e) {
-    errorMessage.value = `应用失败: ${e}`
+    errorMessage.value = t('common.error') + ': ' + e
   }
 }
 
 async function deleteShelve(name: string) {
-  if (!confirm(`确定要删除 '${name}' 吗？`)) return
+  if (!confirm(t('common.deleteConfirm', { name }))) return
   errorMessage.value = ''
   try {
-    await invoke('shelve_delete', { path: props.store.repoPath, name })
+    await invoke('shelve_delete', { path: props.repoPath, name })
     selectedNames.value.delete(name)
-    await props.store.refreshShelves()
+    emit('refreshShelves')
   } catch (e) {
-    errorMessage.value = `删除失败: ${e}`
+    errorMessage.value = t('common.error') + ': ' + e
   }
 }
 
@@ -187,37 +189,37 @@ async function bulkApply() {
   errorMessage.value = ''
   for (const name of selectedNames.value) {
     try {
-      await invoke('shelve_apply', { path: props.store.repoPath, name })
+      await invoke('shelve_apply', { path: props.repoPath, name })
     } catch (e) {
-      errorMessage.value = `应用 '${name}' 失败: ${e}`
+      errorMessage.value = t('common.error') + ': ' + e
       break
     }
   }
   selectedNames.value = new Set()
-  await props.store.refreshShelves()
+  emit('refreshShelves')
 }
 
 async function bulkDelete() {
-  if (!confirm(`确定要删除选中的 ${selectedNames.value.size} 个 Shelve 吗？`)) return
+  if (!confirm(t('common.bulkDeleteConfirm', { count: selectedNames.value.size }))) return
   errorMessage.value = ''
   for (const name of selectedNames.value) {
     try {
-      await invoke('shelve_delete', { path: props.store.repoPath, name })
+      await invoke('shelve_delete', { path: props.repoPath, name })
     } catch (e) {
-      errorMessage.value = `删除 '${name}' 失败: ${e}`
+      errorMessage.value = t('common.error') + ': ' + e
       break
     }
   }
   selectedNames.value = new Set()
-  await props.store.refreshShelves()
+  emit('refreshShelves')
 }
 
 function refresh() {
-  props.store.refreshShelves()
+  emit('refreshShelves')
 }
 
 onMounted(() => {
-  props.store.refreshShelves()
+  emit('refreshShelves')
 })
 </script>
 

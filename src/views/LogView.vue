@@ -2,14 +2,14 @@
   <div class="log-view">
     <div class="filter-bar">
       <select v-model="authorFilter" class="filter-select">
-        <option value="">所有作者</option>
+        <option value="">{{ t('logView.allAuthors') }}</option>
         <option v-for="a in authors" :key="a" :value="a">{{ a }}</option>
       </select>
-      <input v-model="dateFrom" type="date" class="filter-date" placeholder="开始日期" />
+      <input v-model="dateFrom" type="date" class="filter-date" :placeholder="t('common.startDate')" />
       <span class="date-separator">~</span>
-      <input v-model="dateTo" type="date" class="filter-date" placeholder="结束日期" />
-      <input v-model="searchText" placeholder="搜索提交信息..." class="search-input" />
-      <button @click="refresh" class="refresh-btn" :disabled="store.loading" title="刷新">
+      <input v-model="dateTo" type="date" class="filter-date" :placeholder="t('common.endDate')" />
+      <input v-model="searchText" :placeholder="t('common.searchMessage')" class="search-input" />
+      <button @click="refresh" class="refresh-btn" :disabled="props.loading" :title="t('common.refresh')">
         <RefreshCw :size="16" />
       </button>
     </div>
@@ -17,10 +17,10 @@
       <table>
         <thead>
           <tr>
-            <th class="col-revision">版本</th>
-            <th class="col-author">作者</th>
-            <th class="col-date">日期</th>
-            <th class="col-message">提交信息</th>
+            <th class="col-revision">{{ t('logView.revision') }}</th>
+            <th class="col-author">{{ t('logView.author') }}</th>
+            <th class="col-date">{{ t('logView.date') }}</th>
+            <th class="col-message">{{ t('logView.message') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -36,22 +36,30 @@
             <td class="col-message">{{ entry.message }}</td>
           </tr>
           <tr v-if="filteredEntries.length === 0">
-            <td colspan="4" class="empty-row">暂无日志记录</td>
+            <td colspan="4" class="empty-row">{{ t('logView.noLogs') }}</td>
           </tr>
         </tbody>
       </table>
     </div>
     <div class="pagination">
-      <button :disabled="currentPage <= 1" @click="currentPage--">&lt;上一页</button>
-      <span class="page-info">第 {{ currentPage }}/{{ totalPages }} 页</span>
-      <button :disabled="currentPage >= totalPages" @click="currentPage++">下一页&gt;</button>
+      <button :disabled="currentPage <= 1" @click="currentPage--">{{ t('common.prevPage') }}</button>
+      <span class="page-info">{{ t('common.pageInfo', { current: currentPage, total: totalPages }) }}</span>
+      <button :disabled="currentPage >= totalPages" @click="currentPage++">{{ t('common.nextPage') }}</button>
     </div>
-    <div v-if="expandedRevision" class="detail-panel">
-      <h4>版本 {{ expandedRevision }} 详细信息</h4>
+    <div v-if="expandedRevision" class="detail-panel" :style="{ height: detailPanelHeight + 'px' }">
+      <div class="drag-bar" @mousedown="onDragStart" @touchstart="onDragStart">
+        <div class="drag-handle"></div>
+      </div>
+      <div class="detail-header">
+        <h4>{{ t('logView.detailTitle', { revision: expandedRevision }) }}</h4>
+        <button class="close-btn" @click="closeDetail" :title="t('logView.closeDetail')">
+          <X :size="16" />
+        </button>
+      </div>
       <p class="detail-message">{{ expandedEntry?.message }}</p>
       <div class="detail-split">
         <div class="detail-left">
-          <h5>变更文件:</h5>
+          <h5>{{ t('logView.changedPaths') }}</h5>
           <div
             v-for="cp in expandedEntry?.changedPaths"
             :key="cp.path"
@@ -64,11 +72,11 @@
           </div>
         </div>
         <div class="detail-right">
-          <div v-if="fileDiffLoading" class="diff-loading">加载中...</div>
-          <div v-else-if="isBinaryFile" class="diff-binary">二进制文件，无法显示差异</div>
+          <div v-if="fileDiffLoading" class="diff-loading">{{ t('common.loading') }}</div>
+          <div v-else-if="isBinaryFile" class="diff-binary">{{ t('common.binaryFile') }}</div>
           <pre v-else-if="fileDiffText" class="diff-content"><template v-for="(line, i) in fileDiffLines" :key="i"><span :class="diffLineClass(line)">{{ line }}</span>
 </template></pre>
-          <div v-else class="diff-placeholder">点击左侧文件查看差异</div>
+          <div v-else class="diff-placeholder">{{ t('common.viewDiff') }}</div>
         </div>
       </div>
     </div>
@@ -78,20 +86,20 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { RefreshCw } from 'lucide-vue-next'
+import { RefreshCw, X } from 'lucide-vue-next'
 import type { LogEntry } from '../types/svn'
+import { t } from '../locales'
 
 const props = defineProps<{
-  store: {
-    repoPath: string
-    logEntries: LogEntry[]
-    wcRevision: number
-    loading: boolean
-    refreshLog: () => Promise<void>
-  }
+  repoPath: string
+  logEntries: LogEntry[]
+  wcRevision: number
+  loading: boolean
 }>()
 
-defineEmits<{}>()
+const emit = defineEmits<{
+  refreshLog: []
+}>()
 
 const searchText = ref('')
 const authorFilter = ref('')
@@ -104,25 +112,30 @@ const selectedFilePath = ref<string | null>(null)
 const fileDiffText = ref('')
 const fileDiffLoading = ref(false)
 const isBinaryFile = ref(false)
+const detailPanelHeight = ref(300)
+const isDragging = ref(false)
+const startY = ref(0)
+const startHeight = ref(0)
 
 const authors = computed(() => {
-  const set = new Set(props.store.logEntries.map((e) => e.author))
+  const set = new Set(props.logEntries.map((e) => e.author))
   return Array.from(set).sort()
 })
 
 const filteredEntries = computed(() => {
-  let entries = props.store.logEntries
+  let entries = props.logEntries
   if (authorFilter.value) {
     entries = entries.filter((e) => e.author === authorFilter.value)
   }
   if (dateFrom.value) {
-    const from = new Date(dateFrom.value)
-    entries = entries.filter((e) => new Date(e.date) >= from)
+    const from = new Date(dateFrom.value).getTime()
+    entries = entries.filter((e) => new Date(e.date).getTime() >= from)
   }
   if (dateTo.value) {
     const to = new Date(dateTo.value)
     to.setHours(23, 59, 59, 999)
-    entries = entries.filter((e) => new Date(e.date) <= to)
+    const toTime = to.getTime()
+    entries = entries.filter((e) => new Date(e.date).getTime() <= toTime)
   }
   if (searchText.value) {
     const text = searchText.value.toLowerCase()
@@ -144,7 +157,7 @@ const pagedEntries = computed(() => {
 
 const expandedEntry = computed(() => {
   if (!expandedRevision.value) return null
-  return props.store.logEntries.find((e) => e.revision === expandedRevision.value)
+  return props.logEntries.find((e) => e.revision === expandedRevision.value)
 })
 
 watch([authorFilter, dateFrom, dateTo, searchText], () => {
@@ -153,16 +166,46 @@ watch([authorFilter, dateFrom, dateTo, searchText], () => {
 
 function toggleDetail(revision: number) {
   if (expandedRevision.value === revision) {
-    expandedRevision.value = null
-    selectedFilePath.value = null
-    fileDiffText.value = ''
-    isBinaryFile.value = false
+    closeDetail()
   } else {
     expandedRevision.value = revision
     selectedFilePath.value = null
     fileDiffText.value = ''
     isBinaryFile.value = false
   }
+}
+
+function closeDetail() {
+  expandedRevision.value = null
+  selectedFilePath.value = null
+  fileDiffText.value = ''
+  isBinaryFile.value = false
+}
+
+function onDragStart(e: MouseEvent | TouchEvent) {
+  isDragging.value = true
+  startY.value = 'touches' in e ? e.touches[0].clientY : e.clientY
+  startHeight.value = detailPanelHeight.value
+  document.addEventListener('mousemove', onDragMove)
+  document.addEventListener('mouseup', onDragEnd)
+  document.addEventListener('touchmove', onDragMove)
+  document.addEventListener('touchend', onDragEnd)
+}
+
+function onDragMove(e: MouseEvent | TouchEvent) {
+  if (!isDragging.value) return
+  const currentY = 'touches' in e ? e.touches[0].clientY : e.clientY
+  const delta = startY.value - currentY
+  const newHeight = startHeight.value + delta
+  detailPanelHeight.value = Math.max(100, Math.min(600, newHeight))
+}
+
+function onDragEnd() {
+  isDragging.value = false
+  document.removeEventListener('mousemove', onDragMove)
+  document.removeEventListener('mouseup', onDragEnd)
+  document.removeEventListener('touchmove', onDragMove)
+  document.removeEventListener('touchend', onDragEnd)
 }
 
 async function selectFile(filePath: string) {
@@ -173,7 +216,7 @@ async function selectFile(filePath: string) {
   fileDiffLoading.value = true
   try {
     const result = await invoke<string>('svn_diff', {
-      path: props.store.repoPath,
+      path: props.repoPath,
       target: { type: 'fileAtRevision', data: { path: filePath, revision: String(expandedRevision.value), baseRevision: String(expandedRevision.value! - 1) } },
     })
     if (result.includes('Binary files')) {
@@ -182,8 +225,8 @@ async function selectFile(filePath: string) {
       fileDiffText.value = result
     }
   } catch (error) {
-    console.error('SVN diff error:', error)
-    fileDiffText.value = `获取差异失败: ${error.message || JSON.stringify(error)}`
+    const err = error as Error
+    fileDiffText.value = t('common.error') + ': ' + (err.message || String(error))
   } finally {
     fileDiffLoading.value = false
   }
@@ -222,11 +265,11 @@ function actionClass(action: string) {
 }
 
 function isLocal(entry: LogEntry): boolean {
-  return entry.revision <= props.store.wcRevision
+  return entry.revision <= props.wcRevision
 }
 
 function refresh() {
-  props.store.refreshLog()
+  emit('refreshLog')
 }
 
 onMounted(() => {
@@ -373,18 +416,65 @@ tr.non-local:hover {
 }
 .detail-panel {
   border-top: 1px solid var(--border-color);
-  padding: 12px;
+  padding: 0;
   background: var(--bg-secondary);
   border-radius: 0 0 4px 4px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
-.detail-panel h4 {
-  margin: 0 0 8px;
+.drag-bar {
+  height: 6px;
+  cursor: ns-resize;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.drag-bar:hover {
+  background: var(--bg-hover);
+}
+.drag-handle {
+  width: 40px;
+  height: 2px;
+  background: var(--border-light);
+  border-radius: 1px;
+}
+.drag-bar:hover .drag-handle,
+.drag-bar:active .drag-handle {
+  background: var(--border-color);
+}
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  margin: 8px 0;
+}
+.detail-header h4 {
+  margin: 0;
   font-size: 14px;
+  color: var(--text-primary);
+}
+.close-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.close-btn:hover {
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 .detail-message {
   color: var(--text-primary);
-  margin: 0 0 8px;
+  margin: 0 12px 8px;
 }
 .changed-paths {
   margin-top: 8px;
@@ -435,9 +525,10 @@ tr.non-local:hover {
 .detail-split {
   display: flex;
   gap: 12px;
-  margin-top: 8px;
-  min-height: 200px;
-  max-height: 400px;
+  margin: 0 12px 12px;
+  flex: 1;
+  min-height: 100px;
+  overflow: hidden;
 }
 .detail-left {
   width: 280px;

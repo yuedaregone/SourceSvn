@@ -11,7 +11,7 @@ fn parse_update_output(output: &str) -> Result<(u64, Vec<(String, String)>), App
         let trimmed = line.trim();
 
         // "Updated revision 105."
-        if let Some(rest) = trimmed.strip_prefix("Updated revision ") {
+        if let Some(rest) = trimmed.strip_prefix("Updated to revision ") {
             if let Some(rev_str) = rest.strip_suffix('.') {
                 if let Ok(rev) = rev_str.parse::<u64>() {
                     revision = rev;
@@ -95,7 +95,7 @@ pub async fn svn_update(path: &str, timeout_secs: u64) -> Result<UpdateResult, A
     let output = crate::svn::run_svn_async_in_dir(&["update"], timeout_secs, Some(path)).await?;
     let (revision, raw_files) = parse_update_output(&output)?;
 
-    if raw_files.is_empty() || revision == 0 {
+    if raw_files.is_empty() {
         return Ok(UpdateResult {
             revision,
             files: Vec::new(),
@@ -127,7 +127,7 @@ mod tests {
 
     #[test]
     fn test_parse_update_output_with_changes() {
-        let output = "Updating '.':\nA    new_file.rs\nU    existing.rs\nUpdated revision 105.\n";
+        let output = "Updating '.':\nA    new_file.rs\nU    existing.rs\nUpdated to revision 105.\n";
         let (revision, files) = parse_update_output(output).unwrap();
         assert_eq!(revision, 105);
         assert_eq!(files.len(), 2);
@@ -145,7 +145,7 @@ mod tests {
 
     #[test]
     fn test_parse_update_output_conflicts() {
-        let output = "Updating '.':\nC    conflict.rs\nA    ok.rs\nUpdated revision 200.\n";
+        let output = "Updating '.':\nC    conflict.rs\nA    ok.rs\nUpdated to revision 200.\n";
         let (revision, files) = parse_update_output(output).unwrap();
         assert_eq!(revision, 200);
         assert_eq!(files.len(), 2);

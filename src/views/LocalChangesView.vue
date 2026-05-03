@@ -4,16 +4,16 @@
       <div class="file-list-header">
         <label class="select-all">
           <input type="checkbox" :checked="allSelected" @change="toggleAll" />
-          <span>全选</span>
+          <span>{{ t('common.selectAll') }}</span>
         </label>
-        <span class="selected-count">已选 {{ selectedPaths.size }} 个文件</span>
+        <span class="selected-count">{{ t('localChanges.selectedCount', { count: selectedPaths.size }) }}</span>
       </div>
-      <div class="file-list" :class="{ loading: store.loading }">
-        <div v-if="store.loading" class="loading-overlay">
+      <div class="file-list" :class="{ loading: props.loading }">
+        <div v-if="props.loading" class="loading-overlay">
           <RefreshCw :size="24" class="spin" />
         </div>
         <div
-          v-for="file in store.localChanges"
+          v-for="file in props.localChanges"
           :key="file.path"
           class="file-item"
           :class="{ selected: selectedFile === file.path }"
@@ -23,17 +23,17 @@
             type="checkbox"
             :checked="selectedPaths.has(file.path)"
             @click.stop="toggleFile(file.path)"
-            :disabled="store.loading"
+            :disabled="props.loading"
           />
           <span class="status-badge" :class="file.status">{{ file.status[0].toUpperCase() }}</span>
           <span class="file-path">{{ file.path }}</span>
         </div>
-        <div v-if="!store.loading && store.localChanges.length === 0" class="empty-list">无本地修改</div>
+        <div v-if="!props.loading && props.localChanges.length === 0" class="empty-list">{{ t('common.noLocalChanges') }}</div>
       </div>
       <div class="commit-section">
         <textarea
           v-model="commitMessage"
-          placeholder="提交信息..."
+          :placeholder="t('localChanges.commitMessage')"
           rows="3"
           class="commit-input"
         ></textarea>
@@ -42,16 +42,16 @@
           <span class="stat-del">-{{ diffStats.removed }}</span>
         </div>
         <div class="commit-actions">
-          <button @click="generateAiMessage" :disabled="aiLoading || selectedPaths.size === 0" class="ai-btn" title="AI 生成注释">
+          <button @click="generateAiMessage" :disabled="aiLoading || selectedPaths.size === 0" class="ai-btn" :title="t('localChanges.aiGenerate')">
             <Sparkles :size="16" />
           </button>
-          <button @click="$emit('refresh')" class="action-btn icon-btn" title="刷新">
+          <button @click="$emit('refresh')" class="action-btn icon-btn" :title="t('common.refresh')">
             <RefreshCw :size="16" />
           </button>
-          <button @click="cancelCommit" class="cancel-btn icon-btn" title="取消">
+          <button @click="cancelCommit" class="cancel-btn icon-btn" :title="t('common.cancel')">
             <X :size="16" />
           </button>
-          <button @click="submitCommit" :disabled="!canCommit" class="commit-btn" title="提交">
+          <button @click="submitCommit" :disabled="!canCommit" class="commit-btn" :title="t('common.submit')">
             <Send :size="16" />
           </button>
         </div>
@@ -61,7 +61,7 @@
     <div class="right-panel">
       <pre v-if="diffContent" class="diff-content"><template v-for="(line, i) in coloredLines" :key="i"><span :class="lineClass(line)">{{ line }}</span>
 </template></pre>
-      <div v-else class="diff-placeholder">点击文件查看差异</div>
+      <div v-else class="diff-placeholder">{{ t('common.clickToViewDiff') }}</div>
     </div>
   </div>
 </template>
@@ -71,17 +71,17 @@ import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { Sparkles, RefreshCw, X, Send } from 'lucide-vue-next'
 import type { FileStatus, DiffTarget } from '../types/svn'
+import { t } from '../locales'
 
 const props = defineProps<{
-  store: {
-    repoPath: string
-    localChanges: FileStatus[]
-    refreshLocalChanges: () => Promise<void>
-  }
+  repoPath: string
+  localChanges: FileStatus[]
+  loading: boolean
 }>()
 
 const emit = defineEmits<{
   refresh: []
+  refreshLocalChanges: []
 }>()
 
 const selectedPaths = ref(new Set<string>())
@@ -93,24 +93,26 @@ const errorMessage = ref('')
 
 const allSelected = computed(
   () =>
-    props.store.localChanges.length > 0 &&
-    props.store.localChanges.every((f) => selectedPaths.value.has(f.path)),
+    props.localChanges.length > 0 &&
+    props.localChanges.every((f) => selectedPaths.value.has(f.path)),
 )
 
 const canCommit = computed(
   () => selectedPaths.value.size > 0 && commitMessage.value.trim().length > 0,
 )
 
-const coloredLines = computed(() => {
+const diffLines = computed(() => {
   if (!diffContent.value) return []
   return diffContent.value.split('\n')
 })
+
+const coloredLines = computed(() => diffLines.value)
 
 const diffStats = computed(() => {
   if (!diffContent.value) return null
   let added = 0
   let removed = 0
-  for (const line of diffContent.value.split('\n')) {
+  for (const line of diffLines.value) {
     if (line.startsWith('+') && !line.startsWith('+++')) added++
     else if (line.startsWith('-') && !line.startsWith('---')) removed++
   }
@@ -128,7 +130,7 @@ function toggleAll() {
   if (allSelected.value) {
     selectedPaths.value = new Set()
   } else {
-    selectedPaths.value = new Set(props.store.localChanges.map((f) => f.path))
+    selectedPaths.value = new Set(props.localChanges.map((f) => f.path))
   }
 }
 
@@ -146,22 +148,26 @@ async function selectFile(file: FileStatus) {
   errorMessage.value = ''
   selectedFile.value = file.path
   selectedPaths.value = new Set([file.path])
+  if (file.isDirectory) {
+    diffContent.value = ''
+    return
+  }
   try {
     if (file.status === 'unversioned') {
       diffContent.value = await invoke<string>('diff_unversioned_file', {
-        repoPath: props.store.repoPath,
+        repoPath: props.repoPath,
         filePath: file.path,
       })
     } else {
-      const target: DiffTarget = { type: 'File', data: { path: file.path } }
+      const target: DiffTarget = { type: 'file', data: { path: file.path } }
       diffContent.value = await invoke<string>('svn_diff', {
-        path: props.store.repoPath,
+        path: props.repoPath,
         target,
       })
     }
   } catch (e) {
     diffContent.value = ''
-    errorMessage.value = `获取差异失败: ${e}`
+    errorMessage.value = t('common.error') + ': ' + e
   }
 }
 
@@ -171,14 +177,14 @@ async function generateAiMessage() {
   errorMessage.value = ''
   try {
     const firstPath = Array.from(selectedPaths.value)[0]
-    const target: DiffTarget = { type: 'File', data: { path: firstPath } }
+    const target: DiffTarget = { type: 'file', data: { path: firstPath } }
     const diff = await invoke<string>('svn_diff', {
-      path: props.store.repoPath,
+      path: props.repoPath,
       target,
     })
     commitMessage.value = await invoke<string>('generate_commit_message', { diff })
   } catch (e) {
-    errorMessage.value = `AI 生成失败: ${e}`
+    errorMessage.value = t('common.aiReviewFailed', { msg: String(e) })
   } finally {
     aiLoading.value = false
   }
@@ -189,7 +195,7 @@ async function submitCommit() {
   errorMessage.value = ''
   try {
     await invoke('svn_commit', {
-      path: props.store.repoPath,
+      path: props.repoPath,
       message: commitMessage.value,
       files: Array.from(selectedPaths.value),
     })
@@ -197,10 +203,10 @@ async function submitCommit() {
     selectedPaths.value = new Set()
     selectedFile.value = ''
     diffContent.value = ''
-    await props.store.refreshLocalChanges()
+    emit('refreshLocalChanges')
     emit('refresh')
   } catch (e) {
-    errorMessage.value = `提交失败: ${e}`
+    errorMessage.value = t('common.error') + ': ' + e
   }
 }
 
@@ -212,7 +218,7 @@ function cancelCommit() {
 }
 
 onMounted(() => {
-  props.store.refreshLocalChanges()
+  emit('refreshLocalChanges')
 })
 </script>
 

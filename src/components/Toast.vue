@@ -27,7 +27,7 @@ const toastStore = useToastStore()
 const toasts = computed(() => toastStore.toasts)
 
 function getIcon(type: string) {
-  const icons: Record<string, any> = {
+  const icons: Record<string, typeof Info> = {
     success: CheckCircle,
     error: AlertCircle,
     warning: AlertTriangle,

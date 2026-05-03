@@ -11,7 +11,7 @@ pub async fn shelve_save(
 ) -> Result<(), String> {
     shelve::validate_shelve_name(&name)?;
     let timeout = {
-        let config = state.config.lock().map_err(|e| e.to_string())?;
+        let config = state.config.read().map_err(|e| e.to_string())?;
         config.advanced.svn_timeout_secs
     };
     shelve::shelve_save(&path, &name, timeout)
@@ -31,7 +31,7 @@ pub async fn shelve_apply(
     name: String,
 ) -> Result<(), String> {
     let timeout = {
-        let config = state.config.lock().map_err(|e| e.to_string())?;
+        let config = state.config.read().map_err(|e| e.to_string())?;
         config.advanced.svn_timeout_secs
     };
     shelve::shelve_apply(&path, &name, timeout)

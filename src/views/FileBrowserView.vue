@@ -1,17 +1,17 @@
 <template>
   <div class="file-browser-view">
     <div class="browser-header">
-      <button v-if="currentPath" @click="goBack" class="back-btn icon-btn" title="返回上级">
+      <button v-if="currentPath" @click="goBack" class="back-btn icon-btn" :title="t('common.back')">
         <ArrowLeft :size="16" />
       </button>
       <select v-model="selectedRevision" class="revision-select" @change="onRevisionChange">
-        <option value="HEAD">HEAD</option>
+        <option value="HEAD">{{ t('fileBrowser.head') }}</option>
       </select>
       <label class="checkbox-label">
         <input type="checkbox" v-model="showHidden" @change="refresh" />
-        显示隐藏文件
+        {{ t('fileBrowser.showHidden') }}
       </label>
-      <button @click="refresh" class="refresh-btn icon-btn" :disabled="store.loading" title="刷新">
+      <button @click="refresh" class="refresh-btn icon-btn" :disabled="props.loading" :title="t('common.refresh')">
         <RefreshCw :size="16" />
       </button>
     </div>
@@ -28,18 +28,18 @@
           <span class="entry-name">{{ entry.name }}</span>
           <span v-if="entry.size !== undefined" class="entry-size">{{ formatSize(entry.size) }}</span>
         </div>
-        <div v-if="displayedEntries.length === 0" class="empty-tree">空目录</div>
+        <div v-if="displayedEntries.length === 0" class="empty-tree">{{ t('common.emptyDir') }}</div>
       </div>
       <div class="content-panel">
         <div v-if="selectedFile" class="content-header">
           <span class="content-filename">{{ selectedFile }}</span>
           <div class="content-actions">
-            <button @click="$emit('viewHistory', fullPath)" class="action-btn">历史</button>
-            <button @click="$emit('aiReview', fullPath)" class="action-btn ai">AI 审查</button>
+            <button @click="$emit('viewHistory', fullPath)" class="action-btn">{{ t('common.history') }}</button>
+            <button @click="$emit('aiReview', fullPath)" class="action-btn ai">{{ t('common.aiReview') }}</button>
           </div>
         </div>
         <pre v-if="fileContent" class="file-content">{{ fileContent }}</pre>
-        <div v-else class="content-placeholder">点击文件查看内容</div>
+        <div v-else class="content-placeholder">{{ t('common.clickToViewContent') }}</div>
       </div>
     </div>
   </div>
@@ -50,19 +50,18 @@ import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { ArrowLeft, RefreshCw } from 'lucide-vue-next'
 import type { DirEntry } from '../types/svn'
+import { t } from '../locales'
 
 const props = defineProps<{
-  store: {
-    repoPath: string
-    fileTree: DirEntry[]
-    loading: boolean
-    refreshFileBrowser: (path?: string) => Promise<void>
-  }
+  repoPath: string
+  fileTree: DirEntry[]
+  loading: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   viewHistory: [path: string]
   aiReview: [path: string]
+  refreshFileBrowser: [path?: string]
 }>()
 
 const fileContent = ref('')
@@ -74,13 +73,13 @@ const showHidden = ref(false)
 const fullPath = computed(() => {
   if (!selectedFile.value) return ''
   return currentPath.value
-    ? `${props.store.repoPath}/${currentPath.value}/${selectedFile.value}`
-    : `${props.store.repoPath}/${selectedFile.value}`
+    ? `${props.repoPath}/${currentPath.value}/${selectedFile.value}`
+    : `${props.repoPath}/${selectedFile.value}`
 })
 
 const displayedEntries = computed(() => {
-  if (showHidden.value) return props.store.fileTree
-  return props.store.fileTree.filter((e) => !e.name.startsWith('.'))
+  if (showHidden.value) return props.fileTree
+  return props.fileTree.filter((e) => !e.name.startsWith('.'))
 })
 
 function formatSize(bytes: number) {
@@ -97,7 +96,7 @@ async function onEntryClick(entry: DirEntry) {
     currentPath.value = dirPath
     selectedFile.value = ''
     fileContent.value = ''
-    await props.store.refreshFileBrowser(`${props.store.repoPath}/${dirPath}`)
+    emit('refreshFileBrowser', `${props.repoPath}/${dirPath}`)
   } else {
     selectedFile.value = entry.name
     const filePath = currentPath.value
@@ -105,14 +104,14 @@ async function onEntryClick(entry: DirEntry) {
       : entry.name
     try {
       const params: Record<string, unknown> = {
-        path: `${props.store.repoPath}/${filePath}`,
+        path: `${props.repoPath}/${filePath}`,
       }
       if (selectedRevision.value !== 'HEAD') {
         params.revision = selectedRevision.value
       }
       fileContent.value = await invoke<string>('svn_cat', params)
     } catch (e) {
-      fileContent.value = `读取失败: ${e}`
+      fileContent.value = t('common.error') + ': ' + e
     }
   }
 }
@@ -124,9 +123,9 @@ function goBack() {
   parts.pop()
   currentPath.value = parts.join('/')
   if (currentPath.value) {
-    props.store.refreshFileBrowser(`${props.store.repoPath}/${currentPath.value}`)
+    emit('refreshFileBrowser', `${props.repoPath}/${currentPath.value}`)
   } else {
-    props.store.refreshFileBrowser()
+    emit('refreshFileBrowser')
   }
 }
 
@@ -134,9 +133,9 @@ function onRevisionChange() {
   fileContent.value = ''
   selectedFile.value = ''
   if (currentPath.value) {
-    props.store.refreshFileBrowser(`${props.store.repoPath}/${currentPath.value}`)
+    emit('refreshFileBrowser', `${props.repoPath}/${currentPath.value}`)
   } else {
-    props.store.refreshFileBrowser()
+    emit('refreshFileBrowser')
   }
 }
 
@@ -144,11 +143,11 @@ function refresh() {
   fileContent.value = ''
   selectedFile.value = ''
   currentPath.value = ''
-  props.store.refreshFileBrowser()
+  emit('refreshFileBrowser')
 }
 
 onMounted(() => {
-  props.store.refreshFileBrowser()
+  emit('refreshFileBrowser')
 })
 </script>
 

@@ -10,6 +10,7 @@ pub mod status;
 pub mod update;
 
 use crate::common::AppError;
+use std::sync::OnceLock;
 use std::time::Duration;
 use tokio::process::Command;
 
@@ -47,16 +48,19 @@ pub async fn run_svn_async(args: &[&str], timeout_secs: u64) -> Result<String, A
 }
 
 pub async fn run_svn_utf8_async(args: &[&str], timeout_secs: u64) -> Result<String, AppError> {
-    run_svn_utf8_async_in_dir(args, timeout_secs, None).await
+    run_svn_async(args, timeout_secs).await
 }
 
-/// Execute SVN command directly (safe for arguments containing non-ASCII characters).
+/// Execute SVN command with UTF-8 output via environment variables.
 pub async fn run_svn_async_in_dir(
     args: &[&str],
     timeout_secs: u64,
     work_dir: Option<&str>,
 ) -> Result<String, AppError> {
-    let svn_path = find_svn_executable()?;
+    let svn_path =
+        tokio::task::spawn_blocking(|| find_svn_executable())
+            .await
+            .map_err(|e| AppError::Svn(format!("Task join error: {}", e)))??;
     let mut cmd = Command::new(&svn_path);
     cmd.args(args);
     if let Some(dir) = work_dir {
@@ -67,37 +71,12 @@ pub async fn run_svn_async_in_dir(
     run_cmd_output(cmd, timeout_secs).await
 }
 
-/// Execute SVN command with UTF-8 output forcing via chcp 65001 (Windows).
-/// Use this for read-only operations (log, status, info, etc.) where you need
-/// correct UTF-8 output but do not pass non-ASCII arguments.
 pub async fn run_svn_utf8_async_in_dir(
     args: &[&str],
     timeout_secs: u64,
     work_dir: Option<&str>,
 ) -> Result<String, AppError> {
-    let svn_path = find_svn_executable()?;
-
-    #[cfg(target_os = "windows")]
-    let mut cmd = {
-        let mut shell = Command::new("cmd.exe");
-        shell.arg("/C").arg("chcp").arg("65001").arg(">nul").arg("&&");
-        shell.arg(&svn_path);
-        shell.args(args);
-        shell
-    };
-    #[cfg(not(target_os = "windows"))]
-    let mut cmd = {
-        let mut c = Command::new(&svn_path);
-        c.args(args);
-        c
-    };
-
-    if let Some(dir) = work_dir {
-        cmd.current_dir(dir);
-    }
-    cmd.env("OUTPUT_CHARSET", "UTF-8");
-    cmd.env("LANG", "en_US.UTF-8");
-    run_cmd_output(cmd, timeout_secs).await
+    run_svn_async_in_dir(args, timeout_secs, work_dir).await
 }
 
 async fn run_cmd_output(
@@ -125,7 +104,13 @@ async fn run_cmd_output(
     Ok(decode_bytes(&output.stdout))
 }
 
+static SVN_PATH: OnceLock<String> = OnceLock::new();
+
 pub fn find_svn_executable() -> Result<String, AppError> {
+    if let Some(path) = SVN_PATH.get() {
+        return Ok(path.clone());
+    }
+
     let find_cmd;
     let find_arg;
 
@@ -146,8 +131,11 @@ pub fn find_svn_executable() -> Result<String, AppError> {
         .map_err(|e| AppError::Svn(format!("Failed to find svn: {}", e)))?;
 
     if output.status.success() {
-        let path = decode_bytes(&output.stdout).trim().to_string();
+        let stdout = decode_bytes(&output.stdout);
+        // `where` on Windows may return multiple paths (one per line); use the first
+        let path = stdout.lines().next().unwrap_or("").trim().to_string();
         if !path.is_empty() {
+            let _ = SVN_PATH.set(path.clone());
             return Ok(path);
         }
     }

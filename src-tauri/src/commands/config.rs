@@ -4,7 +4,7 @@ use tauri::State;
 
 #[tauri::command]
 pub fn get_config(state: State<AppState>) -> Result<AppConfig, String> {
-    let config = state.config.lock().map_err(|e| e.to_string())?;
+    let config = state.config.read().map_err(|e| e.to_string())?;
     Ok(config.clone())
 }
 

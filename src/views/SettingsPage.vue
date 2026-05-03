@@ -144,11 +144,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useConfigStore } from '../stores/configStore'
+import { useToastStore } from '../stores/toastStore'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { AppConfig } from '../types/config'
+import { t } from '../locales'
 
 const emit = defineEmits<{
   close: []
@@ -160,10 +162,10 @@ const isDetecting = ref(false)
 const detectStatus = ref('')
 
 const tabs = [
-  { key: 'general', label: '通用' },
+  { key: 'general', label: t('settings.general') },
   { key: 'svn', label: 'SVN' },
   { key: 'ai', label: 'AI' },
-  { key: 'advanced', label: '高级' },
+  { key: 'advanced', label: t('settings.advanced') },
 ]
 
 const fontSizeOptions = [10, 11, 12, 13, 14, 15, 16, 18, 20]
@@ -249,7 +251,7 @@ async function selectSvnPath() {
       detectStatus.value = ''
     }
   } catch (error) {
-    console.error('选择文件失败:', error)
+    useToastStore().error(t('toast.pathNotFound'))
   }
 }
 
@@ -267,6 +269,10 @@ function saveAndClose() {
   configStore.saveConfig()
   emit('close')
 }
+
+watch(() => config.behavior.autoRefreshSecs, () => {
+  applyConfig()
+})
 </script>
 
 <style scoped>

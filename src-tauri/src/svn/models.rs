@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct FileStatus {
     pub path: String,
     pub status: FileStatusType,
@@ -52,6 +53,7 @@ pub enum PathAction {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct RepoInfo {
     pub url: String,
     pub root: String,
@@ -62,6 +64,7 @@ pub struct RepoInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct DirEntry {
     pub name: String,
     pub kind: EntryKind,
@@ -80,6 +83,7 @@ pub enum EntryKind {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ShelveInfo {
     pub name: String,
     pub date: String,
@@ -108,6 +112,7 @@ pub enum DiffTarget {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct CommitResult {
     pub revision: u64,
     pub success: bool,
@@ -131,6 +136,7 @@ pub struct UpdateResult {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ReviewChunkEvent {
     pub content: String,
     pub done: bool,

@@ -22,27 +22,40 @@
       <div class="view-area">
         <LogView
           v-if="currentTabStore && currentTabStore.activeView === 'log'"
-          :store="currentTabStore"
+          :repoPath="currentTabStore.repoPath"
+          :logEntries="currentTabStore.logEntries"
+          :wcRevision="currentTabStore.wcRevision"
+          :loading="currentTabStore.loading"
+          @refreshLog="currentTabStore.refreshLog"
         />
         <LocalChangesView
           v-if="currentTabStore && currentTabStore.activeView === 'localChanges'"
-          :store="currentTabStore"
+          :repoPath="currentTabStore.repoPath"
+          :localChanges="currentTabStore.localChanges"
+          :loading="currentTabStore.loading"
           @refresh="handleRefresh"
+          @refreshLocalChanges="currentTabStore.refreshLocalChanges"
         />
         <FileBrowserView
           v-if="currentTabStore && currentTabStore.activeView === 'fileBrowser'"
-          :store="currentTabStore"
+          :repoPath="currentTabStore.repoPath"
+          :fileTree="currentTabStore.fileTree"
+          :loading="currentTabStore.loading"
+          @refreshFileBrowser="currentTabStore.refreshFileBrowser"
         />
         <ShelveView
           v-if="currentTabStore && currentTabStore.activeView === 'shelve'"
-          :store="currentTabStore"
+          :repoPath="currentTabStore.repoPath"
+          :shelves="currentTabStore.shelves"
+          :loading="currentTabStore.loading"
+          @refreshShelves="currentTabStore.refreshShelves"
         />
       </div>
     </div>
     <div class="empty-state" v-else>
       <div class="empty-content">
         <p class="empty-title">SourceSvn</p>
-        <p class="empty-hint">点击上方 "+ 新页签" 打开一个仓库</p>
+        <p class="empty-hint">{{ t('common.addRepoHint') }}</p>
       </div>
     </div>
     <SettingsPage v-if="showSettings" @close="showSettings = false" />
@@ -75,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import Toast from './components/Toast.vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useConfigStore } from './stores/configStore'
@@ -96,6 +109,7 @@ import AddRepoDialog from './components/AddRepoDialog.vue'
 import PullResultModal from './components/PullResultModal.vue'
 import { useToastStore } from './stores/toastStore'
 import type { UpdateResult } from './types/svn'
+import { t } from './locales'
 
 type TabStoreInstance = ReturnType<ReturnType<typeof useTabStore>>
 
@@ -105,6 +119,7 @@ const activeTabIndex = ref(0)
 const showSettings = ref(false)
 const showAddRepo = ref(false)
 const tabStores = ref<Record<string, TabStoreInstance>>({})
+let tabIdCounter = 0
 const showDiff = ref(false)
 const diffFilePath = ref('')
 const diffText = ref('')
@@ -130,7 +145,7 @@ const currentTabStore = computed(() => {
   if (tabs.value.length === 0) return null
   const tab = tabs.value[activeTabIndex.value]
   if (!tab) return null
-  const key = `${activeTabIndex.value}`
+  const key = tab.id
   if (!tabStores.value[key]) {
     const store = useTabStore(key)()
     store.repoPath = tab.repoPath
@@ -146,16 +161,23 @@ const handleVisibilityChange = () => {
   }
 }
 
+let tauriCloseUnlisten: (() => void) | null = null
+
 onMounted(async () => {
   await configStore.loadConfig()
   const config = configStore.config
   if (config?.session.openTabs) {
-    tabs.value = config.session.openTabs
+    tabs.value = config.session.openTabs.map((tab, i) => ({
+      ...tab,
+      id: tab.id || `tab-${i}`,
+    }))
+    tabIdCounter = tabs.value.length
     activeTabIndex.value = config.session.activeTabIndex || 0
   }
   document.addEventListener('keydown', handleKeydown)
   document.addEventListener('visibilitychange', handleVisibilityChange)
-  window.addEventListener('tauri://close-requested', async () => {
+  const { listen } = await import('@tauri-apps/api/event')
+  tauriCloseUnlisten = await listen('tauri://close-requested', async () => {
     await saveSession()
     const { getCurrentWindow } = await import('@tauri-apps/api/window')
     getCurrentWindow().destroy()
@@ -166,6 +188,7 @@ onMounted(async () => {
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
+  tauriCloseUnlisten?.()
   stopAutoRefresh()
 })
 
@@ -205,9 +228,14 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
+watch(() => configStore.config?.behavior.autoRefreshSecs, () => {
+  startAutoRefresh()
+})
+
 function openRepo(path: string) {
   showAddRepo.value = false
-  tabs.value.push({ repoPath: path, activeView: 'log' })
+  const id = `tab-${++tabIdCounter}`
+  tabs.value.push({ id, repoPath: path, activeView: 'log' })
   activeTabIndex.value = tabs.value.length - 1
   addRecentRepo(path)
   saveSession()
@@ -233,11 +261,13 @@ function switchTab(index: number) {
 }
 
 function closeTab(index: number) {
-  const key = `${index}`
-  const store = tabStores.value[key]
-  if (store) {
-    store.$dispose()
-    delete tabStores.value[key]
+  const tab = tabs.value[index]
+  if (tab) {
+    const store = tabStores.value[tab.id]
+    if (store) {
+      store.$dispose()
+      delete tabStores.value[tab.id]
+    }
   }
   tabs.value.splice(index, 1)
   if (activeTabIndex.value >= tabs.value.length) {
@@ -258,13 +288,14 @@ function switchView(view: ActiveView) {
 }
 
 function refreshCurrentView() {
-  if (!currentTabStore.value) return
-  const view = currentTabStore.value.activeView
+  const store = currentTabStore.value
+  if (!store) return
+  const view = store.activeView
   const refreshMap: Record<ActiveView, () => void> = {
-    log: () => currentTabStore.value!.refreshLog(),
-    localChanges: () => currentTabStore.value!.refreshLocalChanges(),
-    fileBrowser: () => currentTabStore.value!.refreshFileBrowser(),
-    shelve: () => currentTabStore.value!.refreshShelves(),
+    log: () => store.refreshLog(),
+    localChanges: () => store.refreshLocalChanges(),
+    fileBrowser: () => store.refreshFileBrowser(),
+    shelve: () => store.refreshShelves(),
   }
   refreshMap[view]?.()
 }
@@ -276,15 +307,14 @@ async function handlePull() {
       path: currentTabStore.value.repoPath,
     })
     if (result.files.length === 0) {
-      useToastStore().info('已是最新版本')
+      useToastStore().info(t('common.upToDate'))
     } else {
       pullResult.value = result
       showPullResult.value = true
     }
     refreshCurrentView()
   } catch (e) {
-    console.error('Pull failed:', e)
-    useToastStore().error('拉取失败')
+    useToastStore().error(t('common.pullFailed') + ': ' + (e as Error).message)
   }
 }
 
@@ -308,7 +338,7 @@ async function handleAiReview(diff: string) {
     const { listen } = await import('@tauri-apps/api/event')
     let unlisten: (() => void) | null = null
     const timeout = setTimeout(() => {
-      aiReviewContent.value += '\n\n[AI 审查超时]'
+      aiReviewContent.value += t('common.aiReviewTimeout')
       aiReviewLoading.value = false
       unlisten?.()
     }, 120000)
@@ -323,7 +353,7 @@ async function handleAiReview(diff: string) {
     await invoke('review_changes', { diff })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    aiReviewContent.value = `AI 审查失败: ${msg}`
+    aiReviewContent.value = t('common.aiReviewFailed', { msg })
     aiReviewLoading.value = false
   }
 }

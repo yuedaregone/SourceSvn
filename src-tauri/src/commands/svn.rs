@@ -9,7 +9,7 @@ use tauri::State;
 #[tauri::command]
 pub async fn svn_status(state: State<'_, AppState>, path: String) -> Result<Vec<FileStatus>, String> {
     let timeout = {
-        let config = state.config.lock().map_err(|e| e.to_string())?;
+        let config = state.config.read().map_err(|e| e.to_string())?;
         config.advanced.svn_timeout_secs
     };
     svn::status::svn_status(&path, timeout).await.map_err(|e| e.to_string())
@@ -18,7 +18,7 @@ pub async fn svn_status(state: State<'_, AppState>, path: String) -> Result<Vec<
 #[tauri::command]
 pub async fn svn_info(state: State<'_, AppState>, path: String) -> Result<RepoInfo, String> {
     let timeout = {
-        let config = state.config.lock().map_err(|e| e.to_string())?;
+        let config = state.config.read().map_err(|e| e.to_string())?;
         config.advanced.svn_timeout_secs
     };
     svn::info::svn_info(&path, timeout).await.map_err(|e| e.to_string())
@@ -32,7 +32,7 @@ pub async fn svn_log(
     from_rev: Option<String>,
 ) -> Result<Vec<LogEntry>, String> {
     let timeout = {
-        let config = state.config.lock().map_err(|e| e.to_string())?;
+        let config = state.config.read().map_err(|e| e.to_string())?;
         config.advanced.svn_timeout_secs
     };
     svn::log::svn_log(&path, limit, from_rev.as_deref(), timeout)
@@ -47,7 +47,7 @@ pub async fn svn_log_server(
     limit: Option<u32>,
 ) -> Result<WcLogResult, String> {
     let timeout = {
-        let config = state.config.lock().map_err(|e| e.to_string())?;
+        let config = state.config.read().map_err(|e| e.to_string())?;
         config.advanced.svn_timeout_secs
     };
     svn::log::svn_log_server(&path, limit, timeout)
@@ -62,7 +62,7 @@ pub async fn svn_diff(
     target: DiffTarget,
 ) -> Result<String, String> {
     let timeout = {
-        let config = state.config.lock().map_err(|e| e.to_string())?;
+        let config = state.config.read().map_err(|e| e.to_string())?;
         config.advanced.svn_timeout_secs
     };
     svn::diff::svn_diff(&path, &target, timeout)
@@ -78,7 +78,7 @@ pub async fn svn_commit(
     files: Vec<String>,
 ) -> Result<CommitResult, String> {
     let timeout = {
-        let config = state.config.lock().map_err(|e| e.to_string())?;
+        let config = state.config.read().map_err(|e| e.to_string())?;
         config.advanced.svn_timeout_secs
     };
     svn::commit::svn_commit(&path, &message, &files, timeout)
@@ -94,7 +94,7 @@ pub async fn svn_list(
     recursive: bool,
 ) -> Result<Vec<DirEntry>, String> {
     let timeout = {
-        let config = state.config.lock().map_err(|e| e.to_string())?;
+        let config = state.config.read().map_err(|e| e.to_string())?;
         config.advanced.svn_timeout_secs
     };
     svn::list::svn_list(&path, revision.as_deref(), recursive, timeout)
@@ -109,7 +109,7 @@ pub async fn svn_cat(
     revision: Option<String>,
 ) -> Result<String, String> {
     let timeout = {
-        let config = state.config.lock().map_err(|e| e.to_string())?;
+        let config = state.config.read().map_err(|e| e.to_string())?;
         config.advanced.svn_timeout_secs
     };
     svn::cat::svn_cat(&path, revision.as_deref(), timeout)
@@ -124,7 +124,7 @@ pub async fn svn_checkout(
     dest: String,
 ) -> Result<(), String> {
     let timeout = {
-        let config = state.config.lock().map_err(|e| e.to_string())?;
+        let config = state.config.read().map_err(|e| e.to_string())?;
         config.advanced.svn_timeout_secs
     };
     svn::checkout::svn_checkout(&url, &dest, timeout)
@@ -135,7 +135,7 @@ pub async fn svn_checkout(
 #[tauri::command]
 pub async fn svn_update(state: State<'_, AppState>, path: String) -> Result<UpdateResult, String> {
     let timeout = {
-        let config = state.config.lock().map_err(|e| e.to_string())?;
+        let config = state.config.read().map_err(|e| e.to_string())?;
         config.advanced.svn_timeout_secs
     };
     svn::update::svn_update(&path, timeout)

@@ -31,20 +31,26 @@ export function getLocale(): string {
   return currentLocale
 }
 
-export function t(key: NestedKeyOf<Translations>): string {
+export function t(key: NestedKeyOf<Translations>, params?: Record<string, string | number>): string {
   const keys = key.split('.')
-  let result: any = locales[currentLocale]
-  
+  let result: unknown = locales[currentLocale]
+
   for (const k of keys) {
     if (result && typeof result === 'object' && k in result) {
-      result = result[k]
+      result = (result as Record<string, unknown>)[k]
     } else {
       console.warn(`Translation key not found: ${key}`)
       return key
     }
   }
-  
-  return typeof result === 'string' ? result : key
+
+  let text = typeof result === 'string' ? result : key
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      text = text.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v))
+    }
+  }
+  return text
 }
 
 export function getTranslations(): Translations {

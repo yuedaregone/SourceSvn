@@ -1,6 +1,6 @@
 <template>
   <div class="tab-bar">
-    <button class="settings-btn" @click="$emit('openSettings')" title="设置">
+    <button class="settings-btn" @click="$emit('openSettings')" :title="t('globalTabBar.settings')">
       <Settings :size="16" />
     </button>
     <div class="tabs">
@@ -15,14 +15,15 @@
         <span class="tab-title">{{ getTabTitle(tab.repoPath) }}</span>
         <button class="tab-close" @click.stop="$emit('closeTab', index)">&times;</button>
       </div>
+      <button class="add-tab-btn" @click="$emit('addTab')" :title="t('globalTabBar.addRepo')"><Plus :size="16" /></button>
     </div>
-    <button class="add-tab-btn" @click="$emit('addTab')" title="打开仓库">+ 新页签</button>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Settings } from 'lucide-vue-next'
+import { Settings, Plus } from 'lucide-vue-next'
 import type { TabInfo } from '../types/config'
+import { t } from '../locales'
 
 defineProps<{
   tabs: TabInfo[]
@@ -100,11 +101,15 @@ function getTabTitle(path: string) {
 .add-tab-btn {
   border: 1px dashed var(--border-input);
   background: transparent;
-  padding: 4px 8px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   cursor: pointer;
-  font-size: 12px;
   border-radius: 4px;
   color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .add-tab-btn:hover {
   background: var(--bg-hover);

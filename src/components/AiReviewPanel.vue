@@ -4,19 +4,19 @@
       <div v-if="visible" class="ai-panel-overlay" @click.self="$emit('close')">
         <div class="ai-panel">
           <div class="panel-header">
-            <span class="panel-title">AI 代码审查</span>
+            <span class="panel-title">{{ t('aiReviewPanel.title') }}</span>
             <button class="close-btn" @click="$emit('close')">&times;</button>
           </div>
           <div class="panel-content">
             <div v-if="loading && !content" class="loading-state">
               <div class="spinner"></div>
-              <span>AI 正在审查变更...</span>
+              <span>{{ t('aiReviewPanel.reviewing') }}</span>
             </div>
             <div v-else class="review-text">{{ content }}</div>
-            <div v-if="loading && content" class="streaming-indicator">正在接收...</div>
+            <div v-if="loading && content" class="streaming-indicator">{{ t('aiReviewPanel.streaming') }}</div>
           </div>
           <div class="panel-footer" v-if="content && !loading">
-            <button @click="copyContent" class="copy-btn">复制结果</button>
+            <button @click="copyContent" class="copy-btn">{{ t('aiReviewPanel.copyResult') }}</button>
           </div>
         </div>
       </div>
@@ -25,6 +25,9 @@
 </template>
 
 <script setup lang="ts">
+import { useToastStore } from '../stores/toastStore'
+import { t } from '../locales'
+
 defineProps<{
   visible: boolean
   content: string
@@ -40,9 +43,10 @@ async function copyContent() {
     const el = document.querySelector('.review-text')
     if (el) {
       await navigator.clipboard.writeText(el.textContent || '')
+      useToastStore().success(t('aiReviewPanel.copySuccess'))
     }
   } catch (e) {
-    console.error('复制失败:', e)
+    useToastStore().error(t('aiReviewPanel.copyFailed'))
   }
 }
 </script>

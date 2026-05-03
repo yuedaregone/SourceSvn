@@ -47,8 +47,13 @@ async fn auto_add_unversioned(
     files: &[String],
     timeout_secs: u64,
 ) -> Result<(), AppError> {
+    // Query status only for the specific files, not the entire repo
+    let mut status_args = vec!["status", "--xml"];
+    for f in files {
+        status_args.push(f);
+    }
     let status_xml =
-        crate::svn::run_svn_utf8_async_in_dir(&["status", "--xml"], timeout_secs, Some(path)).await?;
+        crate::svn::run_svn_utf8_async_in_dir(&status_args, timeout_secs, Some(path)).await?;
     let statuses = crate::svn::status::parse_status_xml(&status_xml)?;
 
     let unversioned: HashSet<&str> = statuses
@@ -70,12 +75,12 @@ async fn auto_add_unversioned(
                 .ok()
                 .and_then(|rel| rel.to_str())
                 .map(|rel| {
-                    // "D:\repo\trunk\file.txt" -> "trunk/file.txt" or "file.txt" depending on strip
-                    let rel_normalized = rel.trim_start_matches('\\').trim_start_matches('/');
-                    unversioned.contains(rel_normalized)
-                        || rel_normalized.split(['\\', '/']).last().map_or(false, |name| {
-                            unversioned.iter().any(|u| u.ends_with(name))
-                        })
+                    // Normalize separators to forward slash for comparison
+                    let rel_normalized = rel
+                        .replace('\\', "/")
+                        .trim_start_matches('/')
+                        .to_string();
+                    unversioned.contains(rel_normalized.as_str())
                 })
                 .unwrap_or(false)
         })

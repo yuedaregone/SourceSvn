@@ -2,10 +2,10 @@
   <div v-if="visible" class="diff-overlay" @click.self="$emit('close')">
     <div class="diff-modal">
       <div class="diff-header">
-        <span class="diff-filename">文件: {{ filePath }}</span>
+        <span class="diff-filename">{{ t('diffViewer.file') }}: {{ filePath }}</span>
         <div class="diff-mode-toggle">
-          <button :class="{ active: mode === 'unified' }" @click="mode = 'unified'">统一视图</button>
-          <button :class="{ active: mode === 'side_by_side' }" @click="mode = 'side_by_side'">并排视图</button>
+          <button :class="{ active: mode === 'unified' }" @click="mode = 'unified'">{{ t('diffViewer.unifiedView') }}</button>
+          <button :class="{ active: mode === 'side_by_side' }" @click="mode = 'side_by_side'">{{ t('diffViewer.sideBySideView') }}</button>
         </div>
         <button class="close-btn" @click="$emit('close')">&times;</button>
       </div>
@@ -25,33 +25,37 @@
         <template v-else>
           <div class="side-by-side">
             <div class="side-col">
-              <div class="side-header">原始</div>
-              <div
-                v-for="(line, i) in sideBySide.left"
-                :key="'l' + i"
-                :class="['side-line', lineClass(line)]"
-              >
-                <span class="line-no">{{ line.oldNo ?? '' }}</span>
-                <pre class="line-text">{{ line.prefix === '-' ? line.text : '' }}</pre>
+              <div class="side-header">{{ t('diffViewer.original') }}</div>
+              <div class="side-lines">
+                <div
+                  v-for="(line, i) in sideBySide.left"
+                  :key="'l' + i"
+                  :class="['side-line', lineClass(line)]"
+                >
+                  <span class="line-no">{{ line.oldNo ?? '' }}</span>
+                  <pre class="line-text">{{ line.prefix === '-' ? line.text : '' }}</pre>
+                </div>
               </div>
             </div>
             <div class="side-col">
-              <div class="side-header">修改后</div>
-              <div
-                v-for="(line, i) in sideBySide.right"
-                :key="'r' + i"
-                :class="['side-line', lineClass(line)]"
-              >
-                <span class="line-no">{{ line.newNo ?? '' }}</span>
-                <pre class="line-text">{{ line.prefix === '+' ? line.text : '' }}</pre>
+              <div class="side-header">{{ t('diffViewer.modified') }}</div>
+              <div class="side-lines">
+                <div
+                  v-for="(line, i) in sideBySide.right"
+                  :key="'r' + i"
+                  :class="['side-line', lineClass(line)]"
+                >
+                  <span class="line-no">{{ line.newNo ?? '' }}</span>
+                  <pre class="line-text">{{ line.prefix === '+' ? line.text : '' }}</pre>
+                </div>
               </div>
             </div>
           </div>
         </template>
       </div>
       <div class="diff-footer">
-        <button @click="copyDiff" class="footer-btn">复制差异</button>
-        <button @click="$emit('aiReview', diffText)" class="footer-btn ai">AI 审查</button>
+        <button @click="copyDiff" class="footer-btn">{{ t('diffViewer.copyDiff') }}</button>
+        <button @click="$emit('aiReview', diffText)" class="footer-btn ai">{{ t('diffViewer.aiReview') }}</button>
       </div>
     </div>
   </div>
@@ -59,6 +63,8 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useToastStore } from '../stores/toastStore'
+import { t } from '../locales'
 
 const props = defineProps<{
   visible: boolean
@@ -136,8 +142,9 @@ function lineClass(line: DiffLine) {
 async function copyDiff() {
   try {
     await navigator.clipboard.writeText(props.diffText)
+    useToastStore().success(t('diffViewer.copySuccess'))
   } catch (e) {
-    console.error('复制失败:', e)
+    useToastStore().error(t('diffViewer.copyFailed'))
   }
 }
 </script>
@@ -263,11 +270,14 @@ async function copyDiff() {
 .side-by-side {
   display: flex;
   height: 100%;
+  overflow: hidden;
 }
 .side-col {
   flex: 1;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
   border-right: 1px solid var(--border-color);
+  overflow: hidden;
 }
 .side-col:last-child {
   border-right: none;
@@ -279,8 +289,11 @@ async function copyDiff() {
   font-weight: 600;
   color: var(--text-secondary);
   border-bottom: 1px solid var(--border-color);
-  position: sticky;
-  top: 0;
+  flex-shrink: 0;
+}
+.side-lines {
+  flex: 1;
+  overflow: auto;
 }
 .side-line {
   display: flex;

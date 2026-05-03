@@ -13,16 +13,16 @@ use tauri::Manager;
 pub fn run() {
     env_logger::init();
 
-    tauri::Builder::default()
+    let result = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let state = AppState::new();
             let window = app
                 .get_webview_window("main")
-                .expect("failed to get main window");
+                .ok_or("failed to get main window")?;
             {
-                let config = state.config.lock().expect("lock poisoned");
+                let config = state.config.read().map_err(|e| e.to_string())?;
                 if config.window.maximized {
                     let _ = window.maximize();
                 }
@@ -52,6 +52,10 @@ pub fn run() {
             commands::config::get_config,
             commands::config::set_config,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .run(tauri::generate_context!());
+
+    if let Err(e) = result {
+        eprintln!("Application error: {}", e);
+        std::process::exit(1);
+    }
 }
