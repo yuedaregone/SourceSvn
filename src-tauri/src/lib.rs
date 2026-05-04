@@ -51,6 +51,8 @@ pub fn run() {
             commands::svn::svn_update_to_revision,
             commands::svn::delete_files_from_disk,
             commands::svn::open_in_system,
+            commands::svn::open_file_with_default_app,
+            commands::svn::find_svn_root,
             commands::ai::generate_commit_message,
             commands::ai::review_changes,
             commands::shelve::shelve_save,

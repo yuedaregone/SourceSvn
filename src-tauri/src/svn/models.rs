@@ -160,6 +160,7 @@ pub struct ReviewChunkEvent {
 pub struct WcLogResult {
     pub entries: Vec<LogEntry>,
     pub wc_revision: u64,
+    pub root: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

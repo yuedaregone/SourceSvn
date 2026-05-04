@@ -10,6 +10,7 @@ export const useTabStore = (id: string) => defineStore(`tab-${id}`, () => {
   const activeView = ref<ActiveView>('log')
   const logEntries = ref<LogEntry[]>([])
   const wcRevision = ref(0)
+  const root = ref('')
   const fileTree = ref<DirEntry[]>([])
   const localChanges = ref<FileStatus[]>([])
   const shelves = ref<ShelveInfo[]>([])
@@ -29,6 +30,7 @@ export const useTabStore = (id: string) => defineStore(`tab-${id}`, () => {
       })
       logEntries.value = result.entries
       wcRevision.value = result.wcRevision
+      root.value = result.root
     } catch (e) {
       try {
         logEntries.value = await invoke<LogEntry[]>('svn_log', {
@@ -93,6 +95,7 @@ export const useTabStore = (id: string) => defineStore(`tab-${id}`, () => {
     activeView,
     logEntries,
     wcRevision,
+    root,
     fileTree,
     localChanges,
     shelves,

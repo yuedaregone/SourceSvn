@@ -276,6 +276,11 @@ pub fn delete_files_from_disk(path: String, paths: Vec<String>) -> Result<Vec<St
 }
 
 #[tauri::command]
+pub fn find_svn_root(path: String) -> Result<String, String> {
+    svn::ops::find_svn_root(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn open_in_system(path: String) -> Result<(), String> {
     let p = std::path::Path::new(&path);
     let cmd = if p.is_dir() {
@@ -300,5 +305,31 @@ pub fn open_in_system(path: String) -> Result<(), String> {
         .args(&cmd.1)
         .spawn()
         .map_err(|e| format!("Failed to open: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn open_file_with_default_app(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/c", "start", "", &path])
+            .spawn()
+            .map_err(|e| format!("Failed to open: {}", e))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open: {}", e))?;
+    }
     Ok(())
 }

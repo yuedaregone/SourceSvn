@@ -67,7 +67,7 @@
             @contextmenu.prevent="openFileContextMenu($event, cp)"
           >
             <span class="action" :class="actionClass(cp.action)">{{ cp.action }}</span>
-            <span class="path-text">{{ cp.path }}</span>
+            <span class="path-text">{{ displayChangedPath(cp.path) }}</span>
           </div>
         </div>
         <div class="detail-right">
@@ -110,8 +110,26 @@ const props = defineProps<{
   repoPath: string
   logEntries: LogEntry[]
   wcRevision: number
+  root: string
   loading: boolean
 }>()
+
+const rootUrlPath = computed(() => {
+  if (!props.root) return ''
+  try {
+    return new URL(props.root).pathname.replace(/\/$/, '')
+  } catch {
+    return ''
+  }
+})
+
+function displayChangedPath(svnPath: string): string {
+  const prefix = rootUrlPath.value
+  if (!prefix) return svnPath.replace(/^\//, '')
+  if (svnPath.startsWith(prefix + '/')) return svnPath.slice(prefix.length + 1)
+  if (svnPath === prefix) return ''
+  return svnPath.replace(/^\//, '')
+}
 
 const emit = defineEmits<{
   refreshLog: []
@@ -364,6 +382,14 @@ const fileCtxMenuItems = computed<MenuItem[]>(() => {
       label: t('contextMenu.copyPath'),
       icon: Copy,
       action: () => {
+        navigator.clipboard.writeText(displayChangedPath(filePath))
+        toast.success(t('contextMenu.copySuccess'))
+      },
+    },
+    {
+      label: t('contextMenu.copyAbsPath'),
+      icon: Copy,
+      action: () => {
         navigator.clipboard.writeText(localPath)
         toast.success(t('contextMenu.copySuccess'))
       },
@@ -379,7 +405,7 @@ const fileCtxMenuItems = computed<MenuItem[]>(() => {
       label: t('contextMenu.openWithEditor'),
       icon: ExternalLink,
       action: async () => {
-        try { await invoke('open_in_system', { path: localPath }) } catch (e) { toast.error(String(e)) }
+        try { await invoke('open_file_with_default_app', { path: localPath }) } catch (e) { toast.error(String(e)) }
       },
     },
   ]

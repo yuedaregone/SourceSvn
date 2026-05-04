@@ -27,7 +27,7 @@
             :disabled="props.loading"
           />
           <span class="status-badge" :class="file.status">{{ file.status[0].toUpperCase() }}</span>
-          <span class="file-path">{{ file.path }}</span>
+          <span class="file-path">{{ displayPath(file.path) }}</span>
         </div>
         <div v-if="!props.loading && props.localChanges.length === 0" class="empty-list">{{ t('common.noLocalChanges') }}</div>
       </div>
@@ -99,6 +99,15 @@ const aiLoading = ref(false)
 const toast = useToastStore()
 
 const ctxMenu = ref({ visible: false, x: 0, y: 0, file: null as FileStatus | null })
+
+function displayPath(filePath: string): string {
+  const normRepo = props.repoPath.replace(/[\/\\]+$/, '').replace(/\//g, '\\')
+  const normFile = filePath.replace(/\//g, '\\')
+  if (normFile.toLowerCase().startsWith(normRepo.toLowerCase() + '\\')) {
+    return normFile.slice(normRepo.length + 1)
+  }
+  return filePath
+}
 
 const allSelected = computed(
   () =>
@@ -233,12 +242,6 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
 
   return [
     {
-      label: t('contextMenu.diff'),
-      action: () => selectFile(file),
-      disabled: file.isDirectory,
-    },
-    { divider: true },
-    {
       label: t('contextMenu.revert'),
       icon: RotateCcw,
       disabled: !isModified,
@@ -277,18 +280,6 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
       },
     },
     {
-      label: t('contextMenu.deleteKeepLocal'),
-      icon: Trash2,
-      disabled: isUnversioned,
-      action: async () => {
-        try {
-          await invoke('svn_delete', { path: props.repoPath, paths: [file.path], keepLocal: true })
-          emit('refreshLocalChanges')
-          toast.success(t('contextMenu.delete'))
-        } catch (e) { toast.error(String(e)) }
-      },
-    },
-    {
       label: t('contextMenu.deleteFromDisk'),
       icon: Trash2,
       action: async () => {
@@ -304,7 +295,7 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
       label: t('contextMenu.openWithEditor'),
       icon: ExternalLink,
       action: async () => {
-        try { await invoke('open_in_system', { path: file.path }) } catch (e) { toast.error(String(e)) }
+        try { await invoke('open_file_with_default_app', { path: file.path }) } catch (e) { toast.error(String(e)) }
       },
     },
     {

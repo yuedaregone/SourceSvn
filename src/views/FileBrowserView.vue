@@ -186,7 +186,7 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
       label: t('contextMenu.openWithEditor'),
       icon: ExternalLink,
       action: async () => {
-        try { await invoke('open_in_system', { path: getEntryFullPath(entry) }) } catch (e) { toast.error(String(e)) }
+        try { await invoke('open_file_with_default_app', { path: getEntryFullPath(entry) }) } catch (e) { toast.error(String(e)) }
       },
     })
   }

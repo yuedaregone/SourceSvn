@@ -18,6 +18,7 @@ export interface LogEntry {
 export interface WcLogResult {
   entries: LogEntry[]
   wcRevision: number
+  root: string
 }
 
 export interface ChangedPath {

@@ -2,6 +2,25 @@ use crate::common::AppError;
 use crate::svn::models::BlameEntry;
 use quick_xml::de::from_str;
 use serde::Deserialize;
+use std::path::Path;
+
+/// Walk up from `path` to find the nearest directory containing `.svn`.
+pub fn find_svn_root(path: &str) -> Result<String, AppError> {
+    let mut dir = Path::new(path);
+    if dir.join(".svn").exists() {
+        return Ok(dir.to_string_lossy().into_owned());
+    }
+    while let Some(parent) = dir.parent() {
+        if parent.join(".svn").exists() {
+            return Ok(parent.to_string_lossy().into_owned());
+        }
+        dir = parent;
+    }
+    Err(AppError::Svn(format!(
+        "No .svn directory found from {}",
+        path
+    )))
+}
 
 pub async fn svn_revert(
     path: &str,

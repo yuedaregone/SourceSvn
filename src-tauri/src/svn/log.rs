@@ -147,6 +147,7 @@ pub async fn svn_log_server(
     Ok(WcLogResult {
         entries,
         wc_revision: wc_rev,
+        root: info.root,
     })
 }
 

@@ -29,6 +29,7 @@
           :repoPath="currentTabStore.repoPath"
           :logEntries="currentTabStore.logEntries"
           :wcRevision="currentTabStore.wcRevision"
+          :root="currentTabStore.root"
           :loading="currentTabStore.logLoading"
           @refreshLog="currentTabStore.refreshLog"
         />
@@ -200,6 +201,7 @@ onMounted(async () => {
     getCurrentWindow().destroy()
   })
   startAutoRefresh()
+  refreshCurrentView()
 })
 
 onUnmounted(() => {
@@ -250,12 +252,19 @@ watch(() => configStore.config?.behavior.autoRefreshSecs, () => {
   startAutoRefresh()
 })
 
-function openRepo(path: string) {
+async function openRepo(path: string) {
   showAddRepo.value = false
+  let resolvedPath = path.replace(/[\\\/]+$/, '')
+  try {
+    resolvedPath = await invoke<string>('find_svn_root', { path: resolvedPath })
+  } catch (e) {
+    useToastStore().error(String(e))
+    return
+  }
   const id = `tab-${++tabIdCounter}`
-  tabs.value.push({ id, repoPath: path, activeView: 'log' })
+  tabs.value.push({ id, repoPath: resolvedPath, activeView: 'log' })
   activeTabIndex.value = tabs.value.length - 1
-  addRecentRepo(path)
+  addRecentRepo(resolvedPath)
   saveSession()
   refreshCurrentView()
 }
@@ -384,6 +393,7 @@ async function handlePull() {
           showPullResult.value = false
           useToastStore().info(t('common.upToDate'))
           unlisten?.()
+          refreshCurrentView()
           break
       }
     })
