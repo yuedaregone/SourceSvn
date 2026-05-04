@@ -6,7 +6,7 @@ use serde::Deserialize;
 #[derive(Deserialize)]
 struct StatusXml {
     #[serde(rename = "target")]
-    target: Option<StatusTarget>,
+    targets: Option<Vec<StatusTarget>>,
 }
 
 #[derive(Deserialize)]
@@ -37,13 +37,15 @@ pub fn parse_status_xml(xml: &str) -> Result<Vec<FileStatus>, AppError> {
     let status: StatusXml = from_str(xml)
         .map_err(|e| AppError::Svn(format!("Failed to parse status XML: {}", e)))?;
 
-    let target = status.target.ok_or_else(|| {
-        AppError::Svn("No target found in status XML".to_string())
-    })?;
+    let targets = status.targets.unwrap_or_default();
 
-    let entries = target.entries.unwrap_or_default();
+    let mut all_entries = Vec::new();
+    for target in targets {
+        let entries = target.entries.unwrap_or_default();
+        all_entries.extend(entries);
+    }
 
-    Ok(entries
+    Ok(all_entries
         .into_iter()
         .map(|entry| {
             let status_type = match entry.wc_status.item.as_str() {

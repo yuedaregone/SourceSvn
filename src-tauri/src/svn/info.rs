@@ -16,6 +16,13 @@ struct InfoDetail {
     revision: Option<String>,
     repository: Option<InfoRepository>,
     commit: Option<InfoCommit>,
+    #[serde(rename = "wc-info")]
+    wc_info: Option<InfoWcInfo>,
+}
+
+#[derive(Deserialize)]
+struct InfoWcInfo {
+    revision: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -97,9 +104,15 @@ pub fn parse_info_for_log(xml: &str) -> Result<RepoInfoParsed, AppError> {
         .repository
         .and_then(|r| r.root)
         .unwrap_or_default();
+    
+    // 优先使用 wc-info 中的工作副本版本号
     let wc_revision = entry
-        .revision
+        .wc_info
+        .as_ref()
+        .and_then(|wc| wc.revision.as_ref())
         .and_then(|r| r.parse::<u64>().ok())
+        // 如果没有 wc-info，回退到 entry revision
+        .or_else(|| entry.revision.and_then(|r| r.parse::<u64>().ok()))
         .unwrap_or(0);
     
     Ok(RepoInfoParsed { url, root, wc_revision })

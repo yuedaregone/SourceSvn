@@ -286,13 +286,15 @@ pub fn open_in_system(path: String) -> Result<(), String> {
         #[cfg(target_os = "linux")]
         { ("xdg-open", vec![path]) }
     } else {
-        let parent = p.parent().unwrap_or(p);
         #[cfg(target_os = "windows")]
         { ("explorer", vec![format!("/select,{}", path)]) }
         #[cfg(target_os = "macos")]
         { ("open", vec!["-R".to_string(), path]) }
         #[cfg(target_os = "linux")]
-        { ("xdg-open", vec![parent.to_string_lossy().into_owned()]) }
+        {
+            let parent = p.parent().unwrap_or(p);
+            ("xdg-open", vec![parent.to_string_lossy().into_owned()])
+        }
     };
     std::process::Command::new(cmd.0)
         .args(&cmd.1)

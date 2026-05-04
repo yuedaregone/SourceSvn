@@ -15,33 +15,14 @@ use std::sync::OnceLock;
 use std::time::Duration;
 use tokio::process::Command;
 
-/// Decode bytes from SVN output, handling GBK encoding on Windows.
-///
-/// SVN on Chinese Windows may output GBK-encoded bytes even with --xml.
-/// This function tries UTF-8 first, then falls back to GBK on Windows.
+/// Decode bytes as UTF-8.
 pub fn decode_bytes(bytes: &[u8]) -> String {
-    // Try UTF-8 first (works for well-configured SVN or --xml on modern SVN)
     if let Ok(s) = std::str::from_utf8(bytes) {
-        // Check for replacement characters — indicates broken UTF-8
-        // that from_utf8_lossy silently repaired
         if !s.contains('\u{FFFD}') {
             return s.to_owned();
         }
     }
-    // UTF-8 failed or contained replacement chars — try GBK on Windows
-    #[cfg(target_os = "windows")]
-    {
-        let (decoded, _, had_errors) = encoding_rs::GBK.decode(bytes);
-        if !had_errors {
-            return decoded.into_owned();
-        }
-        // GBK also had errors — return best effort
-        return decoded.into_owned();
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        String::from_utf8_lossy(bytes).into_owned()
-    }
+    String::from_utf8_lossy(bytes).into_owned()
 }
 
 pub async fn run_svn_async(args: &[&str], timeout_secs: u64) -> Result<String, AppError> {

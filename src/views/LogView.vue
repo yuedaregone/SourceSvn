@@ -9,9 +9,6 @@
       <span class="date-separator">~</span>
       <input v-model="dateTo" type="date" class="filter-date" :placeholder="t('common.endDate')" />
       <input v-model="searchText" :placeholder="t('common.searchMessage')" class="search-input" />
-      <button @click="refresh" class="refresh-btn" :disabled="props.loading" :title="t('common.refresh')">
-        <RefreshCw :size="16" />
-      </button>
     </div>
     <div class="log-table">
       <table>

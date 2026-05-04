@@ -60,7 +60,6 @@ const navItems = [
 .nav-item:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
-  transform: scale(1.05);
 }
 .nav-item.active {
   background: var(--bg-active);

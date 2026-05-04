@@ -46,9 +46,6 @@
           <button @click="generateAiMessage" :disabled="aiLoading || selectedPaths.size === 0" class="ai-btn" :title="t('localChanges.aiGenerate')">
             <Sparkles :size="16" />
           </button>
-          <button @click="$emit('refresh')" class="action-btn icon-btn" :title="t('common.refresh')">
-            <RefreshCw :size="16" />
-          </button>
           <button @click="cancelCommit" class="cancel-btn icon-btn" :title="t('common.cancel')">
             <X :size="16" />
           </button>
