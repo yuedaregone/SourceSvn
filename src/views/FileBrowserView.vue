@@ -199,15 +199,6 @@ function formatSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function refresh() {
-  fileContent.value = ''
-  selectedFilePath.value = ''
-  expandedDirs.value = {}
-  expandedKeys.value = {}
-  dirLoading.value = {}
-  emit('refreshFileBrowser')
-}
-
 function onRevisionChange() {
   fileContent.value = ''
   selectedFilePath.value = ''

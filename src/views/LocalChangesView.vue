@@ -56,8 +56,7 @@
       </div>
     </div>
     <div class="right-panel">
-      <pre v-if="diffContent" class="diff-content"><template v-for="(line, i) in diffContent.split('\n')" :key="i"><span :class="lineClass(line)">{{ line }}</span>
-</template></pre>
+      <InlineDiff v-if="diffContent" :diff-text="diffContent" :empty-hint="t('common.clickToViewDiff')" />
       <div v-else class="diff-placeholder">{{ t('common.clickToViewDiff') }}</div>
     </div>
     <ContextMenu
@@ -78,6 +77,7 @@ import { useToastStore } from '../stores/toastStore'
 import type { FileStatus, DiffTarget } from '../types/svn'
 import type { MenuItem } from '../components/ContextMenu.vue'
 import ContextMenu from '../components/ContextMenu.vue'
+import InlineDiff from '../components/InlineDiff.vue'
 import { t } from '../locales'
 
 const props = defineProps<{
@@ -129,13 +129,6 @@ const diffStats = computed(() => {
   }
   return { added, removed }
 })
-
-function lineClass(line: string) {
-  if (line.startsWith('+') && !line.startsWith('+++')) return 'diff-add'
-  if (line.startsWith('-') && !line.startsWith('---')) return 'diff-del'
-  if (line.startsWith('@@')) return 'diff-hunk'
-  return ''
-}
 
 function toggleAll() {
   if (allSelected.value) {
@@ -571,26 +564,6 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
 }
 .ai-btn:hover:not(:disabled) {
   background: rgba(114, 46, 209, 0.1);
-}
-.diff-content {
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 13px;
-  white-space: pre;
-  padding: 12px;
-  margin: 0;
-  line-height: 1.6;
-}
-.diff-add {
-  background: var(--diff-add-bg);
-  color: var(--diff-add-text);
-}
-.diff-del {
-  background: var(--diff-del-bg);
-  color: var(--diff-del-text);
-}
-.diff-hunk {
-  background: var(--diff-hunk-bg);
-  color: var(--text-secondary);
 }
 .diff-placeholder {
   color: var(--text-muted);

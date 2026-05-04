@@ -73,8 +73,7 @@
         <div class="detail-right">
           <div v-if="fileDiffLoading" class="diff-loading">{{ t('common.loading') }}</div>
           <div v-else-if="isBinaryFile" class="diff-binary">{{ t('common.binaryFile') }}</div>
-          <pre v-else-if="fileDiffText" class="diff-content"><template v-for="(line, i) in fileDiffLines" :key="i"><span :class="diffLineClass(line)">{{ line }}</span>
-</template></pre>
+          <InlineDiff v-else-if="fileDiffText" :diff-text="fileDiffText" :empty-hint="t('common.viewDiff')" />
           <div v-else class="diff-placeholder">{{ t('common.viewDiff') }}</div>
         </div>
       </div>
@@ -99,11 +98,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { RefreshCw, X, Copy, RotateCcw, ExternalLink, FolderOpen, Eye, Download } from 'lucide-vue-next'
+import { X, Copy, RotateCcw, ExternalLink, FolderOpen, Eye, Download } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
 import type { LogEntry, ChangedPath } from '../types/svn'
 import type { MenuItem } from '../components/ContextMenu.vue'
 import ContextMenu from '../components/ContextMenu.vue'
+import InlineDiff from '../components/InlineDiff.vue'
 import { t } from '../locales'
 
 const props = defineProps<{
@@ -264,18 +264,6 @@ async function selectFile(filePath: string) {
   } finally {
     fileDiffLoading.value = false
   }
-}
-
-const fileDiffLines = computed(() => {
-  if (!fileDiffText.value) return []
-  return fileDiffText.value.split('\n')
-})
-
-function diffLineClass(line: string) {
-  if (line.startsWith('+') && !line.startsWith('+++')) return 'diff-add'
-  if (line.startsWith('-') && !line.startsWith('---')) return 'diff-del'
-  if (line.startsWith('@@')) return 'diff-hunk'
-  return ''
 }
 
 function formatDate(dateStr: string) {
@@ -739,27 +727,6 @@ tr.non-local:hover {
   padding: 40px var(--spacing-md);
   font-size: 13px;
 }
-.diff-content {
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 13px;
-  white-space: pre;
-  padding: var(--spacing-sm) var(--spacing-md);
-  margin: 0;
-  line-height: 1.6;
-}
-.diff-add {
-  background: var(--diff-add-bg);
-  color: var(--diff-add-text);
-}
-.diff-del {
-  background: var(--diff-del-bg);
-  color: var(--diff-del-text);
-}
-.diff-hunk {
-  background: var(--diff-hunk-bg);
-  color: var(--text-secondary);
-}
-
 @media (max-width: 768px) {
   .filter-bar {
     gap: var(--spacing-xs);
