@@ -48,10 +48,6 @@ pub async fn run_svn_async(args: &[&str], timeout_secs: u64) -> Result<String, A
     run_svn_async_in_dir(args, timeout_secs, None).await
 }
 
-pub async fn run_svn_utf8_async(args: &[&str], timeout_secs: u64) -> Result<String, AppError> {
-    run_svn_async(args, timeout_secs).await
-}
-
 /// Execute SVN command with UTF-8 output via environment variables.
 pub async fn run_svn_async_in_dir(
     args: &[&str],
@@ -62,6 +58,16 @@ pub async fn run_svn_async_in_dir(
         tokio::task::spawn_blocking(|| find_svn_executable())
             .await
             .map_err(|e| AppError::Svn(format!("Task join error: {}", e)))??;
+
+    #[cfg(target_os = "windows")]
+    let old_cp = unsafe { windows_sys::Win32::System::Console::GetConsoleCP() };
+
+    #[cfg(target_os = "windows")]
+    if old_cp != 936 {
+        unsafe { windows_sys::Win32::System::Console::SetConsoleCP(936) };
+        unsafe { windows_sys::Win32::System::Console::SetConsoleOutputCP(936) };
+    }
+
     let mut cmd = Command::new(&svn_path);
     cmd.args(args);
     if let Some(dir) = work_dir {
@@ -69,15 +75,17 @@ pub async fn run_svn_async_in_dir(
     }
     cmd.env("OUTPUT_CHARSET", "UTF-8");
     cmd.env("LANG", "en_US.UTF-8");
-    run_cmd_output(cmd, timeout_secs).await
-}
+    cmd.env("LC_ALL", "en_US.UTF-8");
+    cmd.env("LC_CTYPE", "en_US.UTF-8");
+    let result = run_cmd_output(cmd, timeout_secs).await;
 
-pub async fn run_svn_utf8_async_in_dir(
-    args: &[&str],
-    timeout_secs: u64,
-    work_dir: Option<&str>,
-) -> Result<String, AppError> {
-    run_svn_async_in_dir(args, timeout_secs, work_dir).await
+    #[cfg(target_os = "windows")]
+    {
+        unsafe { windows_sys::Win32::System::Console::SetConsoleCP(old_cp) };
+        unsafe { windows_sys::Win32::System::Console::SetConsoleOutputCP(old_cp) };
+    }
+
+    result
 }
 
 async fn run_cmd_output(

@@ -76,7 +76,7 @@ fn parse_info_xml(xml: &str) -> Result<RepoInfo, AppError> {
 }
 
 pub async fn svn_info(path: &str, timeout_secs: u64) -> Result<RepoInfo, AppError> {
-    let xml = crate::svn::run_svn_utf8_async(&["info", "--xml", path], timeout_secs).await?;
+    let xml = crate::svn::run_svn_async(&["info", "--xml", path], timeout_secs).await?;
     parse_info_xml(&xml)
 }
 

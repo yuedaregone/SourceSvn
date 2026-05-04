@@ -25,13 +25,23 @@ impl ShelveLock {
             }
         }
 
-        // Atomic lock creation — fails if already exists
-        std::fs::File::create_new(&lock_path)
-            .map_err(|_| AppError::Fs(
-                "Shelve directory is locked by another operation. Please try again.".to_string()
-            ))?;
-
-        Ok(Self { path: lock_path })
+        // Retry lock creation to handle transient contention
+        const MAX_RETRIES: u32 = 3;
+        const RETRY_DELAY: Duration = Duration::from_millis(100);
+        for attempt in 0..MAX_RETRIES {
+            match std::fs::File::create_new(&lock_path) {
+                Ok(_) => return Ok(Self { path: lock_path }),
+                Err(_) if attempt + 1 < MAX_RETRIES => {
+                    std::thread::sleep(RETRY_DELAY);
+                }
+                Err(_) => {
+                    return Err(AppError::Fs(
+                        "Shelve directory is locked by another operation. Please try again.".to_string(),
+                    ));
+                }
+            }
+        }
+        unreachable!()
     }
 }
 
@@ -87,7 +97,7 @@ pub async fn shelve_save(
         )));
     }
 
-    let diff = crate::svn::run_svn_utf8_async(&["diff", repo_path], timeout_secs)
+    let diff = crate::svn::run_svn_async(&["diff", repo_path], timeout_secs)
         .await
         .map_err(|e| AppError::Svn(format!("Failed to get diff: {}", e)))?;
 

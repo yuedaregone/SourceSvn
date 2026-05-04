@@ -12,20 +12,21 @@ pub async fn svn_diff(
             path: file_path,
             revision,
         } => {
-            // Construct absolute path and normalize to forward slashes.
-            // Using an absolute path avoids issues with current_dir and
-            // non-ASCII (e.g. Chinese) paths on Windows.
-            let abs_path = Path::new(path)
-                .join(file_path)
-                .to_string_lossy()
-                .replace('\\', "/");
-            let mut args = vec!["diff".to_string(), abs_path];
+            // Use working directory mode to avoid encoding issues with Chinese paths on Windows.
+            // Run svn diff from the repo root and pass relative path.
+            let mut args = vec!["diff".to_string(), file_path.to_string()];
+            log::debug!("args: {:?}", args);
+            
             if let Some(rev) = revision {
                 args.push("-r".to_string());
                 args.push(rev.clone());
+                log::debug!("args with revision: {:?}", args);
             }
+            
             let args_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-            crate::svn::run_svn_utf8_async(&args_refs, timeout_secs).await
+            log::debug!("args_refs: {:?}", args_refs);
+            
+            crate::svn::run_svn_async_in_dir(&args_refs, timeout_secs, Some(path)).await
         }
         DiffTarget::FileAtRevision {
             path: file_path,
@@ -33,29 +34,22 @@ pub async fn svn_diff(
             revision,
         } => {
             let info_xml =
-                crate::svn::run_svn_utf8_async(&["info", "--xml", path], timeout_secs).await?;
+                crate::svn::run_svn_async(&["info", "--xml", path], timeout_secs).await?;
             let info = crate::svn::info::parse_info_for_log(&info_xml)?;
-            let file_url = if info.root.is_empty() {
-                if info.url.ends_with('/') {
-                    format!("{}{}", info.url, file_path)
-                } else {
-                    format!("{}/{}", info.url, file_path)
-                }
+            let base_url = if info.root.is_empty() { &info.url } else { &info.root };
+            let file_url = if base_url.ends_with('/') {
+                format!("{}{}", base_url, file_path)
             } else {
-                if info.root.ends_with('/') {
-                    format!("{}{}", info.root, file_path)
-                } else {
-                    format!("{}/{}", info.root, file_path)
-                }
+                format!("{}/{}", base_url, file_path)
             };
             let rev_range = format!("{}:{}", base_revision, revision);
             let args = vec!["diff", "-r", &rev_range, &file_url];
-            crate::svn::run_svn_utf8_async(&args, timeout_secs).await
+            crate::svn::run_svn_async(&args, timeout_secs).await
         }
         DiffTarget::Revisions { old_rev, new_rev } => {
             let rev_range = format!("{}:{}", old_rev, new_rev);
             let args = vec!["diff", "-r", &rev_range];
-            crate::svn::run_svn_utf8_async_in_dir(&args, timeout_secs, Some(path)).await
+            crate::svn::run_svn_async_in_dir(&args, timeout_secs, Some(path)).await
         }
     }
 }

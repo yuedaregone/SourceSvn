@@ -67,7 +67,7 @@ pub fn parse_status_xml(xml: &str) -> Result<Vec<FileStatus>, AppError> {
 }
 
 pub async fn svn_status(path: &str, timeout_secs: u64) -> Result<Vec<FileStatus>, AppError> {
-    let xml = crate::svn::run_svn_utf8_async(&["status", "--xml", path], timeout_secs).await?;
+    let xml = crate::svn::run_svn_async(&["status", "--xml", path], timeout_secs).await?;
     parse_status_xml(&xml)
 }
 

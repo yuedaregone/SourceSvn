@@ -2,20 +2,22 @@ use crate::ai;
 use crate::app_state::AppState;
 use tauri::{AppHandle, State};
 
+fn read_ai_config(state: &State<'_, AppState>) -> Result<(String, String, String, String), String> {
+    let config = state.config.read().map_err(|e| e.to_string())?;
+    Ok((
+        config.ai.api_key.clone(),
+        config.ai.provider.clone(),
+        config.ai.endpoint.clone(),
+        config.ai.model.clone(),
+    ))
+}
+
 #[tauri::command]
 pub async fn generate_commit_message(
     state: State<'_, AppState>,
     diff: String,
 ) -> Result<String, String> {
-    let (api_key, provider_type, endpoint, model) = {
-        let config = state.config.read().map_err(|e| e.to_string())?;
-        (
-            config.ai.api_key.clone(),
-            config.ai.provider.clone(),
-            config.ai.endpoint.clone(),
-            config.ai.model.clone(),
-        )
-    };
+    let (api_key, provider_type, endpoint, model) = read_ai_config(&state)?;
 
     if api_key.is_empty() {
         return Err("[AI] API key not configured".to_string());
@@ -35,15 +37,7 @@ pub async fn review_changes(
     diff: String,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    let (api_key, provider_type, endpoint, model) = {
-        let config = state.config.read().map_err(|e| e.to_string())?;
-        (
-            config.ai.api_key.clone(),
-            config.ai.provider.clone(),
-            config.ai.endpoint.clone(),
-            config.ai.model.clone(),
-        )
-    };
+    let (api_key, provider_type, endpoint, model) = read_ai_config(&state)?;
 
     if api_key.is_empty() {
         return Err("[AI] API key not configured".to_string());

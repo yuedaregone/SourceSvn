@@ -2,7 +2,7 @@
   <div class="toast-container">
     <TransitionGroup name="toast">
       <div
-        v-for="toast in toasts"
+        v-for="toast in toastStore.toasts"
         :key="toast.id"
         class="toast"
         :class="toast.type"
@@ -17,7 +17,7 @@
         </button>
       </div>
     </TransitionGroup>
-    <button v-if="toasts.length > 1" class="clear-all-btn" @click="toastStore.clearAll()">
+    <button v-if="toastStore.toasts.length > 1" class="clear-all-btn" @click="toastStore.clearAll()">
       <Trash2 :size="13" />
       <span>{{ t('toast.clearAll') }}</span>
     </button>
@@ -25,23 +25,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle, Trash2 } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
 import { t } from '../locales'
 
 const toastStore = useToastStore()
 
-const toasts = computed(() => toastStore.toasts)
+const ICON_MAP: Record<string, typeof Info> = {
+  success: CheckCircle,
+  error: AlertCircle,
+  warning: AlertTriangle,
+  info: Info,
+}
 
 function getIcon(type: string) {
-  const icons: Record<string, typeof Info> = {
-    success: CheckCircle,
-    error: AlertCircle,
-    warning: AlertTriangle,
-    info: Info,
-  }
-  return icons[type] || Info
+  return ICON_MAP[type] || Info
 }
 </script>
 

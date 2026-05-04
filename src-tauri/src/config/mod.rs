@@ -59,11 +59,7 @@ pub fn save_config(config: &AppConfig) -> Result<(), String> {
         })
         .map_err(|e| format!("Failed to write config temp file: {}", e))?;
 
-    // On Windows, rename fails if dest exists, so remove first
-    if path.exists() {
-        fs::remove_file(&path)
-            .map_err(|e| format!("Failed to remove old config file: {}", e))?;
-    }
+    // Windows 10 1903+ supports atomic rename-over-existing
     fs::rename(&tmp_path, &path)
         .map_err(|e| format!("Failed to rename config file: {}", e))
 }

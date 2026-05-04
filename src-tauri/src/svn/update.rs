@@ -12,54 +12,10 @@ fn parse_update_output(output: &str) -> Result<(u64, Vec<(String, String)>), App
     let mut files = Vec::new();
 
     for line in output.lines() {
-        let trimmed = line.trim();
-
-        // "Updated revision 105."
-        if let Some(rest) = trimmed.strip_prefix("Updated to revision ") {
-            if let Some(rev_str) = rest.strip_suffix('.') {
-                if let Ok(rev) = rev_str.parse::<u64>() {
-                    revision = rev;
-                }
-            }
-        }
-
-        // Skip non-status lines before extracting the status character.
-        // Without this, "Updating '.':" (U), "At revision 100." (A),
-        // and "Updated revision 105." (U) would be mis-parsed.
-        if trimmed.starts_with("Updating")
-            || trimmed.starts_with("Updated")
-            || trimmed.starts_with("At ")
-            || trimmed.starts_with("Summary")
-        {
-            continue;
-        }
-
-        // Status lines: "A    new_file.rs" or "U   +  existing.rs"
-        if trimmed.len() >= 2 {
-            let status_char = trimmed.as_bytes()[0];
-            let path_part = if trimmed.as_bytes().get(1) == Some(&b' ') {
-                let after_status = &trimmed[1..];
-                if let Some(pos) = after_status.find(|c: char| c.is_alphabetic()) {
-                    after_status[pos..].trim()
-                } else {
-                    after_status.trim()
-                }
-            } else {
-                &trimmed[1..]
-            };
-
-            let path = path_part.trim();
-            if path.is_empty() {
-                continue;
-            }
-
-            match status_char {
-                b'A' | b'U' | b'M' | b'C' => {
-                    let status = (status_char as char).to_string();
-                    files.push((path.to_string(), status));
-                }
-                _ => {}
-            }
+        match parse_single_update_line(line) {
+            Some(SvnUpdateEvent::Done { revision: rev }) => revision = rev,
+            Some(SvnUpdateEvent::File { status, path }) => files.push((path, status)),
+            _ => {}
         }
     }
 
@@ -73,7 +29,7 @@ async fn fetch_authors_for_revision(
     timeout_secs: u64,
 ) -> Result<std::collections::HashMap<String, String>, AppError> {
     let rev_str = revision.to_string();
-    let xml = crate::svn::run_svn_utf8_async(
+    let xml = crate::svn::run_svn_async(
         &["log", "--xml", "-v", "-r", &rev_str, path],
         timeout_secs,
     )

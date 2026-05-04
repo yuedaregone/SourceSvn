@@ -59,7 +59,7 @@
       </div>
     </div>
     <div class="right-panel">
-      <pre v-if="diffContent" class="diff-content"><template v-for="(line, i) in coloredLines" :key="i"><span :class="lineClass(line)">{{ line }}</span>
+      <pre v-if="diffContent" class="diff-content"><template v-for="(line, i) in diffContent.split('\n')" :key="i"><span :class="lineClass(line)">{{ line }}</span>
 </template></pre>
       <div v-else class="diff-placeholder">{{ t('common.clickToViewDiff') }}</div>
     </div>
@@ -74,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { Sparkles, RefreshCw, X, Send, RotateCcw, Plus, Trash2, ExternalLink, FolderOpen, Copy, CheckSquare, Square } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
@@ -113,18 +113,11 @@ const canCommit = computed(
   () => selectedPaths.value.size > 0 && commitMessage.value.trim().length > 0,
 )
 
-const diffLines = computed(() => {
-  if (!diffContent.value) return []
-  return diffContent.value.split('\n')
-})
-
-const coloredLines = computed(() => diffLines.value)
-
 const diffStats = computed(() => {
   if (!diffContent.value) return null
   let added = 0
   let removed = 0
-  for (const line of diffLines.value) {
+  for (const line of diffContent.value.split('\n')) {
     if (line.startsWith('+') && !line.startsWith('+++')) added++
     else if (line.startsWith('-') && !line.startsWith('---')) removed++
   }
@@ -158,7 +151,6 @@ function toggleFile(path: string) {
 
 async function selectFile(file: FileStatus) {
   selectedFile.value = file.path
-  selectedPaths.value = new Set([file.path])
   if (file.isDirectory) {
     diffContent.value = ''
     return
@@ -241,7 +233,6 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   if (!file) return []
   const isUnversioned = file.status === 'unversioned'
   const isModified = file.status === 'modified' || file.status === 'conflicted' || file.status === 'missing'
-  const toast = useToastStore()
 
   return [
     {
@@ -347,10 +338,6 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
     },
   ]
 })
-
-onMounted(() => {
-  emit('refreshLocalChanges')
-})
 </script>
 
 <style scoped>
@@ -389,11 +376,6 @@ onMounted(() => {
 .selected-count {
   color: var(--text-secondary);
 }
-.header-actions {
-  margin-left: auto;
-  display: flex;
-  gap: 6px;
-}
 .action-btn {
   padding: 4px 12px;
   border: 1px solid var(--border-input);
@@ -410,14 +392,6 @@ onMounted(() => {
 .action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-.action-btn.primary {
-  background: var(--accent-color);
-  color: #fff;
-  border-color: var(--accent-color);
-}
-.action-btn.primary:hover:not(:disabled) {
-  background: var(--accent-hover);
 }
 .file-list {
   flex: 1;

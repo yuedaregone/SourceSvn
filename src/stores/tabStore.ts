@@ -15,10 +15,13 @@ export const useTabStore = (id: string) => defineStore(`tab-${id}`, () => {
   const shelves = ref<ShelveInfo[]>([])
   const logPage = ref(1)
   const hasMoreLogs = ref(true)
-  const loading = ref(false)
+  const logLoading = ref(false)
+  const changesLoading = ref(false)
+  const fileBrowserLoading = ref(false)
+  const shelvesLoading = ref(false)
 
   async function refreshLog(limit?: number) {
-    loading.value = true
+    logLoading.value = true
     try {
       const result = await invoke<WcLogResult>('svn_log_server', {
         path: repoPath.value,
@@ -38,12 +41,12 @@ export const useTabStore = (id: string) => defineStore(`tab-${id}`, () => {
         useToastStore().error(t('toast.refreshFailed') + ': ' + (e2 as Error).message)
       }
     } finally {
-      loading.value = false
+      logLoading.value = false
     }
   }
 
   async function refreshLocalChanges() {
-    loading.value = true
+    changesLoading.value = true
     try {
       localChanges.value = await invoke<FileStatus[]>('svn_status', {
         path: repoPath.value,
@@ -52,12 +55,12 @@ export const useTabStore = (id: string) => defineStore(`tab-${id}`, () => {
       console.error('Failed to refresh local changes:', e)
       useToastStore().error(t('toast.refreshFailed') + ': ' + (e as Error).message)
     } finally {
-      loading.value = false
+      changesLoading.value = false
     }
   }
 
   async function refreshFileBrowser(path?: string) {
-    loading.value = true
+    fileBrowserLoading.value = true
     try {
       fileTree.value = await invoke<DirEntry[]>('svn_list', {
         path: path ?? repoPath.value,
@@ -67,12 +70,12 @@ export const useTabStore = (id: string) => defineStore(`tab-${id}`, () => {
       console.error('Failed to refresh file browser:', e)
       useToastStore().error(t('toast.refreshFailed') + ': ' + (e as Error).message)
     } finally {
-      loading.value = false
+      fileBrowserLoading.value = false
     }
   }
 
   async function refreshShelves() {
-    loading.value = true
+    shelvesLoading.value = true
     try {
       shelves.value = await invoke<ShelveInfo[]>('shelve_list', {
         path: repoPath.value,
@@ -81,7 +84,7 @@ export const useTabStore = (id: string) => defineStore(`tab-${id}`, () => {
       console.error('Failed to refresh shelves:', e)
       useToastStore().error(t('toast.refreshFailed') + ': ' + (e as Error).message)
     } finally {
-      loading.value = false
+      shelvesLoading.value = false
     }
   }
 
@@ -95,7 +98,10 @@ export const useTabStore = (id: string) => defineStore(`tab-${id}`, () => {
     shelves,
     logPage,
     hasMoreLogs,
-    loading,
+    logLoading,
+    changesLoading,
+    fileBrowserLoading,
+    shelvesLoading,
     refreshLog,
     refreshLocalChanges,
     refreshFileBrowser,

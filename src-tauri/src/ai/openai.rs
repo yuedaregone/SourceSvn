@@ -112,11 +112,15 @@ impl OpenAiProvider {
         }
     }
 
-    async fn chat_completion(&self, messages: Vec<ChatMessage>) -> Result<String, AppError> {
+    async fn send_chat_request(
+        &self,
+        messages: Vec<ChatMessage>,
+        stream: bool,
+    ) -> Result<reqwest::Response, AppError> {
         let request = ChatRequest {
             model: self.model.clone(),
             messages,
-            stream: false,
+            stream,
         };
 
         let response = self
@@ -134,6 +138,12 @@ impl OpenAiProvider {
             let body = response.text().await.unwrap_or_default();
             return Err(AppError::Ai(format!("API error {}: {}", status, body)));
         }
+
+        Ok(response)
+    }
+
+    async fn chat_completion(&self, messages: Vec<ChatMessage>) -> Result<String, AppError> {
+        let response = self.send_chat_request(messages, false).await?;
 
         let chat_response: ChatResponse = response
             .json()
@@ -176,27 +186,7 @@ impl AiProvider for OpenAiProvider {
             },
         ];
 
-        let request = ChatRequest {
-            model: self.model.clone(),
-            messages,
-            stream: true,
-        };
-
-        let response = self
-            .client
-            .post(format!("{}/chat/completions", self.endpoint))
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| AppError::Ai(format!("Request failed: {}", e)))?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().await.unwrap_or_default();
-            return Err(AppError::Ai(format!("API error {}: {}", status, body)));
-        }
+        let response = self.send_chat_request(messages, true).await?;
 
         let mut buffer = String::new();
         let mut stream = response.bytes_stream();

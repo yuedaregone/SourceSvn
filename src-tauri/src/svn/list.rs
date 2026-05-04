@@ -73,7 +73,7 @@ pub async fn svn_list(
     if recursive {
         args.push("-R");
     }
-    let xml = crate::svn::run_svn_utf8_async(&args, timeout_secs).await?;
+    let xml = crate::svn::run_svn_async(&args, timeout_secs).await?;
     parse_list_xml(&xml)
 }
 

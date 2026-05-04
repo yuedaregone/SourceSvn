@@ -12,7 +12,7 @@
     />
     <Toolbar
       v-if="tabs.length > 0"
-      :loading="(currentTabStore?.loading ?? false) || cleanupLoading"
+      :loading="(currentTabStore?.logLoading || currentTabStore?.changesLoading || currentTabStore?.fileBrowserLoading || currentTabStore?.shelvesLoading || false) || cleanupLoading"
       @pull="handlePull"
       @cleanup="handleCleanup"
       @cleanupOptions="handleCleanup"
@@ -29,14 +29,14 @@
           :repoPath="currentTabStore.repoPath"
           :logEntries="currentTabStore.logEntries"
           :wcRevision="currentTabStore.wcRevision"
-          :loading="currentTabStore.loading"
+          :loading="currentTabStore.logLoading"
           @refreshLog="currentTabStore.refreshLog"
         />
         <LocalChangesView
           v-if="currentTabStore && currentTabStore.activeView === 'localChanges'"
           :repoPath="currentTabStore.repoPath"
           :localChanges="currentTabStore.localChanges"
-          :loading="currentTabStore.loading"
+          :loading="currentTabStore.changesLoading"
           @refresh="handleRefresh"
           @refreshLocalChanges="currentTabStore.refreshLocalChanges"
         />
@@ -44,7 +44,7 @@
           v-if="currentTabStore && currentTabStore.activeView === 'fileBrowser'"
           :repoPath="currentTabStore.repoPath"
           :fileTree="currentTabStore.fileTree"
-          :loading="currentTabStore.loading"
+          :loading="currentTabStore.fileBrowserLoading"
           @refreshFileBrowser="currentTabStore.refreshFileBrowser"
           @viewHistory="handleViewHistory"
           @aiReview="handleAiReviewFromBrowser"
@@ -53,7 +53,7 @@
           v-if="currentTabStore && currentTabStore.activeView === 'shelve'"
           :repoPath="currentTabStore.repoPath"
           :shelves="currentTabStore.shelves"
-          :loading="currentTabStore.loading"
+          :loading="currentTabStore.shelvesLoading"
           @refreshShelves="currentTabStore.refreshShelves"
         />
       </div>
@@ -216,7 +216,8 @@ function startAutoRefresh() {
   const secs = configStore.config?.behavior.autoRefreshSecs
   if (secs && secs > 0) {
     autoRefreshTimer = setInterval(() => {
-      if (tabs.value.length > 0 && !currentTabStore.value?.loading) {
+      const store = currentTabStore.value
+      if (tabs.value.length > 0 && store && !store.logLoading && !store.changesLoading && !store.fileBrowserLoading && !store.shelvesLoading) {
         refreshCurrentView()
       }
     }, secs * 1000)

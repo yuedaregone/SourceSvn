@@ -96,7 +96,7 @@ pub async fn svn_log(
         args.push("-r");
         args.push(rev);
     }
-    let xml = crate::svn::run_svn_utf8_async(&args, timeout_secs).await?;
+    let xml = crate::svn::run_svn_async(&args, timeout_secs).await?;
     parse_log_xml(&xml)
 }
 
@@ -106,7 +106,7 @@ pub async fn svn_log_server(
     timeout_secs: u64,
 ) -> Result<WcLogResult, AppError> {
     // Step 1: svn info
-    let info_xml = crate::svn::run_svn_utf8_async(&["info", "--xml", path], timeout_secs).await?;
+    let info_xml = crate::svn::run_svn_async(&["info", "--xml", path], timeout_secs).await?;
     let info = crate::svn::info::parse_info_for_log(&info_xml)?;
     let repo_url = info.url;
     let wc_rev = info.wc_revision;
@@ -119,7 +119,7 @@ pub async fn svn_log_server(
         limit_str = l.to_string();
         args.push(&limit_str);
     }
-    let xml = crate::svn::run_svn_utf8_async(&args, timeout_secs).await?;
+    let xml = crate::svn::run_svn_async(&args, timeout_secs).await?;
     let entries = parse_log_xml(&xml)?;
 
     // Step 3: classify local vs non-local

@@ -53,7 +53,7 @@ async fn auto_add_unversioned(
         status_args.push(f);
     }
     let status_xml =
-        crate::svn::run_svn_utf8_async_in_dir(&status_args, timeout_secs, Some(path)).await?;
+        crate::svn::run_svn_async_in_dir(&status_args, timeout_secs, Some(path)).await?;
     let statuses = crate::svn::status::parse_status_xml(&status_xml)?;
 
     let unversioned: HashSet<&str> = statuses
@@ -65,24 +65,20 @@ async fn auto_add_unversioned(
     let to_add: Vec<&String> = files
         .iter()
         .filter(|f| {
-            // Match both absolute and relative paths
             if unversioned.contains(f.as_str()) {
                 return true;
             }
-            // Strip repo path prefix to get relative path
-            std::path::Path::new(f)
-                .strip_prefix(path)
-                .ok()
-                .and_then(|rel| rel.to_str())
-                .map(|rel| {
-                    // Normalize separators to forward slash for comparison
-                    let rel_normalized = rel
-                        .replace('\\', "/")
-                        .trim_start_matches('/')
-                        .to_string();
-                    unversioned.contains(rel_normalized.as_str())
-                })
-                .unwrap_or(false)
+            // Normalize to repo-relative path using Path::components for robust comparison
+            let file_path = std::path::Path::new(f);
+            let repo_path = std::path::Path::new(path);
+            let rel = file_path.strip_prefix(repo_path).unwrap_or(file_path);
+            let rel_normalized: String = rel
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("/");
+            let rel_normalized = rel_normalized.trim_start_matches('/');
+            unversioned.contains(rel_normalized)
         })
         .collect();
 
