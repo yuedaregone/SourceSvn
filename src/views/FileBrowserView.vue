@@ -1,39 +1,59 @@
 <template>
   <div class="file-browser-view">
     <div class="browser-header">
-      <button v-if="currentPath" @click="goBack" class="back-btn icon-btn" :title="t('common.back')">
-        <ArrowLeft :size="16" />
-      </button>
       <select v-model="selectedRevision" class="revision-select" @change="onRevisionChange">
         <option value="HEAD">{{ t('fileBrowser.head') }}</option>
       </select>
       <label class="checkbox-label">
-        <input type="checkbox" v-model="showHidden" @change="refresh" />
+        <input type="checkbox" v-model="showHidden" />
         {{ t('fileBrowser.showHidden') }}
       </label>
-      <button @click="refresh" class="refresh-btn icon-btn" :disabled="props.loading" :title="t('common.refresh')">
-        <RefreshCw :size="16" />
-      </button>
     </div>
     <div class="browser-content">
       <div class="tree-panel">
-        <div
-          v-for="entry in displayedEntries"
-          :key="entry.name"
-          class="tree-item"
-          :class="{ selected: selectedFile === entry.name }"
-          @click="onEntryClick(entry)"
-          @contextmenu.prevent="openContextMenu($event, entry)"
-        >
-          <span class="entry-icon">{{ entry.kind === 'dir' ? '📁' : '📄' }}</span>
-          <span class="entry-name">{{ entry.name }}</span>
-          <span v-if="entry.size !== undefined" class="entry-size">{{ formatSize(entry.size) }}</span>
+        <div v-if="props.loading" class="tree-loading">
+          <RefreshCw :size="16" class="spin" />
         </div>
-        <div v-if="displayedEntries.length === 0" class="empty-tree">{{ t('common.emptyDir') }}</div>
+        <template v-else>
+          <div
+            v-for="item in treeItems"
+            :key="item.relativePath"
+            class="tree-item"
+            :class="{ selected: selectedFilePath === item.relativePath }"
+            :style="{ paddingLeft: item.depth * 16 + 10 + 'px' }"
+            @click="onEntryClick(item.entry, item.relativePath)"
+            @contextmenu.prevent="openContextMenu($event, item.entry, item.relativePath)"
+          >
+            <span
+              v-if="item.entry.kind === 'dir'"
+              class="tree-arrow"
+              :class="{ expanded: expandedKeys[item.relativePath] }"
+            >
+              <ChevronRight :size="12" />
+            </span>
+            <span v-else class="tree-arrow-placeholder"></span>
+
+            <span class="entry-icon">
+              <FolderIcon v-if="item.entry.kind === 'dir'" :size="14" />
+              <FileIcon v-else :size="14" />
+            </span>
+
+            <span class="entry-name">{{ item.entry.name }}</span>
+
+            <span v-if="item.entry.kind === 'file' && item.entry.size !== undefined" class="entry-size">
+              {{ formatSize(item.entry.size) }}
+            </span>
+
+            <span v-if="item.entry.kind === 'dir' && dirLoading[item.relativePath]" class="dir-loading">
+              <Loader2 :size="12" class="spin" />
+            </span>
+          </div>
+        </template>
+        <div v-if="!props.loading && treeItems.length === 0" class="empty-tree">{{ t('common.emptyDir') }}</div>
       </div>
       <div class="content-panel">
-        <div v-if="selectedFile" class="content-header">
-          <span class="content-filename">{{ selectedFile }}</span>
+        <div v-if="selectedFilePath" class="content-header">
+          <span class="content-filename">{{ selectedFilePath }}</span>
           <div class="content-actions">
             <button @click="$emit('viewHistory', fullPath)" class="action-btn">{{ t('common.history') }}</button>
             <button @click="$emit('aiReview', fullPath)" class="action-btn ai">{{ t('common.aiReview') }}</button>
@@ -56,7 +76,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { ArrowLeft, RefreshCw, ExternalLink, FolderOpen, Copy, History, Terminal } from 'lucide-vue-next'
+import { RefreshCw, ExternalLink, FolderOpen, Copy, History, Terminal, ChevronRight, Folder as FolderIcon, File as FileIcon, Loader2 } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
 import type { DirEntry } from '../types/svn'
 import type { MenuItem } from '../components/ContextMenu.vue'
@@ -75,47 +95,93 @@ const emit = defineEmits<{
   refreshFileBrowser: [path?: string]
 }>()
 
+interface TreeItem {
+  entry: DirEntry
+  depth: number
+  relativePath: string
+}
+
 const fileContent = ref('')
-const currentPath = ref('')
-const selectedFile = ref('')
+const selectedFilePath = ref('')
 const selectedRevision = ref('HEAD')
 const showHidden = ref(false)
 
+const expandedDirs = ref<Record<string, DirEntry[]>>({})
+const expandedKeys = ref<Record<string, boolean>>({})
+const dirLoading = ref<Record<string, boolean>>({})
+
 const fullPath = computed(() => {
-  if (!selectedFile.value) return ''
-  return currentPath.value
-    ? `${props.repoPath}/${currentPath.value}/${selectedFile.value}`
-    : `${props.repoPath}/${selectedFile.value}`
+  if (!selectedFilePath.value) return ''
+  return `${props.repoPath}/${selectedFilePath.value}`
 })
 
-const displayedEntries = computed(() => {
-  if (showHidden.value) return props.fileTree
-  return props.fileTree.filter((e) => !e.name.startsWith('.'))
-})
-
-function formatSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+function appendChildren(
+  result: TreeItem[],
+  entries: DirEntry[],
+  depth: number,
+  parentPath: string,
+) {
+  for (const entry of entries) {
+    if (!showHidden.value && entry.name.startsWith('.')) continue
+    const relPath = `${parentPath}/${entry.name}`
+    result.push({ entry, depth, relativePath: relPath })
+    if (entry.kind === 'dir' && expandedKeys.value[relPath]) {
+      const children = expandedDirs.value[relPath] ?? []
+      appendChildren(result, children, depth + 1, relPath)
+    }
+  }
 }
 
-async function onEntryClick(entry: DirEntry) {
+const treeItems = computed<TreeItem[]>(() => {
+  const result: TreeItem[] = []
+  for (const entry of props.fileTree) {
+    if (!showHidden.value && entry.name.startsWith('.')) continue
+    result.push({ entry, depth: 0, relativePath: entry.name })
+    if (entry.kind === 'dir' && expandedKeys.value[entry.name]) {
+      const children = expandedDirs.value[entry.name] ?? []
+      appendChildren(result, children, 1, entry.name)
+    }
+  }
+  return result
+})
+
+async function toggleDir(relativePath: string) {
+  if (expandedKeys.value[relativePath]) {
+    const { [relativePath]: _, ...rest } = expandedKeys.value
+    expandedKeys.value = rest
+    return
+  }
+
+  expandedKeys.value = { ...expandedKeys.value, [relativePath]: true }
+
+  if (expandedDirs.value[relativePath]) return
+
+  dirLoading.value = { ...dirLoading.value, [relativePath]: true }
+  try {
+    const path = `${props.repoPath}/${relativePath}`
+    const children = await invoke<DirEntry[]>('svn_list', {
+      path,
+      revision: selectedRevision.value !== 'HEAD' ? selectedRevision.value : undefined,
+      recursive: false,
+    })
+    expandedDirs.value = { ...expandedDirs.value, [relativePath]: children }
+  } catch (e) {
+    useToastStore().error(String(e))
+    const { [relativePath]: _, ...rest } = expandedKeys.value
+    expandedKeys.value = rest
+  } finally {
+    dirLoading.value = { ...dirLoading.value, [relativePath]: false }
+  }
+}
+
+async function onEntryClick(entry: DirEntry, relativePath: string) {
   if (entry.kind === 'dir') {
-    const dirPath = currentPath.value
-      ? `${currentPath.value}/${entry.name}`
-      : entry.name
-    currentPath.value = dirPath
-    selectedFile.value = ''
-    fileContent.value = ''
-    emit('refreshFileBrowser', `${props.repoPath}/${dirPath}`)
+    toggleDir(relativePath)
   } else {
-    selectedFile.value = entry.name
-    const filePath = currentPath.value
-      ? `${currentPath.value}/${entry.name}`
-      : entry.name
+    selectedFilePath.value = relativePath
     try {
       const params: Record<string, unknown> = {
-        path: `${props.repoPath}/${filePath}`,
+        path: `${props.repoPath}/${relativePath}`,
       }
       if (selectedRevision.value !== 'HEAD') {
         params.revision = selectedRevision.value
@@ -127,56 +193,42 @@ async function onEntryClick(entry: DirEntry) {
   }
 }
 
-function goBack() {
-  fileContent.value = ''
-  selectedFile.value = ''
-  const parts = currentPath.value.split('/')
-  parts.pop()
-  currentPath.value = parts.join('/')
-  if (currentPath.value) {
-    emit('refreshFileBrowser', `${props.repoPath}/${currentPath.value}`)
-  } else {
-    emit('refreshFileBrowser')
-  }
-}
-
-function onRevisionChange() {
-  fileContent.value = ''
-  selectedFile.value = ''
-  if (currentPath.value) {
-    emit('refreshFileBrowser', `${props.repoPath}/${currentPath.value}`)
-  } else {
-    emit('refreshFileBrowser')
-  }
+function formatSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function refresh() {
   fileContent.value = ''
-  selectedFile.value = ''
-  currentPath.value = ''
+  selectedFilePath.value = ''
+  expandedDirs.value = {}
+  expandedKeys.value = {}
+  dirLoading.value = {}
   emit('refreshFileBrowser')
 }
 
-const ctxMenu = ref({ visible: false, x: 0, y: 0, entry: null as DirEntry | null })
-
-function openContextMenu(e: MouseEvent, entry: DirEntry) {
-  ctxMenu.value = { visible: true, x: e.clientX, y: e.clientY, entry }
+function onRevisionChange() {
+  fileContent.value = ''
+  selectedFilePath.value = ''
+  expandedDirs.value = {}
+  expandedKeys.value = {}
+  dirLoading.value = {}
+  emit('refreshFileBrowser')
 }
 
-function getEntryRelativePath(entry: DirEntry) {
-  return currentPath.value
-    ? `${currentPath.value}/${entry.name}`
-    : entry.name
-}
+const ctxMenu = ref({ visible: false, x: 0, y: 0, entry: null as DirEntry | null, relativePath: '' })
 
-function getEntryFullPath(entry: DirEntry) {
-  return `${props.repoPath}/${getEntryRelativePath(entry)}`
+function openContextMenu(e: MouseEvent, entry: DirEntry, relativePath: string) {
+  ctxMenu.value = { visible: true, x: e.clientX, y: e.clientY, entry, relativePath }
 }
 
 const ctxMenuItems = computed<MenuItem[]>(() => {
   const entry = ctxMenu.value.entry
   if (!entry) return []
   const isFile = entry.kind === 'file'
+  const relPath = ctxMenu.value.relativePath
+  const fullP = `${props.repoPath}/${relPath}`
   const toast = useToastStore()
 
   const items: MenuItem[] = []
@@ -186,7 +238,7 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
       label: t('contextMenu.openWithEditor'),
       icon: ExternalLink,
       action: async () => {
-        try { await invoke('open_file_with_default_app', { path: getEntryFullPath(entry) }) } catch (e) { toast.error(String(e)) }
+        try { await invoke('open_file_with_default_app', { path: fullP }) } catch (e) { toast.error(String(e)) }
       },
     })
   }
@@ -194,14 +246,14 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
     label: t('contextMenu.showInExplorer'),
     icon: FolderOpen,
     action: async () => {
-      try { await open(getEntryFullPath(entry)) } catch (e) { toast.error(String(e)) }
+      try { await invoke('open_in_system', { path: fullP }) } catch (e) { toast.error(String(e)) }
     },
   })
   items.push({ divider: true })
   items.push({
     label: t('contextMenu.showLog'),
     icon: History,
-    action: () => { emit('viewHistory', getEntryFullPath(entry)) },
+    action: () => { emit('viewHistory', fullP) },
   })
   if (isFile) {
     items.push({
@@ -210,7 +262,7 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
       action: async () => {
         try {
           const entries = await invoke<{ revision: number; author: string; lineNumber: number }[]>('svn_blame', {
-            path: getEntryFullPath(entry),
+            path: fullP,
           })
           const blameText = entries.map(e => `  ${e.revision}  ${e.author.padEnd(12)}  L${e.lineNumber}`).join('\n')
           await navigator.clipboard.writeText(blameText)
@@ -223,7 +275,7 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
       label: t('contextMenu.cleanup'),
       action: async () => {
         try {
-          await invoke('svn_cleanup', { path: getEntryFullPath(entry) })
+          await invoke('svn_cleanup', { path: fullP })
           toast.success(t('contextMenu.cleanup'))
         } catch (e) { toast.error(String(e)) }
       },
@@ -234,7 +286,7 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
     label: t('contextMenu.copyPath'),
     icon: Copy,
     action: () => {
-      navigator.clipboard.writeText(getEntryRelativePath(entry))
+      navigator.clipboard.writeText(relPath)
       toast.success(t('contextMenu.copySuccess'))
     },
   })
@@ -242,7 +294,7 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
     label: t('contextMenu.copyAbsPath'),
     icon: Copy,
     action: () => {
-      navigator.clipboard.writeText(getEntryFullPath(entry))
+      navigator.clipboard.writeText(fullP)
       toast.success(t('contextMenu.copySuccess'))
     },
   })
@@ -305,8 +357,7 @@ onMounted(() => {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.refresh-btn.icon-btn,
-.back-btn.icon-btn {
+.refresh-btn.icon-btn {
   padding: 5px;
   width: 26px;
   height: 26px;
@@ -325,15 +376,22 @@ onMounted(() => {
   overflow: auto;
   background: var(--bg-primary);
 }
+.tree-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 0;
+  color: var(--text-muted);
+}
 .tree-item {
   display: flex;
   align-items: center;
-  padding: 6px 10px;
-  gap: 8px;
+  padding: 4px 10px;
+  gap: 6px;
   cursor: pointer;
   font-size: 13px;
-  border-bottom: 1px solid var(--border-light);
   color: var(--text-primary);
+  white-space: nowrap;
 }
 .tree-item:hover {
   background: var(--bg-hover);
@@ -341,20 +399,50 @@ onMounted(() => {
 .tree-item.selected {
   background: var(--bg-active);
 }
-.entry-icon {
-  font-size: 14px;
+.tree-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
+  transition: transform 0.15s ease;
+  color: var(--text-muted);
+}
+.tree-arrow.expanded {
+  transform: rotate(90deg);
+}
+.tree-arrow-placeholder {
+  width: 16px;
+  flex-shrink: 0;
+}
+.entry-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--text-secondary);
 }
 .entry-name {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .entry-size {
   font-size: 11px;
   color: var(--text-muted);
   flex-shrink: 0;
+}
+.dir-loading {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spin {
+  animation: spin 1s linear infinite;
 }
 .empty-tree {
   color: var(--text-muted);

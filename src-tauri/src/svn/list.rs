@@ -5,6 +5,12 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 struct ListXml {
+    #[serde(rename = "list")]
+    lists: Option<Vec<ListContainer>>,
+}
+
+#[derive(Deserialize)]
+struct ListContainer {
     #[serde(rename = "entry")]
     entries: Option<Vec<ListItem>>,
 }
@@ -32,7 +38,12 @@ fn parse_list_xml(xml: &str) -> Result<Vec<DirEntry>, AppError> {
     let list_xml: ListXml =
         from_str(xml).map_err(|e| AppError::Svn(format!("Failed to parse list XML: {}", e)))?;
 
-    let entries = list_xml.entries.unwrap_or_default();
+    let entries: Vec<ListItem> = list_xml
+        .lists
+        .unwrap_or_default()
+        .into_iter()
+        .flat_map(|c| c.entries.unwrap_or_default())
+        .collect();
 
     Ok(entries
         .into_iter()
@@ -84,6 +95,7 @@ mod tests {
     #[test]
     fn test_parse_list_xml() {
         let xml = r#"<?xml version="1.0"?>
+<lists>
 <list path="/">
   <entry kind="dir">
     <name>src</name>
@@ -100,7 +112,8 @@ mod tests {
       <date>2026-04-28T09:00:00Z</date>
     </commit>
   </entry>
-</list>"#;
+</list>
+</lists>"#;
         let result = parse_list_xml(xml).unwrap();
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].kind, EntryKind::Dir);
