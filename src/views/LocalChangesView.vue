@@ -73,6 +73,7 @@ import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { Sparkles, RefreshCw, X, Send, RotateCcw, Plus, Trash2, ExternalLink, FolderOpen, Copy, CheckSquare, Square } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
+import { useConfigStore } from '../stores/configStore'
 import type { FileStatus, DiffTarget } from '../types/svn'
 import type { MenuItem } from '../components/ContextMenu.vue'
 import ContextMenu from '../components/ContextMenu.vue'
@@ -96,6 +97,7 @@ const commitMessage = ref('')
 const diffContent = ref('')
 const aiLoading = ref(false)
 const toast = useToastStore()
+const configStore = useConfigStore()
 
 const leftPanelWidth = ref(320)
 const isDragging = ref(false)
@@ -216,6 +218,9 @@ async function generateAiMessage() {
 
 async function submitCommit() {
   if (!canCommit.value) return
+  if (configStore.config?.behavior.confirmBeforeCommit) {
+    if (!confirm('确认提交?')) return
+  }
   try {
     await invoke('svn_commit', {
       path: props.repoPath,
@@ -257,13 +262,12 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
       icon: RotateCcw,
       disabled: !isModified,
       action: async () => {
-        if (confirm(t('contextMenu.revertConfirm'))) {
-          try {
-            await invoke('svn_revert', { path: props.repoPath, paths: [file.path] })
-            emit('refreshLocalChanges')
-            toast.success(t('contextMenu.revert'))
-          } catch (e) { toast.error(String(e)) }
-        }
+        if (configStore.config?.behavior.confirmBeforeRevert && !confirm(t('contextMenu.revertConfirm'))) return
+        try {
+          await invoke('svn_revert', { path: props.repoPath, paths: [file.path] })
+          emit('refreshLocalChanges')
+          toast.success(t('contextMenu.revert'))
+        } catch (e) { toast.error(String(e)) }
       },
     },
     {

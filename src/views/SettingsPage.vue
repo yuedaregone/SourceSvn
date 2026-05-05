@@ -134,11 +134,11 @@
                 <option value="debug">Debug</option>
               </select>
             </div>
-            <div class="setting-row">
+            <div class="setting-row setting-row-inline">
               <label>提交前确认</label>
               <input type="checkbox" v-model="config.behavior.confirmBeforeCommit" />
             </div>
-            <div class="setting-row">
+            <div class="setting-row setting-row-inline">
               <label>Revert 前确认</label>
               <input type="checkbox" v-model="config.behavior.confirmBeforeRevert" />
             </div>
@@ -192,11 +192,23 @@ const tabs = [
 
 const fontSizeOptions = [10, 11, 12, 13, 14, 15, 16, 18, 20]
 
+const ua = navigator.userAgent
+const isWin = ua.includes('Windows')
+const isMac = ua.includes('Macintosh') || ua.includes('Mac OS')
+
 const defaultAppearance = {
   theme: 'light',
-  uiFontFamily: 'Inter, -apple-system, sans-serif',
+  uiFontFamily: isWin
+    ? 'Segoe UI, sans-serif'
+    : isMac
+      ? '-apple-system, BlinkMacSystemFont, sans-serif'
+      : 'Noto Sans, Ubuntu, sans-serif',
   uiFontSize: 14,
-  codeFontFamily: 'Consolas, Monaco, monospace',
+  codeFontFamily: isWin
+    ? 'Consolas, Courier New, monospace'
+    : isMac
+      ? 'Menlo, Monaco, monospace'
+      : 'DejaVu Sans Mono, Ubuntu Mono, monospace',
   codeFontSize: 13,
   iconSize: 20,
 }
@@ -417,6 +429,17 @@ watch(() => config.behavior.autoRefreshSecs, () => {
   font-weight: 500;
   color: var(--text-primary);
 }
+.setting-row-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.setting-row-inline label {
+  flex: 1;
+}
+.setting-row-inline input[type='checkbox'] {
+  width: auto;
+}
 .setting-row input[type='text'],
 .setting-row input[type='password'],
 .setting-row input[type='number'],
@@ -455,12 +478,17 @@ watch(() => config.behavior.autoRefreshSecs, () => {
 .input-inline {
   display: flex;
   gap: 8px;
+  align-items: center;
 }
-.input-mid {
+.input-inline .input-mid {
   flex: 1;
+  min-width: 0;
+  width: auto;
 }
-.input-small {
-  width: 80px;
+.input-inline .input-small {
+  width: 90px;
+  min-width: 90px;
+  flex-shrink: 0;
 }
 .input-with-btn {
   display: flex;

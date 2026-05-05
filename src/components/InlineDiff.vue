@@ -116,6 +116,7 @@ const parsedLines = computed(() => {
       result.push({ prefix: '@', text: line.slice(line.indexOf('@@', 2) + 2), oldNo: null, newNo: null })
       continue
     }
+    if (line === '\\ No newline at end of file') continue
     if (line.startsWith('+')) {
       result.push({ prefix: '+', text: line.slice(1), oldNo: null, newNo: newNo++ })
     } else if (line.startsWith('-')) {
