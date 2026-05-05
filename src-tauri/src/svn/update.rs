@@ -4,6 +4,8 @@ use std::time::Duration;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tauri::{AppHandle, Emitter};
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 
 /// Parse svn update output into (revision, files_without_authors).
 /// Each file entry is (path, status_char).
@@ -154,6 +156,8 @@ pub async fn svn_update_streaming(path: &str, timeout_secs: u64, app: &AppHandle
     let mut cmd = Command::new(&svn_path);
     cmd.arg("update");
     cmd.current_dir(path);
+    #[cfg(target_os = "windows")]
+    cmd.as_std_mut().creation_flags(0x08000000); // CREATE_NO_WINDOW
     cmd.env("OUTPUT_CHARSET", "UTF-8");
     cmd.env("LANG", "en_US.UTF-8");
     cmd.stdout(std::process::Stdio::piped());

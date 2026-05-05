@@ -14,6 +14,8 @@ use crate::common::AppError;
 use std::sync::OnceLock;
 use std::time::Duration;
 use tokio::process::Command;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 
 /// Decode bytes as UTF-8.
 pub fn decode_bytes(bytes: &[u8]) -> String {
@@ -54,6 +56,8 @@ pub async fn run_svn_async_in_dir(
     if let Some(dir) = work_dir {
         cmd.current_dir(dir);
     }
+    #[cfg(target_os = "windows")]
+    cmd.as_std_mut().creation_flags(0x08000000); // CREATE_NO_WINDOW
     cmd.env("OUTPUT_CHARSET", "UTF-8");
     cmd.env("LANG", "en_US.UTF-8");
     cmd.env("LC_ALL", "en_US.UTF-8");
@@ -115,9 +119,13 @@ pub fn find_svn_executable() -> Result<String, AppError> {
         find_arg = "svn";
     }
 
-    let output = std::process::Command::new(find_cmd)
-        .arg(find_arg)
-        .output()
+    let output = {
+        let mut c = std::process::Command::new(find_cmd);
+        c.arg(find_arg);
+        #[cfg(target_os = "windows")]
+        c.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        c.output()
+    }
         .map_err(|e| AppError::Svn(format!("Failed to find svn: {}", e)))?;
 
     if output.status.success() {
