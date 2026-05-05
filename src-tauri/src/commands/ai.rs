@@ -24,7 +24,7 @@ fn create_ai_provider(state: &State<'_, AppState>) -> Result<(Box<dyn ai::AiProv
     if setup.api_key.is_empty() {
         return Err("[AI] API key not configured".into());
     }
-    let provider = ai::create_provider(&setup.provider_type, &setup.endpoint, &setup.api_key, &setup.model, &state.http_client)
+    let provider = ai::create_provider(&setup.provider_type, &setup.endpoint, &setup.api_key, &setup.model, state.http_client())
         .map_err(|e| e.to_string())?;
     Ok((provider, setup))
 }

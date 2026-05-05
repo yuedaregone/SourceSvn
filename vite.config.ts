@@ -16,4 +16,17 @@ export default defineConfig(async () => ({
   },
   // 3. to make use of TAURI_DEBUG env and other debug functions
   envPrefix: ['VITE_', 'TAURI_'],
+
+  build: {
+    target: 'es2021',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-vue': ['vue', 'pinia'],
+          'vendor-tauri': ['@tauri-apps/api', '@tauri-apps/plugin-shell', '@tauri-apps/plugin-dialog'],
+          'vendor-icons': ['lucide-vue-next'],
+        },
+      },
+    },
+  },
 }))

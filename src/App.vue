@@ -101,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, defineAsyncComponent } from 'vue'
 import Toast from './components/Toast.vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useConfigStore } from './stores/configStore'
@@ -115,14 +115,15 @@ import LogView from './views/LogView.vue'
 import LocalChangesView from './views/LocalChangesView.vue'
 import FileBrowserView from './views/FileBrowserView.vue'
 import ShelveView from './views/ShelveView.vue'
-import SettingsPage from './views/SettingsPage.vue'
-import DiffViewer from './components/DiffViewer.vue'
-import AiReviewPanel from './components/AiReviewPanel.vue'
-import AddRepoDialog from './components/AddRepoDialog.vue'
-import PullResultModal from './components/PullResultModal.vue'
 import { useToastStore } from './stores/toastStore'
 import type { UpdateResult, SvnUpdateEvent } from './types/svn'
 import { t } from './locales'
+
+const SettingsPage = defineAsyncComponent(() => import('./views/SettingsPage.vue'))
+const DiffViewer = defineAsyncComponent(() => import('./components/DiffViewer.vue'))
+const AiReviewPanel = defineAsyncComponent(() => import('./components/AiReviewPanel.vue'))
+const AddRepoDialog = defineAsyncComponent(() => import('./components/AddRepoDialog.vue'))
+const PullResultModal = defineAsyncComponent(() => import('./components/PullResultModal.vue'))
 
 type TabStoreInstance = ReturnType<ReturnType<typeof useTabStore>>
 

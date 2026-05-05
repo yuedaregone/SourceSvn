@@ -1,18 +1,22 @@
 use crate::common::AppConfig;
 use crate::config::{load_config, save_config};
-use std::sync::RwLock;
+use std::sync::{OnceLock, RwLock};
 
 pub struct AppState {
     pub config: RwLock<AppConfig>,
-    pub http_client: reqwest::Client,
+    http_client: OnceLock<reqwest::Client>,
 }
 
 impl AppState {
     pub fn new() -> Self {
         Self {
             config: RwLock::new(load_config()),
-            http_client: reqwest::Client::new(),
+            http_client: OnceLock::new(),
         }
+    }
+
+    pub fn http_client(&self) -> &reqwest::Client {
+        self.http_client.get_or_init(reqwest::Client::new)
     }
 
     pub fn update(&self, new_config: AppConfig) -> Result<(), String> {

@@ -405,23 +405,6 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
 .selected-count {
   color: var(--text-secondary);
 }
-.action-btn {
-  padding: 4px 12px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--text-primary);
-}
-.action-btn:hover:not(:disabled) {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
-}
-.action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 .file-list {
   flex: 1;
   overflow: auto;

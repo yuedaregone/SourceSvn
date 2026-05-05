@@ -449,24 +449,6 @@ onMounted(() => {
   color: var(--text-primary);
   order: 1;
 }
-.refresh-btn {
-  padding: 5px var(--spacing-md);
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  color: var(--text-primary);
-  transition: all 0.2s ease;
-}
-.refresh-btn:hover:not(:disabled) {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
-}
-.refresh-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 .log-table {
   flex: 1;
   overflow: auto;
@@ -630,14 +612,6 @@ tr.non-local:hover {
   color: var(--text-primary);
   margin: 0 var(--spacing-md) var(--spacing-sm);
 }
-.changed-paths {
-  margin-top: var(--spacing-sm);
-}
-.changed-paths h5 {
-  margin: 0 0 4px;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
 .changed-path {
   font-size: 12px;
   padding: 2px 0;
@@ -670,11 +644,6 @@ tr.non-local:hover {
 }
 .path-text {
   color: var(--text-primary);
-}
-.detail-actions {
-  margin-top: var(--spacing-md);
-  display: flex;
-  gap: var(--spacing-sm);
 }
 .detail-split {
   display: flex;

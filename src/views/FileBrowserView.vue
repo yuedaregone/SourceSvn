@@ -277,32 +277,6 @@ onMounted(() => {
   flex-direction: column;
   height: 100%;
 }
-.refresh-btn {
-  margin-left: auto;
-  padding: 5px 12px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.refresh-btn:hover:not(:disabled) {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
-}
-.refresh-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.refresh-btn.icon-btn {
-  padding: 5px;
-  width: 26px;
-  height: 26px;
-}
 .browser-content {
   display: flex;
   flex: 1;

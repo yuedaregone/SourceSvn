@@ -123,16 +123,12 @@ pub async fn svn_log_server(
     let entries = parse_log_xml(&xml)?;
 
     // Step 3: classify local vs non-local
-    let mut local_count = 0u32;
-    let mut remote_count = 0u32;
     let entries: Vec<LogEntry> = entries
         .into_iter()
         .map(|e| {
             if e.revision <= wc_rev {
-                local_count += 1;
                 e
             } else {
-                remote_count += 1;
                 LogEntry {
                     revision: e.revision,
                     author: e.author,

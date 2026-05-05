@@ -1,87 +1,11 @@
 use crate::common::AppError;
-use crate::svn::models::{SvnUpdateEvent, UpdateFileItem, UpdateResult};
+use crate::svn::models::SvnUpdateEvent;
 use std::time::Duration;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tauri::{AppHandle, Emitter};
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
-
-/// Parse svn update output into (revision, files_without_authors).
-/// Each file entry is (path, status_char).
-fn parse_update_output(output: &str) -> Result<(u64, Vec<(String, String)>), AppError> {
-    let mut revision: u64 = 0;
-    let mut files = Vec::new();
-
-    for line in output.lines() {
-        match parse_single_update_line(line) {
-            Some(SvnUpdateEvent::Done { revision: rev }) => revision = rev,
-            Some(SvnUpdateEvent::File { status, path }) => files.push((path, status)),
-            _ => {}
-        }
-    }
-
-    Ok((revision, files))
-}
-
-/// Query svn log for a single revision to get the author per changed file.
-async fn fetch_authors_for_revision(
-    path: &str,
-    revision: u64,
-    timeout_secs: u64,
-) -> Result<std::collections::HashMap<String, String>, AppError> {
-    let rev_str = revision.to_string();
-    let xml = crate::svn::run_svn_async(
-        &["log", "--xml", "-v", "-r", &rev_str, path],
-        timeout_secs,
-    )
-    .await?;
-    let entries = crate::svn::log::parse_log_xml(&xml)?;
-
-    let mut author_map = std::collections::HashMap::new();
-    if let Some(entry) = entries.into_iter().next() {
-        if let Some(changed_paths) = entry.changed_paths {
-            for cp in changed_paths {
-                // SVN log paths have leading "/" and are repo-relative
-                // (e.g., "/trunk/file.rs"). Strip leading "/" to match
-                // the local relative paths from svn update output.
-                let normalized = cp.path.trim_start_matches('/');
-                author_map.insert(normalized.to_string(), entry.author.clone());
-            }
-        }
-    }
-    Ok(author_map)
-}
-
-pub async fn svn_update(path: &str, timeout_secs: u64) -> Result<UpdateResult, AppError> {
-    let output = crate::svn::run_svn_async_in_dir(&["update"], timeout_secs, Some(path)).await?;
-    let (revision, raw_files) = parse_update_output(&output)?;
-
-    if raw_files.is_empty() {
-        return Ok(UpdateResult {
-            revision,
-            files: Vec::new(),
-        });
-    }
-
-    let author_map = fetch_authors_for_revision(path, revision, timeout_secs)
-        .await
-        .unwrap_or_default();
-
-    let files = raw_files
-        .into_iter()
-        .map(|(file_path, status)| {
-            let author = author_map.get(&file_path).cloned().unwrap_or_default();
-            UpdateFileItem {
-                path: file_path,
-                status,
-                author,
-            }
-        })
-        .collect();
-
-    Ok(UpdateResult { revision, files })
-}
 
 /// Parse a single line from `svn update` output. Returns an event if the line
 /// is a file status or revision summary line, or `None` for irrelevant lines.
@@ -230,37 +154,5 @@ pub async fn svn_update_streaming(path: &str, timeout_secs: u64, app: &AppHandle
             let _ = child.kill().await;
             Err(AppError::Svn(msg))
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_update_output_with_changes() {
-        let output = "Updating '.':\nA    new_file.rs\nU    existing.rs\nUpdated to revision 105.\n";
-        let (revision, files) = parse_update_output(output).unwrap();
-        assert_eq!(revision, 105);
-        assert_eq!(files.len(), 2);
-        assert_eq!(files[0], ("new_file.rs".to_string(), "A".to_string()));
-        assert_eq!(files[1], ("existing.rs".to_string(), "U".to_string()));
-    }
-
-    #[test]
-    fn test_parse_update_output_no_changes() {
-        let output = "Updating '.':\nAt revision 100.\n";
-        let (revision, files) = parse_update_output(output).unwrap();
-        assert_eq!(revision, 0);
-        assert!(files.is_empty());
-    }
-
-    #[test]
-    fn test_parse_update_output_conflicts() {
-        let output = "Updating '.':\nC    conflict.rs\nA    ok.rs\nUpdated to revision 200.\n";
-        let (revision, files) = parse_update_output(output).unwrap();
-        assert_eq!(revision, 200);
-        assert_eq!(files.len(), 2);
-        assert!(files.iter().any(|(p, s)| p == "conflict.rs" && s == "C"));
     }
 }
