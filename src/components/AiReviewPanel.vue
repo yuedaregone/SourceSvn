@@ -29,7 +29,7 @@ import { ref } from 'vue'
 import { useToastStore } from '../stores/toastStore'
 import { t } from '../locales'
 
-defineProps<{
+const props = defineProps<{
   visible: boolean
   content: string
   loading: boolean
@@ -48,12 +48,9 @@ function onOverlayClick() {
 
 async function copyContent() {
   try {
-    const el = document.querySelector('.review-text')
-    if (el) {
-      await navigator.clipboard.writeText(el.textContent || '')
-      useToastStore().success(t('aiReviewPanel.copySuccess'))
-    }
-  } catch (e) {
+    await navigator.clipboard.writeText(props.content)
+    useToastStore().success(t('aiReviewPanel.copySuccess'))
+  } catch {
     useToastStore().error(t('aiReviewPanel.copyFailed'))
   }
 }

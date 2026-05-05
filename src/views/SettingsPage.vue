@@ -159,7 +159,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useConfigStore } from '../stores/configStore'
 import { useToastStore } from '../stores/toastStore'
 import { invoke } from '@tauri-apps/api/core'
@@ -183,12 +183,12 @@ function onOverlayClick() {
   emit('close')
 }
 
-const tabs = [
+const tabs = computed(() => [
   { key: 'general', label: t('settings.general') },
   { key: 'svn', label: 'SVN' },
   { key: 'ai', label: 'AI' },
   { key: 'advanced', label: t('settings.advanced') },
-]
+])
 
 const fontSizeOptions = [10, 11, 12, 13, 14, 15, 16, 18, 20]
 
@@ -328,8 +328,10 @@ function saveAndClose() {
   emit('close')
 }
 
+let applyTimer: ReturnType<typeof setTimeout> | null = null
 watch(() => config.behavior.autoRefreshSecs, () => {
-  applyConfig()
+  if (applyTimer) clearTimeout(applyTimer)
+  applyTimer = setTimeout(() => applyConfig(), 500)
 })
 </script>
 

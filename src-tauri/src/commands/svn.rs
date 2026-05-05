@@ -5,21 +5,20 @@ use crate::svn::models::{
 };
 use tauri::{AppHandle, State};
 
+fn get_timeout(state: &State<'_, AppState>) -> Result<u64, String> {
+    let config = state.config.read().map_err(|e| e.to_string())?;
+    Ok(config.advanced.svn_timeout_secs)
+}
+
 #[tauri::command]
 pub async fn svn_status(state: State<'_, AppState>, path: String) -> Result<Vec<FileStatus>, String> {
-    let timeout = {
-        let config = state.config.read().map_err(|e| e.to_string())?;
-        config.advanced.svn_timeout_secs
-    };
+    let timeout = get_timeout(&state)?;
     svn::status::svn_status(&path, timeout).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn svn_info(state: State<'_, AppState>, path: String) -> Result<RepoInfo, String> {
-    let timeout = {
-        let config = state.config.read().map_err(|e| e.to_string())?;
-        config.advanced.svn_timeout_secs
-    };
+    let timeout = get_timeout(&state)?;
     svn::info::svn_info(&path, timeout).await.map_err(|e| e.to_string())
 }
 
@@ -30,10 +29,7 @@ pub async fn svn_log(
     limit: Option<u32>,
     from_rev: Option<String>,
 ) -> Result<Vec<LogEntry>, String> {
-    let timeout = {
-        let config = state.config.read().map_err(|e| e.to_string())?;
-        config.advanced.svn_timeout_secs
-    };
+    let timeout = get_timeout(&state)?;
     svn::log::svn_log(&path, limit, from_rev.as_deref(), timeout)
         .await
         .map_err(|e| e.to_string())
@@ -45,10 +41,7 @@ pub async fn svn_log_server(
     path: String,
     limit: Option<u32>,
 ) -> Result<WcLogResult, String> {
-    let timeout = {
-        let config = state.config.read().map_err(|e| e.to_string())?;
-        config.advanced.svn_timeout_secs
-    };
+    let timeout = get_timeout(&state)?;
     svn::log::svn_log_server(&path, limit, timeout)
         .await
         .map_err(|e| e.to_string())
@@ -60,10 +53,7 @@ pub async fn svn_diff(
     path: String,
     target: DiffTarget,
 ) -> Result<String, String> {
-    let timeout = {
-        let config = state.config.read().map_err(|e| e.to_string())?;
-        config.advanced.svn_timeout_secs
-    };
+    let timeout = get_timeout(&state)?;
     svn::diff::svn_diff(&path, &target, timeout)
         .await
         .map_err(|e| e.to_string())
@@ -76,10 +66,7 @@ pub async fn svn_commit(
     message: String,
     files: Vec<String>,
 ) -> Result<CommitResult, String> {
-    let timeout = {
-        let config = state.config.read().map_err(|e| e.to_string())?;
-        config.advanced.svn_timeout_secs
-    };
+    let timeout = get_timeout(&state)?;
     svn::commit::svn_commit(&path, &message, &files, timeout)
         .await
         .map_err(|e| e.to_string())
@@ -92,10 +79,7 @@ pub async fn svn_list(
     revision: Option<String>,
     recursive: bool,
 ) -> Result<Vec<DirEntry>, String> {
-    let timeout = {
-        let config = state.config.read().map_err(|e| e.to_string())?;
-        config.advanced.svn_timeout_secs
-    };
+    let timeout = get_timeout(&state)?;
     svn::list::svn_list(&path, revision.as_deref(), recursive, timeout)
         .await
         .map_err(|e| e.to_string())
@@ -107,10 +91,7 @@ pub async fn svn_cat(
     path: String,
     revision: Option<String>,
 ) -> Result<String, String> {
-    let timeout = {
-        let config = state.config.read().map_err(|e| e.to_string())?;
-        config.advanced.svn_timeout_secs
-    };
+    let timeout = get_timeout(&state)?;
     svn::cat::svn_cat(&path, revision.as_deref(), timeout)
         .await
         .map_err(|e| e.to_string())
@@ -122,10 +103,7 @@ pub async fn svn_checkout(
     url: String,
     dest: String,
 ) -> Result<(), String> {
-    let timeout = {
-        let config = state.config.read().map_err(|e| e.to_string())?;
-        config.advanced.svn_timeout_secs
-    };
+    let timeout = get_timeout(&state)?;
     svn::checkout::svn_checkout(&url, &dest, timeout)
         .await
         .map_err(|e| e.to_string())
@@ -133,10 +111,7 @@ pub async fn svn_checkout(
 
 #[tauri::command]
 pub async fn svn_update(state: State<'_, AppState>, path: String, app_handle: AppHandle) -> Result<(), String> {
-    let timeout = {
-        let config = state.config.read().map_err(|e| e.to_string())?;
-        config.advanced.svn_timeout_secs
-    };
+    let timeout = get_timeout(&state)?;
     svn::update::svn_update_streaming(&path, timeout, &app_handle)
         .await
         .map_err(|e| e.to_string())
@@ -148,10 +123,7 @@ pub async fn svn_cleanup(
     path: String,
     options: Option<Vec<String>>,
 ) -> Result<String, String> {
-    let timeout = {
-        let config = state.config.read().map_err(|e| e.to_string())?;
-        config.advanced.svn_timeout_secs
-    };
+    let timeout = get_timeout(&state)?;
     const ALLOWED: &[&str] = &[
         "--vacuum-pristines",
         "--vacuum-prunables",
@@ -192,10 +164,7 @@ pub async fn svn_revert(
     path: String,
     paths: Vec<String>,
 ) -> Result<Vec<String>, String> {
-    let timeout = {
-        let config = state.config.read().map_err(|e| e.to_string())?;
-        config.advanced.svn_timeout_secs
-    };
+    let timeout = get_timeout(&state)?;
     svn::ops::svn_revert(&path, &paths, timeout)
         .await
         .map_err(|e| e.to_string())
@@ -207,10 +176,7 @@ pub async fn svn_add(
     path: String,
     paths: Vec<String>,
 ) -> Result<Vec<String>, String> {
-    let timeout = {
-        let config = state.config.read().map_err(|e| e.to_string())?;
-        config.advanced.svn_timeout_secs
-    };
+    let timeout = get_timeout(&state)?;
     svn::ops::svn_add(&path, &paths, timeout)
         .await
         .map_err(|e| e.to_string())
@@ -223,10 +189,7 @@ pub async fn svn_delete(
     paths: Vec<String>,
     keep_local: bool,
 ) -> Result<Vec<String>, String> {
-    let timeout = {
-        let config = state.config.read().map_err(|e| e.to_string())?;
-        config.advanced.svn_timeout_secs
-    };
+    let timeout = get_timeout(&state)?;
     svn::ops::svn_delete(&path, &paths, keep_local, timeout)
         .await
         .map_err(|e| e.to_string())
@@ -238,10 +201,7 @@ pub async fn svn_blame(
     path: String,
     revision: Option<i32>,
 ) -> Result<Vec<BlameEntry>, String> {
-    let timeout = {
-        let config = state.config.read().map_err(|e| e.to_string())?;
-        config.advanced.svn_timeout_secs
-    };
+    let timeout = get_timeout(&state)?;
     svn::ops::svn_blame(&path, revision, timeout)
         .await
         .map_err(|e| e.to_string())
@@ -253,10 +213,7 @@ pub async fn svn_update_to_revision(
     path: String,
     revision: i32,
 ) -> Result<String, String> {
-    let timeout = {
-        let config = state.config.read().map_err(|e| e.to_string())?;
-        config.advanced.svn_timeout_secs
-    };
+    let timeout = get_timeout(&state)?;
     svn::ops::svn_update_to_revision(&path, revision, timeout)
         .await
         .map_err(|e| e.to_string())
@@ -264,12 +221,20 @@ pub async fn svn_update_to_revision(
 
 #[tauri::command]
 pub fn delete_files_from_disk(path: String, paths: Vec<String>) -> Result<Vec<String>, String> {
+    let base = std::fs::canonicalize(&path).map_err(|e| format!("Invalid repo path: {}", e))?;
     let mut deleted = Vec::new();
     for p in &paths {
         let full_path = std::path::Path::new(&path).join(p);
-        match std::fs::remove_file(&full_path) {
+        let canonical = match std::fs::canonicalize(&full_path) {
+            Ok(c) => c,
+            Err(e) => { log::warn!("Failed to canonicalize {}: {}", full_path.display(), e); continue; }
+        };
+        if !canonical.starts_with(&base) {
+            return Err(format!("Path traversal rejected: {}", p));
+        }
+        match std::fs::remove_file(&canonical) {
             Ok(()) => deleted.push(p.clone()),
-            Err(e) => log::warn!("Failed to delete {}: {}", full_path.display(), e),
+            Err(e) => log::warn!("Failed to delete {}: {}", canonical.display(), e),
         }
     }
     Ok(deleted)
@@ -310,26 +275,5 @@ pub fn open_in_system(path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn open_file_with_default_app(path: String) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("cmd")
-            .args(["/c", "start", "", &path])
-            .spawn()
-            .map_err(|e| format!("Failed to open: {}", e))?;
-    }
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(&path)
-            .spawn()
-            .map_err(|e| format!("Failed to open: {}", e))?;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(&path)
-            .spawn()
-            .map_err(|e| format!("Failed to open: {}", e))?;
-    }
-    Ok(())
+    open::that(&path).map_err(|e| format!("Failed to open: {}", e))
 }

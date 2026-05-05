@@ -26,6 +26,11 @@ pub fn run() {
                 if config.window.maximized {
                     let _ = window.maximize();
                 }
+                if let Some(ref exe) = config.svn.executable {
+                    if !exe.is_empty() {
+                        svn::set_svn_path(exe.clone());
+                    }
+                }
             }
             app.manage(state);
             Ok(())

@@ -244,6 +244,7 @@ function onDragEnd() {
 
 async function selectFile(filePath: string) {
   if (selectedFilePath.value === filePath) return
+  if (expandedRevision.value == null) return
   selectedFilePath.value = filePath
   fileDiffText.value = ''
   isBinaryFile.value = false
@@ -251,7 +252,7 @@ async function selectFile(filePath: string) {
   try {
     const result = await invoke<string>('svn_diff', {
       path: props.repoPath,
-      target: { type: 'fileAtRevision', data: { path: filePath, revision: String(expandedRevision.value), baseRevision: String(expandedRevision.value! - 1) } },
+      target: { type: 'fileAtRevision', data: { path: filePath, revision: String(expandedRevision.value), baseRevision: String(expandedRevision.value - 1) } },
     })
     if (result.includes('Binary files')) {
       isBinaryFile.value = true

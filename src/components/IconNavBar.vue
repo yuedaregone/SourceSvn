@@ -14,6 +14,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { ClipboardList, FileEdit, FolderTree, Package } from 'lucide-vue-next'
 import type { ActiveView } from '../types/svn'
 import { t } from '../locales'
@@ -26,12 +27,12 @@ defineEmits<{
   switchView: [view: ActiveView]
 }>()
 
-const navItems = [
+const navItems = computed(() => [
   { view: 'log' as ActiveView, icon: ClipboardList, label: t('tabs.log'), shortcut: 'Ctrl+1' },
   { view: 'localChanges' as ActiveView, icon: FileEdit, label: t('tabs.localChanges'), shortcut: 'Ctrl+2' },
   { view: 'fileBrowser' as ActiveView, icon: FolderTree, label: t('tabs.fileBrowser'), shortcut: 'Ctrl+3' },
   { view: 'shelve' as ActiveView, icon: Package, label: t('tabs.shelve'), shortcut: 'Ctrl+4' },
-]
+])
 </script>
 
 <style scoped>

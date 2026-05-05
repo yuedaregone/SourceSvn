@@ -11,7 +11,7 @@ pub mod status;
 pub mod update;
 
 use crate::common::AppError;
-use std::sync::OnceLock;
+use std::sync::Mutex;
 use std::time::Duration;
 use tokio::process::Command;
 #[cfg(target_os = "windows")]
@@ -42,15 +42,6 @@ pub async fn run_svn_async_in_dir(
             .await
             .map_err(|e| AppError::Svn(format!("Task join error: {}", e)))??;
 
-    #[cfg(target_os = "windows")]
-    let old_cp = unsafe { windows_sys::Win32::System::Console::GetConsoleCP() };
-
-    #[cfg(target_os = "windows")]
-    if old_cp != 936 {
-        unsafe { windows_sys::Win32::System::Console::SetConsoleCP(936) };
-        unsafe { windows_sys::Win32::System::Console::SetConsoleOutputCP(936) };
-    }
-
     let mut cmd = Command::new(&svn_path);
     cmd.args(args);
     if let Some(dir) = work_dir {
@@ -62,15 +53,7 @@ pub async fn run_svn_async_in_dir(
     cmd.env("LANG", "en_US.UTF-8");
     cmd.env("LC_ALL", "en_US.UTF-8");
     cmd.env("LC_CTYPE", "en_US.UTF-8");
-    let result = run_cmd_output(cmd, timeout_secs).await;
-
-    #[cfg(target_os = "windows")]
-    {
-        unsafe { windows_sys::Win32::System::Console::SetConsoleCP(old_cp) };
-        unsafe { windows_sys::Win32::System::Console::SetConsoleOutputCP(old_cp) };
-    }
-
-    result
+    run_cmd_output(cmd, timeout_secs).await
 }
 
 async fn run_cmd_output(
@@ -98,11 +81,19 @@ async fn run_cmd_output(
     Ok(decode_bytes(&output.stdout))
 }
 
-static SVN_PATH: OnceLock<String> = OnceLock::new();
+static SVN_PATH: Mutex<Option<String>> = Mutex::new(None);
+
+pub fn set_svn_path(path: String) {
+    if let Ok(mut cached) = SVN_PATH.lock() {
+        *cached = Some(path);
+    }
+}
 
 pub fn find_svn_executable() -> Result<String, AppError> {
-    if let Some(path) = SVN_PATH.get() {
-        return Ok(path.clone());
+    if let Ok(cached) = SVN_PATH.lock() {
+        if let Some(ref path) = *cached {
+            return Ok(path.clone());
+        }
     }
 
     let find_cmd;
@@ -133,7 +124,9 @@ pub fn find_svn_executable() -> Result<String, AppError> {
         // `where` on Windows may return multiple paths (one per line); use the first
         let path = stdout.lines().next().unwrap_or("").trim().to_string();
         if !path.is_empty() {
-            let _ = SVN_PATH.set(path.clone());
+            if let Ok(mut cached) = SVN_PATH.lock() {
+                *cached = Some(path.clone());
+            }
             return Ok(path);
         }
     }

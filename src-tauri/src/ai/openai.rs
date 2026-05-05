@@ -58,10 +58,14 @@ fn truncate_diff(diff: &str) -> String {
     if diff.len() <= MAX_DIFF_BYTES {
         diff.to_string()
     } else {
-        let truncated = &diff[..MAX_DIFF_BYTES];
+        let safe_end = diff
+            .char_indices()
+            .find(|&(i, _)| i >= MAX_DIFF_BYTES)
+            .map(|(i, _)| i)
+            .unwrap_or(diff.len());
         format!(
             "{}\n\n[... diff truncated at {}KB — total size: {}KB ...]",
-            truncated,
+            &diff[..safe_end],
             MAX_DIFF_BYTES / 1024,
             diff.len() / 1024,
         )

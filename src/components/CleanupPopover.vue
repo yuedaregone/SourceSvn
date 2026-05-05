@@ -72,7 +72,6 @@ function toggle(key: keyof CleanupConfig, event: Event) {
   const checked = (event.target as HTMLInputElement).checked
   if (!configStore.config) return
   configStore.config.cleanup[key] = checked
-  configStore.saveConfig()
 }
 </script>
 

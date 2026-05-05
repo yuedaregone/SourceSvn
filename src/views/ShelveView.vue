@@ -190,7 +190,9 @@ async function deleteShelve(name: string) {
   errorMessage.value = ''
   try {
     await invoke('shelve_delete', { path: props.repoPath, name })
-    selectedNames.value.delete(name)
+    const next = new Set(selectedNames.value)
+    next.delete(name)
+    selectedNames.value = next
     emit('refreshShelves')
   } catch (e) {
     errorMessage.value = t('common.error') + ': ' + e

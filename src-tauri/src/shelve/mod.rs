@@ -6,39 +6,56 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 const STALE_LOCK_AGE: Duration = Duration::from_secs(3600);
+const RETRY_DELAY: Duration = Duration::from_millis(100);
+const MAX_RETRIES: u32 = 3;
 
 struct ShelveLock {
     path: PathBuf,
 }
 
-impl ShelveLock {
-    fn acquire(dir: &PathBuf) -> Result<Self, AppError> {
-        // Clean stale locks (older than 1 hour, e.g. from a previous crash)
-        let lock_path = dir.join(".lock");
-        if lock_path.exists() {
-            if let Ok(meta) = fs::metadata(&lock_path) {
-                if let Ok(modified) = meta.modified() {
-                    if modified.elapsed().unwrap_or_default() > STALE_LOCK_AGE {
-                        let _ = fs::remove_file(&lock_path);
-                    }
+fn clean_stale_lock(lock_path: &std::path::Path) {
+    if lock_path.exists() {
+        if let Ok(meta) = fs::metadata(lock_path) {
+            if let Ok(modified) = meta.modified() {
+                if modified.elapsed().unwrap_or_default() > STALE_LOCK_AGE {
+                    let _ = fs::remove_file(lock_path);
                 }
             }
         }
+    }
+}
 
-        // Retry lock creation to handle transient contention
-        const MAX_RETRIES: u32 = 3;
-        const RETRY_DELAY: Duration = Duration::from_millis(100);
+fn try_acquire_lock(lock_path: &std::path::Path) -> Result<(), AppError> {
+    match std::fs::File::create_new(lock_path) {
+        Ok(_) => Ok(()),
+        Err(_) => Err(AppError::Fs(
+            "Shelve directory is locked by another operation. Please try again.".to_string(),
+        )),
+    }
+}
+
+impl ShelveLock {
+    async fn acquire(dir: &PathBuf) -> Result<Self, AppError> {
+        let lock_path = dir.join(".lock");
+        clean_stale_lock(&lock_path);
         for attempt in 0..MAX_RETRIES {
-            match std::fs::File::create_new(&lock_path) {
+            match try_acquire_lock(&lock_path) {
                 Ok(_) => return Ok(Self { path: lock_path }),
-                Err(_) if attempt + 1 < MAX_RETRIES => {
-                    std::thread::sleep(RETRY_DELAY);
-                }
-                Err(_) => {
-                    return Err(AppError::Fs(
-                        "Shelve directory is locked by another operation. Please try again.".to_string(),
-                    ));
-                }
+                Err(e) if attempt + 1 >= MAX_RETRIES => return Err(e),
+                Err(_) => tokio::time::sleep(RETRY_DELAY).await,
+            }
+        }
+        unreachable!()
+    }
+
+    fn acquire_blocking(dir: &PathBuf) -> Result<Self, AppError> {
+        let lock_path = dir.join(".lock");
+        clean_stale_lock(&lock_path);
+        for attempt in 0..MAX_RETRIES {
+            match try_acquire_lock(&lock_path) {
+                Ok(_) => return Ok(Self { path: lock_path }),
+                Err(e) if attempt + 1 >= MAX_RETRIES => return Err(e),
+                Err(_) => std::thread::sleep(RETRY_DELAY),
             }
         }
         unreachable!()
@@ -87,7 +104,7 @@ pub async fn shelve_save(
     let shelve_dir = repo_shelve_dir(repo_path);
     fs::create_dir_all(&shelve_dir)
         .map_err(|e| AppError::Fs(format!("Failed to create shelve directory: {}", e)))?;
-    let _lock = ShelveLock::acquire(&shelve_dir)?;
+    let _lock = ShelveLock::acquire(&shelve_dir).await?;
 
     let patch_file = shelve_dir.join(format!("{}.patch", name));
     if patch_file.exists() {
@@ -152,7 +169,7 @@ pub async fn shelve_apply(
     timeout_secs: u64,
 ) -> Result<(), AppError> {
     let shelve_dir = repo_shelve_dir(repo_path);
-    let _lock = ShelveLock::acquire(&shelve_dir)?;
+    let _lock = ShelveLock::acquire(&shelve_dir).await?;
     let patch_file = shelve_dir.join(format!("{}.patch", name));
     if !patch_file.exists() {
         return Err(AppError::Fs(format!("Shelve '{}' not found", name)));
@@ -166,7 +183,7 @@ pub async fn shelve_apply(
 
 pub fn shelve_delete(repo_path: &str, name: &str) -> Result<(), AppError> {
     let shelve_dir = repo_shelve_dir(repo_path);
-    let _lock = ShelveLock::acquire(&shelve_dir)?;
+    let _lock = ShelveLock::acquire_blocking(&shelve_dir)?;
     let patch_file = shelve_dir.join(format!("{}.patch", name));
     if !patch_file.exists() {
         return Err(AppError::Fs(format!("Shelve '{}' not found", name)));

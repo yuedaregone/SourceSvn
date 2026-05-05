@@ -159,19 +159,30 @@ watch(theme, (val) => {
   document.documentElement.setAttribute('data-theme', val)
 }, { immediate: true })
 
-const currentTabStore = computed(() => {
-  if (tabs.value.length === 0) return null
-  const tab = tabs.value[activeTabIndex.value]
-  if (!tab) return null
-  const key = tab.id
-  if (!tabStores.value[key]) {
-    const store = useTabStore(key)()
+function getOrCreateTabStore(tab: TabInfo) {
+  if (!tabStores.value[tab.id]) {
+    const store = useTabStore(tab.id)()
     store.repoPath = tab.repoPath
     store.activeView = tab.activeView
-    tabStores.value[key] = store
+    tabStores.value[tab.id] = store
   }
-  return tabStores.value[key]
+  return tabStores.value[tab.id]
+}
+
+const currentTab = computed(() => {
+  if (tabs.value.length === 0) return null
+  return tabs.value[activeTabIndex.value] ?? null
 })
+
+const currentTabStore = computed(() => {
+  const tab = currentTab.value
+  if (!tab) return null
+  return tabStores.value[tab.id] ?? null
+})
+
+watch(currentTab, (tab) => {
+  if (tab) getOrCreateTabStore(tab)
+}, { immediate: true })
 
 const handleVisibilityChange = () => {
   if (document.visibilityState === 'visible') {
@@ -430,6 +441,7 @@ async function handleCleanup() {
   }
   cleanupLoading.value = true
   try {
+    await configStore.saveConfig()
     const options = cleanupConfigToArgs(cfg)
     await invoke<string>('svn_cleanup', {
       path: currentTabStore.value.repoPath,

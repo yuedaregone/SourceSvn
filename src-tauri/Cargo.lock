@@ -3714,6 +3714,7 @@ dependencies = [
  "env_logger",
  "futures-util",
  "log",
+ "open",
  "quick-xml 0.36.2",
  "reqwest 0.12.28",
  "serde",
@@ -3725,7 +3726,6 @@ dependencies = [
  "tauri-plugin-shell",
  "tokio",
  "toml 0.8.2",
- "windows-sys 0.59.0",
 ]
 
 [[package]]
