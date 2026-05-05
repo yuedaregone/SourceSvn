@@ -1,5 +1,5 @@
 <template>
-  <div v-if="visible" class="diff-overlay" @click.self="$emit('close')">
+  <div v-if="visible" class="diff-overlay" @mousedown.self="overlayMousedown = true" @click.self="onOverlayClick">
     <div class="diff-modal">
       <div class="diff-header">
         <span class="diff-filename">{{ t('diffViewer.file') }}: {{ filePath }}</span>
@@ -66,13 +66,20 @@ import { ref, computed } from 'vue'
 import { useToastStore } from '../stores/toastStore'
 import { t } from '../locales'
 
+const overlayMousedown = ref(false)
+function onOverlayClick() {
+  if (!overlayMousedown.value) return
+  overlayMousedown.value = false
+  emit('close')
+}
+
 const props = defineProps<{
   visible: boolean
   filePath: string
   diffText: string
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   close: []
   aiReview: [diff: string]
 }>()

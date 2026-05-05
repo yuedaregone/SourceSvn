@@ -84,6 +84,18 @@ pub struct AiConfig {
     pub api_key: String,
     pub model: String,
     pub timeout_secs: u64,
+    #[serde(default = "default_commit_prompt")]
+    pub commit_prompt: String,
+    #[serde(default = "default_review_prompt")]
+    pub review_prompt: String,
+}
+
+fn default_commit_prompt() -> String {
+    "You are a helpful assistant that generates concise commit messages for code changes. Output ONLY the commit message, no explanation.".to_string()
+}
+
+fn default_review_prompt() -> String {
+    "You are a senior code reviewer. Review the following code changes and provide constructive feedback on potential issues, bugs, and improvements. Be concise.".to_string()
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -171,6 +183,8 @@ impl Default for AppConfig {
                 api_key: String::new(),
                 model: "gpt-4o-mini".to_string(),
                 timeout_secs: 30,
+                commit_prompt: default_commit_prompt(),
+                review_prompt: default_review_prompt(),
             },
             diff: DiffConfig {
                 context_lines: 3,

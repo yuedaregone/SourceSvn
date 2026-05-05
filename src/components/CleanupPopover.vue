@@ -1,5 +1,5 @@
 <template>
-  <div class="cleanup-overlay" @click.self="$emit('close')">
+  <div class="cleanup-overlay" @mousedown.self="overlayMousedown = true" @click.self="onOverlayClick">
     <div class="cleanup-popover">
       <div class="popover-header">{{ t('cleanup.title') }}</div>
       <div class="popover-body">
@@ -26,10 +26,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useConfigStore } from '../stores/configStore'
 import type { CleanupConfig } from '../types/config'
 import { t } from '../locales'
+
+const emit = defineEmits<{ close: [], execute: [] }>()
+const overlayMousedown = ref(false)
+function onOverlayClick() {
+  if (!overlayMousedown.value) return
+  overlayMousedown.value = false
+  emit('close')
+}
 
 const configStore = useConfigStore()
 

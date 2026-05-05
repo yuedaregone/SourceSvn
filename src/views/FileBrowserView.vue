@@ -1,14 +1,5 @@
 <template>
   <div class="file-browser-view">
-    <div class="browser-header">
-      <select v-model="selectedRevision" class="revision-select" @change="onRevisionChange">
-        <option value="HEAD">{{ t('fileBrowser.head') }}</option>
-      </select>
-      <label class="checkbox-label">
-        <input type="checkbox" v-model="showHidden" />
-        {{ t('fileBrowser.showHidden') }}
-      </label>
-    </div>
     <div class="browser-content">
       <div class="tree-panel">
         <div v-if="props.loading" class="tree-loading">
@@ -103,8 +94,6 @@ interface TreeItem {
 
 const fileContent = ref('')
 const selectedFilePath = ref('')
-const selectedRevision = ref('HEAD')
-const showHidden = ref(false)
 
 const expandedDirs = ref<Record<string, DirEntry[]>>({})
 const expandedKeys = ref<Record<string, boolean>>({})
@@ -122,7 +111,6 @@ function appendChildren(
   parentPath: string,
 ) {
   for (const entry of entries) {
-    if (!showHidden.value && entry.name.startsWith('.')) continue
     const relPath = `${parentPath}/${entry.name}`
     result.push({ entry, depth, relativePath: relPath })
     if (entry.kind === 'dir' && expandedKeys.value[relPath]) {
@@ -135,7 +123,6 @@ function appendChildren(
 const treeItems = computed<TreeItem[]>(() => {
   const result: TreeItem[] = []
   for (const entry of props.fileTree) {
-    if (!showHidden.value && entry.name.startsWith('.')) continue
     result.push({ entry, depth: 0, relativePath: entry.name })
     if (entry.kind === 'dir' && expandedKeys.value[entry.name]) {
       const children = expandedDirs.value[entry.name] ?? []
@@ -161,7 +148,6 @@ async function toggleDir(relativePath: string) {
     const path = `${props.repoPath}/${relativePath}`
     const children = await invoke<DirEntry[]>('svn_list', {
       path,
-      revision: selectedRevision.value !== 'HEAD' ? selectedRevision.value : undefined,
       recursive: false,
     })
     expandedDirs.value = { ...expandedDirs.value, [relativePath]: children }
@@ -180,13 +166,9 @@ async function onEntryClick(entry: DirEntry, relativePath: string) {
   } else {
     selectedFilePath.value = relativePath
     try {
-      const params: Record<string, unknown> = {
+      fileContent.value = await invoke<string>('svn_cat', {
         path: `${props.repoPath}/${relativePath}`,
-      }
-      if (selectedRevision.value !== 'HEAD') {
-        params.revision = selectedRevision.value
-      }
-      fileContent.value = await invoke<string>('svn_cat', params)
+      })
     } catch (e) {
       fileContent.value = t('common.error') + ': ' + e
     }
@@ -197,15 +179,6 @@ function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function onRevisionChange() {
-  fileContent.value = ''
-  selectedFilePath.value = ''
-  expandedDirs.value = {}
-  expandedKeys.value = {}
-  dirLoading.value = {}
-  emit('refreshFileBrowser')
 }
 
 const ctxMenu = ref({ visible: false, x: 0, y: 0, entry: null as DirEntry | null, relativePath: '' })
@@ -303,29 +276,6 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-}
-.browser-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-.revision-select {
-  padding: 5px 8px;
-  border: 1px solid var(--border-input);
-  border-radius: 4px;
-  font-size: 13px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  min-width: 100px;
-}
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  cursor: pointer;
-  color: var(--text-primary);
 }
 .refresh-btn {
   margin-left: auto;

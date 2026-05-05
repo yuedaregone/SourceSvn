@@ -1,5 +1,5 @@
 <template>
-  <div v-if="visible" class="dialog-overlay" @click.self="$emit('close')">
+  <div v-if="visible" class="dialog-overlay" @mousedown.self="overlayMousedown = true" @click.self="onOverlayClick">
     <div class="dialog">
       <div class="dialog-header">
         <h3>打开仓库</h3>
@@ -82,6 +82,13 @@ const emit = defineEmits<{
   close: []
   openRepo: [path: string]
 }>()
+
+const overlayMousedown = ref(false)
+function onOverlayClick() {
+  if (!overlayMousedown.value) return
+  overlayMousedown.value = false
+  emit('close')
+}
 
 const mode = ref<'local' | 'checkout'>('local')
 const localPath = ref('')

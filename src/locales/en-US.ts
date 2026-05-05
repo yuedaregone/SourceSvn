@@ -153,10 +153,6 @@ export default {
     closeDetail: 'Close Details',
     changedPaths: 'Changed Files:',
   },
-  fileBrowser: {
-    showHidden: 'Show hidden files',
-    head: 'HEAD',
-  },
   shelveView: {
     saveCurrentChanges: 'Save current changes',
     applySelected: 'Apply selected shelves',
@@ -192,6 +188,10 @@ export default {
     file: 'File',
     copySuccess: 'Copied',
     copyFailed: 'Copy failed',
+    prevChange: 'Previous Change',
+    nextChange: 'Next Change',
+    collapseUnchanged: 'Collapse Unchanged',
+    context: 'Context',
   },
   aiReviewPanel: {
     title: 'AI Code Review',

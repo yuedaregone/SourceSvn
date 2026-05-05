@@ -153,10 +153,6 @@ export default {
     closeDetail: '关闭详情',
     changedPaths: '变更文件:',
   },
-  fileBrowser: {
-    showHidden: '显示隐藏文件',
-    head: 'HEAD',
-  },
   shelveView: {
     saveCurrentChanges: '保存当前修改',
     applySelected: '应用选中的 shelve',
@@ -192,6 +188,10 @@ export default {
     file: '文件',
     copySuccess: '复制成功',
     copyFailed: '复制失败',
+    prevChange: '上一个修改',
+    nextChange: '下一个修改',
+    collapseUnchanged: '折叠未修改行',
+    context: '上下文',
   },
   aiReviewPanel: {
     title: 'AI 代码审查',

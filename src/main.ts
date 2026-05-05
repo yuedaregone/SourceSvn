@@ -3,6 +3,12 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import './style.css'
 
+// Prevent Windows trackpad swipe from triggering browser back/forward navigation
+history.pushState(null, '', location.href)
+window.addEventListener('popstate', () => {
+  history.pushState(null, '', location.href)
+})
+
 const app = createApp(App)
 app.use(createPinia())
 app.mount('#app')

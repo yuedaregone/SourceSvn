@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <Transition name="slide">
-      <div v-if="visible" class="ai-panel-overlay" @click.self="$emit('close')">
+      <div v-if="visible" class="ai-panel-overlay" @mousedown.self="overlayMousedown = true" @click.self="onOverlayClick">
         <div class="ai-panel">
           <div class="panel-header">
             <span class="panel-title">{{ t('aiReviewPanel.title') }}</span>
@@ -25,6 +25,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useToastStore } from '../stores/toastStore'
 import { t } from '../locales'
 
@@ -34,9 +35,16 @@ defineProps<{
   loading: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   close: []
 }>()
+
+const overlayMousedown = ref(false)
+function onOverlayClick() {
+  if (!overlayMousedown.value) return
+  overlayMousedown.value = false
+  emit('close')
+}
 
 async function copyContent() {
   try {

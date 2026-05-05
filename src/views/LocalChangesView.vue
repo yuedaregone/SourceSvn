@@ -1,6 +1,6 @@
 <template>
   <div class="local-changes-view">
-    <div class="left-panel">
+    <div class="left-panel" :style="{ width: leftPanelWidth + 'px' }">
       <div class="file-list-header">
         <label class="select-all">
           <input type="checkbox" :checked="allSelected" @change="toggleAll" />
@@ -38,10 +38,6 @@
           rows="3"
           class="commit-input"
         ></textarea>
-        <div class="commit-stats" v-if="diffStats">
-          <span class="stat-add">+{{ diffStats.added }}</span>
-          <span class="stat-del">-{{ diffStats.removed }}</span>
-        </div>
         <div class="commit-actions">
           <button @click="generateAiMessage" :disabled="aiLoading || selectedPaths.size === 0" class="ai-btn" :title="t('localChanges.aiGenerate')">
             <Sparkles :size="16" />
@@ -54,6 +50,9 @@
           </button>
         </div>
       </div>
+    </div>
+    <div class="drag-bar" @mousedown="onDragStart" @touchstart="onDragStart">
+      <div class="drag-handle"></div>
     </div>
     <div class="right-panel">
       <InlineDiff v-if="diffContent" :diff-text="diffContent" :empty-hint="t('common.clickToViewDiff')" />
@@ -98,6 +97,36 @@ const diffContent = ref('')
 const aiLoading = ref(false)
 const toast = useToastStore()
 
+const leftPanelWidth = ref(320)
+const isDragging = ref(false)
+const startX = ref(0)
+const startWidth = ref(0)
+
+function onDragStart(e: MouseEvent | TouchEvent) {
+  isDragging.value = true
+  startX.value = 'touches' in e ? e.touches[0].clientX : e.clientX
+  startWidth.value = leftPanelWidth.value
+  document.addEventListener('mousemove', onDragMove)
+  document.addEventListener('mouseup', onDragEnd)
+  document.addEventListener('touchmove', onDragMove)
+  document.addEventListener('touchend', onDragEnd)
+}
+
+function onDragMove(e: MouseEvent | TouchEvent) {
+  if (!isDragging.value) return
+  const currentX = 'touches' in e ? e.touches[0].clientX : e.clientX
+  const delta = currentX - startX.value
+  leftPanelWidth.value = Math.max(200, Math.min(800, startWidth.value + delta))
+}
+
+function onDragEnd() {
+  isDragging.value = false
+  document.removeEventListener('mousemove', onDragMove)
+  document.removeEventListener('mouseup', onDragEnd)
+  document.removeEventListener('touchmove', onDragMove)
+  document.removeEventListener('touchend', onDragEnd)
+}
+
 const ctxMenu = ref({ visible: false, x: 0, y: 0, file: null as FileStatus | null })
 
 function displayPath(filePath: string): string {
@@ -118,17 +147,6 @@ const allSelected = computed(
 const canCommit = computed(
   () => selectedPaths.value.size > 0 && commitMessage.value.trim().length > 0,
 )
-
-const diffStats = computed(() => {
-  if (!diffContent.value) return null
-  let added = 0
-  let removed = 0
-  for (const line of diffContent.value.split('\n')) {
-    if (line.startsWith('+') && !line.startsWith('+++')) added++
-    else if (line.startsWith('-') && !line.startsWith('---')) removed++
-  }
-  return { added, removed }
-})
 
 function toggleAll() {
   if (allSelected.value) {
@@ -325,21 +343,47 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
 .local-changes-view {
   display: flex;
   height: 100%;
-  gap: 12px;
+  gap: 2px;
 }
 .left-panel {
-  flex: 1;
+  flex: none;
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  min-width: 200px;
+  max-width: 800px;
+  overflow: hidden;
+}
+.drag-bar {
+  width: 6px;
+  cursor: ew-resize;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.drag-bar:hover {
+  background: var(--bg-hover);
+}
+.drag-handle {
+  width: 2px;
+  height: 40px;
+  background: var(--border-light);
+  border-radius: 1px;
+}
+.drag-bar:hover .drag-handle,
+.drag-bar:active .drag-handle {
+  background: var(--border-color);
 }
 .right-panel {
   flex: 1;
+  min-width: 0;
   border: 1px solid var(--border-color);
   border-radius: 4px;
-  overflow: auto;
-  min-width: 0;
+  overflow: hidden;
   background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
 }
 .file-list-header {
   display: flex;
@@ -494,7 +538,7 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   border: 1px solid var(--border-input);
   border-radius: 4px;
   font-size: 13px;
-  resize: vertical;
+  resize: none;
   font-family: inherit;
   box-sizing: border-box;
   background: var(--bg-primary);
@@ -503,20 +547,6 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
 .commit-input:focus {
   border-color: var(--accent-color);
   outline: none;
-}
-.commit-stats {
-  margin-top: 6px;
-  font-size: 12px;
-  display: flex;
-  gap: 8px;
-}
-.stat-add {
-  color: var(--success-color);
-  font-weight: 500;
-}
-.stat-del {
-  color: var(--danger-color);
-  font-weight: 500;
 }
 .commit-actions {
   display: flex;

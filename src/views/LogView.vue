@@ -337,10 +337,11 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
       label: t('contextMenu.revertToRevision'),
       icon: RotateCcw,
       action: async () => {
-        if (confirm(`Revert to revision ${entry.revision - 1}?`)) {
+        if (confirm(`Revert to revision ${entry.revision}?`)) {
           try {
-            await invoke('svn_update_to_revision', { path: props.repoPath, revision: entry.revision - 1 })
+            await invoke('svn_update_to_revision', { path: props.repoPath, revision: entry.revision })
             toast.success(t('contextMenu.revertToRevision'))
+            refresh()
           } catch (e) { toast.error(String(e)) }
         }
       },

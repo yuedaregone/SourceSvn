@@ -8,7 +8,6 @@ export interface AppConfig {
   diff: DiffConfig
   log: LogConfig
   commit: CommitConfig
-  fileBrowser: FileBrowserConfig
   behavior: BehaviorConfig
   advanced: AdvancedConfig
   cleanup: CleanupConfig
@@ -60,6 +59,8 @@ export interface AiConfig {
   apiKey: string
   model: string
   timeoutSecs: number
+  commitPrompt: string
+  reviewPrompt: string
 }
 
 export interface DiffConfig {
@@ -75,10 +76,6 @@ export interface LogConfig {
 
 export interface CommitConfig {
   template?: string
-}
-
-export interface FileBrowserConfig {
-  showHidden: boolean
 }
 
 export interface BehaviorConfig {

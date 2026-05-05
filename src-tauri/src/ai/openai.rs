@@ -1,6 +1,6 @@
 use super::AiProvider;
 use crate::common::AppError;
-use crate::svn::models::ReviewChunkEvent;
+use crate::svn::models::ChatChunkEvent;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -69,15 +69,15 @@ fn truncate_diff(diff: &str) -> String {
 }
 
 /// Process a single SSE data line. Returns `Ok(true)` if `[DONE]` was received.
-fn process_sse_line(line: &str, app_handle: &AppHandle) -> Result<bool, AppError> {
+fn process_sse_line(line: &str, app_handle: &AppHandle, event_name: &str) -> Result<bool, AppError> {
     if !line.starts_with("data: ") {
         return Ok(false);
     }
     let data = &line[6..];
     if data == "[DONE]" {
         let _ = app_handle.emit(
-            "review_chunk",
-            ReviewChunkEvent {
+            event_name,
+            ChatChunkEvent {
                 content: String::new(),
                 done: true,
             },
@@ -89,8 +89,8 @@ fn process_sse_line(line: &str, app_handle: &AppHandle) -> Result<bool, AppError
             if let Some(delta) = &choice.delta {
                 if let Some(content) = &delta.content {
                     let _ = app_handle.emit(
-                        "review_chunk",
-                        ReviewChunkEvent {
+                        event_name,
+                        ChatChunkEvent {
                             content: content.clone(),
                             done: false,
                         },
@@ -160,30 +160,24 @@ impl OpenAiProvider {
 
 #[async_trait]
 impl AiProvider for OpenAiProvider {
-    async fn generate_message(&self, diff: &str) -> Result<String, AppError> {
+    async fn chat(&self, system: &str, user: &str) -> Result<String, AppError> {
         let messages = vec![
-            ChatMessage {
-                role: "system".to_string(),
-                content: "You are a helpful assistant that generates concise commit messages for code changes. Output ONLY the commit message, no explanation.".to_string(),
-            },
-            ChatMessage {
-                role: "user".to_string(),
-                content: format!("Generate a concise commit message for these changes:\n\n{}", truncate_diff(diff)),
-            },
+            ChatMessage { role: "system".to_string(), content: system.to_string() },
+            ChatMessage { role: "user".to_string(), content: truncate_diff(user) },
         ];
         self.chat_completion(messages).await
     }
 
-    async fn review_changes(&self, diff: &str, app_handle: &AppHandle) -> Result<(), AppError> {
+    async fn chat_stream(
+        &self,
+        system: &str,
+        user: &str,
+        app_handle: &AppHandle,
+        event_name: &str,
+    ) -> Result<(), AppError> {
         let messages = vec![
-            ChatMessage {
-                role: "system".to_string(),
-                content: "You are a senior code reviewer. Review the following code changes and provide constructive feedback on potential issues, bugs, and improvements. Be concise.".to_string(),
-            },
-            ChatMessage {
-                role: "user".to_string(),
-                content: format!("Review these code changes:\n\n{}", truncate_diff(diff)),
-            },
+            ChatMessage { role: "system".to_string(), content: system.to_string() },
+            ChatMessage { role: "user".to_string(), content: truncate_diff(user) },
         ];
 
         let response = self.send_chat_request(messages, true).await?;
@@ -201,20 +195,19 @@ impl AiProvider for OpenAiProvider {
                 let line = buffer[..line_end].trim().to_string();
                 buffer = buffer[line_end + 1..].to_string();
 
-                if process_sse_line(&line, app_handle)? {
+                if process_sse_line(&line, app_handle, event_name)? {
                     return Ok(());
                 }
             }
         }
 
-        // Process any remaining data in buffer (last line may not have trailing newline)
         if !buffer.trim().is_empty() {
-            let _ = process_sse_line(buffer.trim(), app_handle)?;
+            let _ = process_sse_line(buffer.trim(), app_handle, event_name)?;
         }
 
         let _ = app_handle.emit(
-            "review_chunk",
-            ReviewChunkEvent {
+            event_name,
+            ChatChunkEvent {
                 content: String::new(),
                 done: true,
             },

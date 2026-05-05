@@ -2,14 +2,31 @@ use crate::ai;
 use crate::app_state::AppState;
 use tauri::{AppHandle, State};
 
-fn read_ai_config(state: &State<'_, AppState>) -> Result<(String, String, String, String), String> {
+struct AiSetup {
+    api_key: String,
+    provider_type: String,
+    endpoint: String,
+    model: String,
+}
+
+fn read_ai_config(state: &State<'_, AppState>) -> Result<AiSetup, String> {
     let config = state.config.read().map_err(|e| e.to_string())?;
-    Ok((
-        config.ai.api_key.clone(),
-        config.ai.provider.clone(),
-        config.ai.endpoint.clone(),
-        config.ai.model.clone(),
-    ))
+    Ok(AiSetup {
+        api_key: config.ai.api_key.clone(),
+        provider_type: config.ai.provider.clone(),
+        endpoint: config.ai.endpoint.clone(),
+        model: config.ai.model.clone(),
+    })
+}
+
+fn create_ai_provider(state: &State<'_, AppState>) -> Result<(Box<dyn ai::AiProvider>, AiSetup), String> {
+    let setup = read_ai_config(state)?;
+    if setup.api_key.is_empty() {
+        return Err("[AI] API key not configured".into());
+    }
+    let provider = ai::create_provider(&setup.provider_type, &setup.endpoint, &setup.api_key, &setup.model, &state.http_client)
+        .map_err(|e| e.to_string())?;
+    Ok((provider, setup))
 }
 
 #[tauri::command]
@@ -17,18 +34,13 @@ pub async fn generate_commit_message(
     state: State<'_, AppState>,
     diff: String,
 ) -> Result<String, String> {
-    let (api_key, provider_type, endpoint, model) = read_ai_config(&state)?;
-
-    if api_key.is_empty() {
-        return Err("[AI] API key not configured".to_string());
-    }
-
-    let provider = ai::create_provider(&provider_type, &endpoint, &api_key, &model, &state.http_client)
-        .map_err(|e| e.to_string())?;
-    provider
-        .generate_message(&diff)
-        .await
-        .map_err(|e| e.to_string())
+    let (provider, _) = create_ai_provider(&state)?;
+    let system = {
+        let config = state.config.read().map_err(|e| e.to_string())?;
+        config.ai.commit_prompt.clone()
+    };
+    let user = format!("Generate a concise commit message for these changes:\n\n{}", diff);
+    provider.chat(&system, &user).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -37,16 +49,11 @@ pub async fn review_changes(
     diff: String,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    let (api_key, provider_type, endpoint, model) = read_ai_config(&state)?;
-
-    if api_key.is_empty() {
-        return Err("[AI] API key not configured".to_string());
-    }
-
-    let provider = ai::create_provider(&provider_type, &endpoint, &api_key, &model, &state.http_client)
-        .map_err(|e| e.to_string())?;
-    provider
-        .review_changes(&diff, &app_handle)
-        .await
-        .map_err(|e| e.to_string())
+    let (provider, _) = create_ai_provider(&state)?;
+    let system = {
+        let config = state.config.read().map_err(|e| e.to_string())?;
+        config.ai.review_prompt.clone()
+    };
+    let user = format!("Review these code changes:\n\n{}", diff);
+    provider.chat_stream(&system, &user, &app_handle, "review_chunk").await.map_err(|e| e.to_string())
 }

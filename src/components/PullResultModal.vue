@@ -1,5 +1,5 @@
 <template>
-  <div v-if="visible" class="dialog-overlay" @click.self="$emit('close')">
+  <div v-if="visible" class="dialog-overlay" @mousedown.self="overlayMousedown = true" @click.self="onOverlayClick">
     <div class="modal">
       <div class="modal-header">
         <div class="modal-header-left">
@@ -88,11 +88,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { Download } from 'lucide-vue-next'
 import type { UpdateResult, UpdateFileItem } from '../types/svn'
 import { useToastStore } from '../stores/toastStore'
 import { t } from '../locales'
+
+const emit = defineEmits<{ close: [] }>()
+const overlayMousedown = ref(false)
+function onOverlayClick() {
+  if (!overlayMousedown.value) return
+  overlayMousedown.value = false
+  emit('close')
+}
 
 const props = defineProps<{
   visible: boolean

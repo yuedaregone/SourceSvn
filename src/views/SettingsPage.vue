@@ -1,5 +1,5 @@
 <template>
-  <div class="settings-overlay" @click.self="$emit('close')">
+  <div class="settings-overlay" @mousedown.self="overlayMousedown = true" @click.self="onOverlayClick">
     <div class="settings-modal">
       <div class="settings-header">
         <h3>设置</h3>
@@ -109,6 +109,14 @@
               <label>超时（秒）</label>
               <input type="number" v-model.number="config.ai.timeoutSecs" min="5" max="300" />
             </div>
+            <div class="setting-row">
+              <label>提交信息生成 · System Prompt</label>
+              <textarea v-model="config.ai.commitPrompt" rows="4" class="prompt-textarea" placeholder="留空使用默认提示词"></textarea>
+            </div>
+            <div class="setting-row">
+              <label>代码审查 · System Prompt</label>
+              <textarea v-model="config.ai.reviewPrompt" rows="4" class="prompt-textarea" placeholder="留空使用默认提示词"></textarea>
+            </div>
           </div>
 
           <!-- Advanced -->
@@ -167,6 +175,13 @@ const configStore = useConfigStore()
 const activeTab = ref('general')
 const isDetecting = ref(false)
 const detectStatus = ref('')
+const overlayMousedown = ref(false)
+
+function onOverlayClick() {
+  if (!overlayMousedown.value) return
+  overlayMousedown.value = false
+  emit('close')
+}
 
 const tabs = [
   { key: 'general', label: t('settings.general') },
@@ -192,11 +207,10 @@ const config = reactive<AppConfig>({
   appearance: { ...defaultAppearance },
   session: { openTabs: [], activeTabIndex: 0, recentRepos: [], maxRecentRepos: 20 },
   svn: {},
-  ai: { provider: 'openai', endpoint: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-4o-mini', timeoutSecs: 30 },
+  ai: { provider: 'openai', endpoint: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-4o-mini', timeoutSecs: 30, commitPrompt: '', reviewPrompt: '' },
   diff: { contextLines: 3, ignoreWhitespace: false, viewMode: 'unified' },
   log: { fetchLimit: 100, showChangedPaths: true },
   commit: {},
-  fileBrowser: { showHidden: false },
   behavior: { confirmBeforeCommit: true, confirmBeforeRevert: true },
   advanced: { svnTimeoutSecs: 60, logLevel: 'warn' },
   cleanup: { vacuumPristines: false, vacuumPrunables: false, includeExternals: false, removeUnversionedTrees: false, removeIgnoredTrees: false, dropDavCache: false },
@@ -224,6 +238,12 @@ onMounted(() => {
     }
     if (!config.appearance.theme) {
       config.appearance.theme = defaultAppearance.theme
+    }
+    if (!config.ai.commitPrompt) {
+      config.ai.commitPrompt = 'You are a helpful assistant that generates concise commit messages for code changes. Output ONLY the commit message, no explanation.'
+    }
+    if (!config.ai.reviewPrompt) {
+      config.ai.reviewPrompt = 'You are a senior code reviewer. Review the following code changes and provide constructive feedback on potential issues, bugs, and improvements. Be concise.'
     }
   }
 })
@@ -500,6 +520,22 @@ watch(() => config.behavior.autoRefreshSecs, () => {
 .reset-btn:hover {
   border-color: var(--accent-color);
   color: var(--accent-color);
+}
+.prompt-textarea {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--border-input);
+  background: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.prompt-textarea:focus {
+  border-color: var(--accent-color);
+  outline: none;
 }
 .settings-footer {
   display: flex;
