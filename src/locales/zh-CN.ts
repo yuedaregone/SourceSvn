@@ -93,6 +93,7 @@ export default {
     stagedChanges: '已暂存的修改',
     unstagedChanges: '未暂存的修改',
     selectedCount: '已选 {count} 个文件',
+    directoryNoDiff: '文件夹不支持差异对比',
   },
   settings: {
     title: '设置',

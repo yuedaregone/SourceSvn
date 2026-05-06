@@ -27,7 +27,7 @@
             :disabled="props.loading"
           />
           <span class="status-badge" :class="file.status">{{ file.status[0].toUpperCase() }}</span>
-          <span class="file-path">{{ displayPath(file.path) }}</span>
+          <span class="file-path" :class="{ dir: file.isDirectory }">{{ displayPath(file.path) }}</span>
         </div>
         <div v-if="!props.loading && props.localChanges.length === 0" class="empty-list">{{ t('common.noLocalChanges') }}</div>
       </div>
@@ -172,6 +172,7 @@ async function selectFile(file: FileStatus) {
   selectedFile.value = file.path
   if (file.isDirectory) {
     diffContent.value = ''
+    toast.info(t('localChanges.directoryNoDiff'))
     return
   }
   if (file.status === 'deleted' || file.status === 'missing') {

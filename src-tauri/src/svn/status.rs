@@ -31,6 +31,8 @@ struct WcStatus {
     _props: Option<String>,
     #[serde(rename = "@copy-from-url")]
     copy_from_url: Option<String>,
+    #[serde(rename = "@kind")]
+    kind: Option<String>,
 }
 
 pub fn parse_status_xml(xml: &str) -> Result<Vec<FileStatus>, AppError> {
@@ -61,7 +63,7 @@ pub fn parse_status_xml(xml: &str) -> Result<Vec<FileStatus>, AppError> {
             FileStatus {
                 path: entry.path,
                 status: status_type,
-                is_directory: false,
+                is_directory: entry.wc_status.kind.as_deref() == Some("dir"),
                 copied: entry.wc_status.copy_from_url.map(|_| true),
             }
         })

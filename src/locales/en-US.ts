@@ -93,6 +93,7 @@ export default {
     stagedChanges: 'Staged changes',
     unstagedChanges: 'Unstaged changes',
     selectedCount: '{count} files selected',
+    directoryNoDiff: 'Directories do not support diff',
   },
   settings: {
     title: 'Settings',
