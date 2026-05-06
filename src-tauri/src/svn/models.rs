@@ -125,7 +125,6 @@ pub struct CommitResult {
 pub struct UpdateFileItem {
     pub path: String,
     pub status: String,
-    pub author: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

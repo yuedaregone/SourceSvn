@@ -9,7 +9,7 @@
           <span class="modal-title">{{ t('common.pullResult') }}</span>
           <span class="modal-rev" v-if="result && result.revision">r{{ result.revision }}</span>
         </div>
-        <button class="close-btn" @click="$emit('close')">&times;</button>
+        <button class="close-btn" :disabled="pulling" @click="$emit('close')">&times;</button>
       </div>
 
       <div class="stats-bar" v-if="result && result.files.length > 0">
@@ -38,11 +38,10 @@
         <table v-else class="file-table">
           <thead>
             <tr>
-              <th style="width: 44px"></th>
-              <th style="width: 44px">{{ t('common.status') }}</th>
+              <th style="width: 36px"></th>
+              <th style="width: 52px">{{ t('common.status') }}</th>
               <th>{{ t('common.filePath') }}</th>
-              <th style="width: 100px">{{ t('common.modifier') }}</th>
-              <th style="width: 72px; text-align: center">{{ t('common.actions') }}</th>
+              <th style="width: 64px; text-align: center">{{ t('common.actions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -58,7 +57,6 @@
                 </span>
               </td>
               <td class="file-path" :title="file.path">{{ file.path }}</td>
-              <td class="file-author">{{ file.author }}</td>
               <td style="text-align: center">
                 <button
                   v-if="file.status === 'C'"
@@ -80,8 +78,12 @@
         </table>
       </div>
 
+      <div v-if="pulling" class="running-bar">
+        <div class="spinner spinner-sm" />
+        <span>{{ t('common.pulling') }}</span>
+      </div>
       <div class="modal-footer">
-        <button class="btn btn-primary" @click="$emit('close')">{{ t('common.close') }}</button>
+        <button class="btn btn-primary" :disabled="pulling" @click="$emit('close')">{{ t('common.close') }}</button>
       </div>
     </div>
   </div>
@@ -99,21 +101,28 @@ const overlayMousedown = ref(false)
 function onOverlayClick() {
   if (!overlayMousedown.value) return
   overlayMousedown.value = false
-  emit('close')
+  if (!props.pulling) emit('close')
 }
 
 const props = defineProps<{
   visible: boolean
   result: UpdateResult | null
+  pulling: boolean
 }>()
 
 const STATUS_ORDER: Record<string, number> = { C: 0, M: 1, A: 2, U: 2 }
 
 const sortedFiles = computed(() => {
   if (!props.result) return []
-  return [...props.result.files].sort(
-    (a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9),
-  )
+  return [...props.result.files].sort((a, b) => {
+    const sa = STATUS_ORDER[a.status] ?? 9
+    const sb = STATUS_ORDER[b.status] ?? 9
+    if (sa !== sb) return sa - sb
+    // 同状态内：后接收的排上面（反转原始顺序）
+    const ia = props.result!.files.indexOf(a)
+    const ib = props.result!.files.indexOf(b)
+    return ib - ia
+  })
 })
 
 const conflictCount = computed(
@@ -227,6 +236,10 @@ function handleViewDiff(_file: UpdateFileItem) {
   background: var(--bg-tertiary, #33334d);
   color: var(--text-primary);
 }
+.close-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
 
 .stats-bar {
   display: flex;
@@ -306,7 +319,7 @@ function handleViewDiff(_file: UpdateFileItem) {
   top: 0;
   background: var(--bg-secondary, #2a2a3d);
   text-align: left;
-  padding: 8px 12px;
+  padding: 5px 8px;
   font-weight: 500;
   color: var(--text-muted, #707090);
   font-size: 11px;
@@ -317,7 +330,7 @@ function handleViewDiff(_file: UpdateFileItem) {
 }
 
 .file-table td {
-  padding: 9px 12px;
+  padding: 4px 8px;
   border-bottom: 1px solid rgba(61, 61, 92, 0.4);
   vertical-align: middle;
 }
@@ -366,11 +379,6 @@ function handleViewDiff(_file: UpdateFileItem) {
   max-width: 300px;
 }
 
-.file-author {
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
 .diff-btn {
   display: inline-flex;
   align-items: center;
@@ -401,6 +409,23 @@ function handleViewDiff(_file: UpdateFileItem) {
   color: white;
 }
 
+.running-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  background: var(--bg-secondary, #2a2a3d);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.spinner-sm {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
 .modal-footer {
   display: flex;
   align-items: center;
@@ -427,5 +452,9 @@ function handleViewDiff(_file: UpdateFileItem) {
 }
 .btn-primary:hover {
   background: var(--accent-hover, #9b90f9);
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

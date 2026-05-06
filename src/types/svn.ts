@@ -65,7 +65,6 @@ export interface CommitResult {
 export interface UpdateFileItem {
   path: string
   status: 'A' | 'U' | 'M' | 'C'
-  author: string
 }
 
 export interface UpdateResult {

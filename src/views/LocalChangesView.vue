@@ -13,11 +13,11 @@
           <RefreshCw :size="24" class="spin" />
         </div>
         <div
-          v-for="file in props.localChanges"
+          v-for="(file, index) in props.localChanges"
           :key="file.path"
           class="file-item"
-          :class="{ selected: selectedFile === file.path }"
-          @click="selectFile(file)"
+          :class="{ selected: selectedFile === file.path, checked: selectedPaths.has(file.path) }"
+          @click="selectFile(file, index, $event)"
           @contextmenu.prevent="openContextMenu($event, file)"
         >
           <input
@@ -93,6 +93,7 @@ const emit = defineEmits<{
 
 const selectedPaths = ref(new Set<string>())
 const selectedFile = ref('')
+const lastClickIndex = ref(-1)
 const commitMessage = ref('')
 const diffContent = ref('')
 const aiLoading = ref(false)
@@ -168,34 +169,59 @@ function toggleFile(path: string) {
   selectedPaths.value = next
 }
 
-async function selectFile(file: FileStatus) {
-  selectedFile.value = file.path
-  if (file.isDirectory) {
-    diffContent.value = ''
-    toast.info(t('localChanges.directoryNoDiff'))
-    return
-  }
-  if (file.status === 'deleted' || file.status === 'missing') {
-    diffContent.value = ''
-    toast.warning(`${t('common.status')}: ${file.status} — ${file.path}`)
-    return
-  }
-  try {
-    if (file.status === 'unversioned') {
-      diffContent.value = await invoke<string>('diff_unversioned_file', {
-        repoPath: props.repoPath,
-        filePath: file.path,
-      })
-    } else {
-      const target: DiffTarget = { type: 'file', data: { path: file.path } }
-      diffContent.value = await invoke<string>('svn_diff', {
-        path: props.repoPath,
-        target,
-      })
+async function selectFile(file: FileStatus, index: number, event: MouseEvent) {
+  // Shift+Click: 范围选择
+  if (event.shiftKey && lastClickIndex.value >= 0) {
+    const start = Math.min(lastClickIndex.value, index)
+    const end = Math.max(lastClickIndex.value, index)
+    const next = new Set(selectedPaths.value)
+    for (let i = start; i <= end; i++) {
+      next.add(props.localChanges[i].path)
     }
-  } catch (e) {
-    diffContent.value = ''
-    toast.error(String(e), 0)
+    selectedPaths.value = next
+    selectedFile.value = file.path
+  }
+  // Ctrl+Click: 切换单个选中，不切换 diff
+  else if (event.ctrlKey || event.metaKey) {
+    toggleFile(file.path)
+  }
+  // 普通点击: 切换选中 + 查看 diff
+  else {
+    selectedPaths.value = new Set([file.path])
+    selectedFile.value = file.path
+  }
+
+  lastClickIndex.value = index
+
+  // 查看 diff（仅 Ctrl+Click 不切换 diff）
+  if (!event.ctrlKey && !event.metaKey) {
+    if (file.isDirectory) {
+      diffContent.value = ''
+      toast.info(t('localChanges.directoryNoDiff'))
+      return
+    }
+    if (file.status === 'deleted' || file.status === 'missing') {
+      diffContent.value = ''
+      toast.warning(`${t('common.status')}: ${file.status} — ${file.path}`)
+      return
+    }
+    try {
+      if (file.status === 'unversioned') {
+        diffContent.value = await invoke<string>('diff_unversioned_file', {
+          repoPath: props.repoPath,
+          filePath: file.path,
+        })
+      } else {
+        const target: DiffTarget = { type: 'file', data: { path: file.path } }
+        diffContent.value = await invoke<string>('svn_diff', {
+          path: props.repoPath,
+          target,
+        })
+      }
+    } catch (e) {
+      diffContent.value = ''
+      toast.error(String(e), 0)
+    }
   }
 }
 
@@ -441,12 +467,16 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   cursor: pointer;
   font-size: 13px;
   border-bottom: 1px solid var(--border-light);
+  user-select: none;
 }
 .file-item:hover {
   background: var(--bg-hover);
 }
 .file-item.selected {
   background: var(--bg-active);
+}
+.file-item.checked:not(.selected) {
+  background: var(--bg-hover);
 }
 .status-badge {
   display: inline-flex;

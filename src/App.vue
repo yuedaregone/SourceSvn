@@ -94,6 +94,7 @@
     <PullResultModal
       :visible="showPullResult"
       :result="pullResult"
+      :pulling="pulling"
       @close="showPullResult = false"
     />
     <Toast />
@@ -142,6 +143,7 @@ const aiReviewContent = ref('')
 const aiReviewLoading = ref(false)
 const showPullResult = ref(false)
 const pullResult = ref<UpdateResult | null>(null)
+const pulling = ref(false)
 const cleanupLoading = ref(false)
 
 const recentRepos = computed<RepoEntry[]>(() => {
@@ -376,6 +378,7 @@ async function handlePull() {
   if (!currentTabStore.value) return
 
   pullResult.value = { revision: 0, files: [] }
+  pulling.value = true
   showPullResult.value = true
 
   try {
@@ -388,20 +391,23 @@ async function handlePull() {
         case 'file':
           pullResult.value = {
             revision: pullResult.value?.revision ?? 0,
-            files: [...(pullResult.value?.files ?? []), { path: ev.path, status: ev.status as 'A' | 'U' | 'M' | 'C', author: '' }],
+            files: [...(pullResult.value?.files ?? []), { path: ev.path, status: ev.status as 'A' | 'U' | 'M' | 'C' }],
           }
           break
         case 'done':
           pullResult.value = { ...pullResult.value!, revision: ev.revision }
+          pulling.value = false
           unlisten?.()
           refreshCurrentView()
           break
         case 'error':
+          pulling.value = false
           showPullResult.value = false
           useToastStore().error(t('common.pullFailed') + ': ' + ev.message)
           unlisten?.()
           break
         case 'upToDate':
+          pulling.value = false
           showPullResult.value = false
           useToastStore().info(t('common.upToDate'))
           unlisten?.()
@@ -412,6 +418,7 @@ async function handlePull() {
 
     await invoke('svn_update', { path: currentTabStore.value.repoPath })
   } catch (e) {
+    pulling.value = false
     showPullResult.value = false
     useToastStore().error(t('common.pullFailed') + ': ' + (e as Error).message)
   }

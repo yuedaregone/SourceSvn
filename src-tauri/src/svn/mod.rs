@@ -17,12 +17,17 @@ use tokio::process::Command;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
-/// Decode bytes as UTF-8.
+/// Decode bytes as UTF-8, falling back to GBK on Windows.
 pub fn decode_bytes(bytes: &[u8]) -> String {
     if let Ok(s) = std::str::from_utf8(bytes) {
         if !s.contains('\u{FFFD}') {
             return s.to_owned();
         }
+    }
+    // UTF-8 解码失败或包含替换字符，尝试 GBK（Windows 中文环境常见）
+    let (decoded, _, had_errors) = encoding_rs::GBK.decode(bytes);
+    if !had_errors {
+        return decoded.into_owned();
     }
     String::from_utf8_lossy(bytes).into_owned()
 }
