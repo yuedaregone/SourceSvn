@@ -58,6 +58,7 @@ pub fn run() {
             commands::svn::open_in_system,
             commands::svn::open_file_with_default_app,
             commands::svn::find_svn_root,
+            commands::svn::file_size_diff,
             commands::ai::generate_commit_message,
             commands::ai::review_changes,
             commands::shelve::shelve_save,

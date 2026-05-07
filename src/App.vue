@@ -38,8 +38,10 @@
           :repoPath="currentTabStore.repoPath"
           :localChanges="currentTabStore.localChanges"
           :loading="currentTabStore.changesLoading"
+          :commitHistory="currentTabStore.commitHistory"
           @refresh="handleRefresh"
           @refreshLocalChanges="currentTabStore.refreshLocalChanges"
+          @addCommitMessage="currentTabStore.addCommitMessage"
         />
         <FileBrowserView
           v-if="currentTabStore && currentTabStore.activeView === 'fileBrowser'"
@@ -167,6 +169,7 @@ function getOrCreateTabStore(tab: TabInfo) {
     const store = useTabStore(tab.id)()
     store.repoPath = tab.repoPath
     store.activeView = tab.activeView
+    store.loadCommitHistory()
     tabStores.value[tab.id] = store
   }
   return tabStores.value[tab.id]
@@ -465,7 +468,11 @@ async function handleCleanup() {
 }
 
 function handleRefresh() {
-  refreshCurrentView()
+  const store = currentTabStore.value
+  if (!store) return
+  // 同时刷新日志和本地更改，确保提交后历史记录能立即显示
+  store.refreshLog()
+  store.refreshLocalChanges()
 }
 
 async function saveSession() {

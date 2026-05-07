@@ -20,6 +20,39 @@ export const useTabStore = (id: string) => defineStore(`tab-${id}`, () => {
   const changesLoading = ref(false)
   const fileBrowserLoading = ref(false)
   const shelvesLoading = ref(false)
+  const commitHistory = ref<string[]>([])
+
+  const STORAGE_KEY = 'svn-commit-history'
+
+  function loadCommitHistory() {
+    try {
+      const all = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+      commitHistory.value = all[repoPath.value] || []
+    } catch {
+      commitHistory.value = []
+    }
+  }
+
+  function saveCommitHistory() {
+    try {
+      const all = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+      all[repoPath.value] = commitHistory.value
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
+    } catch {
+      // ignore
+    }
+  }
+
+  function addCommitMessage(msg: string) {
+    if (!msg.trim()) return
+    // 去重：如果已存在则移到最前
+    const idx = commitHistory.value.indexOf(msg)
+    if (idx >= 0) commitHistory.value.splice(idx, 1)
+    commitHistory.value.unshift(msg)
+    // 最多保留 20 条
+    if (commitHistory.value.length > 20) commitHistory.value.pop()
+    saveCommitHistory()
+  }
 
   async function refreshLog(limit?: number) {
     logLoading.value = true
@@ -105,9 +138,12 @@ export const useTabStore = (id: string) => defineStore(`tab-${id}`, () => {
     changesLoading,
     fileBrowserLoading,
     shelvesLoading,
+    commitHistory,
     refreshLog,
     refreshLocalChanges,
     refreshFileBrowser,
     refreshShelves,
+    loadCommitHistory,
+    addCommitMessage,
   }
 })

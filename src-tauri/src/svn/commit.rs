@@ -30,6 +30,7 @@ pub async fn svn_commit(
     timeout_secs: u64,
 ) -> Result<CommitResult, AppError> {
     auto_add_unversioned(path, files, timeout_secs).await?;
+    auto_delete_missing(path, files, timeout_secs).await?;
 
     let output = commit_with_message(path, message, files, timeout_secs).await?;
 
@@ -40,6 +41,57 @@ pub async fn svn_commit(
         success: true,
         errors: None,
     })
+}
+
+async fn auto_delete_missing(
+    path: &str,
+    files: &[String],
+    timeout_secs: u64,
+) -> Result<(), AppError> {
+    let mut status_args = vec!["status", "--xml"];
+    for f in files {
+        status_args.push(f);
+    }
+    let status_xml =
+        crate::svn::run_svn_async_in_dir(&status_args, timeout_secs, Some(path)).await?;
+    let statuses = crate::svn::status::parse_status_xml(&status_xml)?;
+
+    let missing: HashSet<&str> = statuses
+        .iter()
+        .filter(|s| s.status == FileStatusType::Missing)
+        .map(|s| s.path.as_str())
+        .collect();
+
+    let to_delete: Vec<&String> = files
+        .iter()
+        .filter(|f| {
+            if missing.contains(f.as_str()) {
+                return true;
+            }
+            let file_path = std::path::Path::new(f);
+            let repo_path = std::path::Path::new(path);
+            let rel = file_path.strip_prefix(repo_path).unwrap_or(file_path);
+            let rel_normalized: String = rel
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("/");
+            let rel_normalized = rel_normalized.trim_start_matches('/');
+            missing.contains(rel_normalized)
+        })
+        .collect();
+
+    if to_delete.is_empty() {
+        return Ok(());
+    }
+
+    let mut delete_args = vec!["delete"];
+    for f in &to_delete {
+        delete_args.push(f);
+    }
+    crate::svn::run_svn_async_in_dir(&delete_args, timeout_secs, Some(path)).await?;
+
+    Ok(())
 }
 
 async fn auto_add_unversioned(

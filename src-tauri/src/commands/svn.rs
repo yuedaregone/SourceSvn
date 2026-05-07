@@ -277,3 +277,11 @@ pub fn open_in_system(path: String) -> Result<(), String> {
 pub fn open_file_with_default_app(path: String) -> Result<(), String> {
     open::that(&path).map_err(|e| format!("Failed to open: {}", e))
 }
+
+#[tauri::command]
+pub async fn file_size_diff(state: State<'_, AppState>, repo_path: String, file_path: String) -> Result<(u64, u64), String> {
+    let timeout = get_timeout(&state)?;
+    svn::ops::file_size_diff(&repo_path, &file_path, timeout)
+        .await
+        .map_err(|e| e.to_string())
+}

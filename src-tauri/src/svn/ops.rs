@@ -3,6 +3,7 @@ use crate::svn::models::BlameEntry;
 use quick_xml::de::from_str;
 use serde::Deserialize;
 use std::path::Path;
+use tokio::io::AsyncReadExt;
 
 /// Walk up from `path` to find the nearest directory containing `.svn`.
 pub fn find_svn_root(path: &str) -> Result<String, AppError> {
@@ -154,6 +155,42 @@ fn parse_blame_xml(xml: &str) -> Result<Vec<BlameEntry>, AppError> {
             }
         })
         .collect())
+}
+
+/// 获取文件的工作副本大小和 SVN base 版本大小
+pub async fn file_size_diff(
+    repo_path: &str,
+    file_path: &str,
+    timeout_secs: u64,
+) -> Result<(u64, u64), AppError> {
+    // 当前文件大小
+    let current_size = tokio::fs::metadata(file_path)
+        .await
+        .map(|m| m.len())
+        .unwrap_or(0);
+
+    // base 版本大小：svn cat 输出字节数
+    let child = tokio::process::Command::new(crate::svn::find_svn_executable()?)
+        .args(["cat", file_path])
+        .current_dir(repo_path)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| AppError::Svn(format!("Failed to spawn svn cat: {}", e)))?;
+
+    let output = tokio::time::timeout(
+        std::time::Duration::from_secs(timeout_secs),
+        async {
+            let mut stdout = child.stdout.ok_or_else(|| AppError::Svn("No stdout".into()))?;
+            let mut buf = Vec::new();
+            stdout.read_to_end(&mut buf).await.map_err(|e| AppError::Svn(e.to_string()))?;
+            Ok::<u64, AppError>(buf.len() as u64)
+        },
+    )
+    .await
+    .map_err(|_| AppError::Svn("svn cat timed out".into()))??;
+
+    Ok((output, current_size))
 }
 
 #[cfg(test)]

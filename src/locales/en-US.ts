@@ -93,7 +93,11 @@ export default {
     stagedChanges: 'Staged changes',
     unstagedChanges: 'Unstaged changes',
     selectedCount: '{count} files selected',
+    selectedOf: '{selected} of {total} selected',
     directoryNoDiff: 'Directories do not support diff',
+    binarySizeDiff: 'Binary file size change',
+    recentCommits: 'Recent Commits',
+    noRecentCommits: 'No recent commits',
   },
   settings: {
     title: 'Settings',

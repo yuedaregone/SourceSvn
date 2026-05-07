@@ -60,27 +60,27 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 /* Toast 主题变量 */
 :root,
 [data-theme="light"] {
-  --bg-primary: #ffffff;
-  --bg-secondary: #fafafa;
+  --bg-primary: #F9FAFB;
+  --bg-secondary: #f3f4f6;
   --bg-tertiary: #f5f5f5;
-  --bg-hover: #f5f5f5;
-  --bg-active: #e6f7ff;
-  --text-primary: #333333;
-  --text-secondary: #666666;
-  --text-muted: #999999;
-  --border-color: #e8e8e8;
-  --border-light: #f0f0f0;
-  --border-input: #d9d9d9;
+  --bg-hover: #f3f4f6;
+  --bg-active: #EFF6FF;
+  --text-primary: #111827;
+  --text-secondary: #6B7280;
+  --text-muted: #9CA3AF;
+  --border-color: #E5E7EB;
+  --border-light: #E5E7EB;
+  --border-input: #D1D5DB;
   --accent-color: #1890ff;
   --accent-hover: #40a9ff;
-  --success-color: #52c41a;
-  --danger-color: #ff4d4f;
-  --warning-color: #faad14;
+  --success-color: #10B981;
+  --danger-color: #EF4444;
+  --warning-color: #F59E0B;
   --purple-color: #722ed1;
-  --diff-add-bg: #e6ffed;
-  --diff-add-text: #22863a;
-  --diff-del-bg: #ffeef0;
-  --diff-del-text: #cb2431;
+  --diff-add-bg: #ecfdf5;
+  --diff-add-text: #065f46;
+  --diff-del-bg: #fef2f2;
+  --diff-del-text: #991b1b;
   --diff-hunk-bg: #f0f0ff;
   --overlay-bg: rgba(0, 0, 0, 0.4);
   --shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
@@ -92,7 +92,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   --text-warning: white;
   --bg-info: #2563eb;
   --text-info: white;
-  --border: #e8e8e8;
+  --border: #E5E7EB;
 }
 
 [data-theme="dark"] {

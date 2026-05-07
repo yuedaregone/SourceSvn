@@ -6,7 +6,7 @@
           <input type="checkbox" :checked="allSelected" @change="toggleAll" />
           <span>{{ t('common.selectAll') }}</span>
         </label>
-        <span class="selected-count">{{ t('localChanges.selectedCount', { count: selectedPaths.size }) }}</span>
+        <span class="selected-count">{{ t('localChanges.selectedOf', { selected: selectedPaths.size, total: props.localChanges.length }) }}</span>
       </div>
       <div class="file-list" :class="{ loading: props.loading }">
         <div v-if="props.loading" class="loading-overlay">
@@ -26,19 +26,56 @@
             @click.stop="toggleFile(file.path)"
             :disabled="props.loading"
           />
-          <span class="status-badge" :class="file.status">{{ file.status[0].toUpperCase() }}</span>
+          <span class="status-badge" :class="file.status">{{ statusLabel(file.status) }}</span>
           <span class="file-path" :class="{ dir: file.isDirectory }">{{ displayPath(file.path) }}</span>
         </div>
         <div v-if="!props.loading && props.localChanges.length === 0" class="empty-list">{{ t('common.noLocalChanges') }}</div>
       </div>
-      <div class="commit-section">
+    </div>
+    <div class="drag-bar" @mousedown="onDragStart" @touchstart="onDragStart">
+      <div class="drag-handle"></div>
+    </div>
+    <div class="right-panel">
+      <div class="diff-area">
+        <!-- 二进制文件大小对比 -->
+        <div v-if="binarySizeDiff" class="binary-diff">
+          <div class="binary-diff-title">{{ t('localChanges.binarySizeDiff') }}</div>
+          <div class="binary-diff-info">
+            <span class="binary-size">{{ formatSize(binarySizeDiff.baseSize) }}</span>
+            <span class="binary-arrow">→</span>
+            <span class="binary-size">{{ formatSize(binarySizeDiff.currentSize) }}</span>
+            <span class="binary-delta" :class="{ positive: delta > 0, negative: delta < 0 }">
+              ({{ delta > 0 ? '+' : '' }}{{ formatSize(delta) }})
+            </span>
+          </div>
+        </div>
+        <!-- 代码 diff -->
+        <InlineDiff v-else-if="diffContent" :diff-text="diffContent" :empty-hint="t('common.clickToViewDiff')" />
+        <!-- 空状态 -->
+        <div v-else class="diff-placeholder">{{ t('common.clickToViewDiff') }}</div>
+      </div>
+      <div class="commit-section" @click="showHistory = false">
         <textarea
           v-model="commitMessage"
           :placeholder="t('localChanges.commitMessage')"
-          rows="3"
+          rows="2"
           class="commit-input"
         ></textarea>
         <div class="commit-actions">
+          <div class="history-wrapper">
+            <button @click.stop="showHistory = !showHistory" class="history-btn icon-btn" :title="t('localChanges.recentCommits')">
+              <History :size="16" />
+            </button>
+            <div v-if="showHistory" class="history-dropdown" @click.stop>
+              <div
+                v-for="(msg, i) in recentMessages"
+                :key="i"
+                class="history-item"
+                @click="selectMessage(msg)"
+              >{{ msg }}</div>
+              <div v-if="recentMessages.length === 0" class="history-empty">{{ t('localChanges.noRecentCommits') }}</div>
+            </div>
+          </div>
           <button @click="generateAiMessage" :disabled="aiLoading || selectedPaths.size === 0" class="ai-btn" :title="t('localChanges.aiGenerate')">
             <Sparkles :size="16" />
           </button>
@@ -50,13 +87,6 @@
           </button>
         </div>
       </div>
-    </div>
-    <div class="drag-bar" @mousedown="onDragStart" @touchstart="onDragStart">
-      <div class="drag-handle"></div>
-    </div>
-    <div class="right-panel">
-      <InlineDiff v-if="diffContent" :diff-text="diffContent" :empty-hint="t('common.clickToViewDiff')" />
-      <div v-else class="diff-placeholder">{{ t('common.clickToViewDiff') }}</div>
     </div>
     <ContextMenu
       :visible="ctxMenu.visible"
@@ -71,7 +101,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { Sparkles, RefreshCw, X, Send, RotateCcw, Plus, Trash2, ExternalLink, FolderOpen, Copy, CheckSquare, Square } from 'lucide-vue-next'
+import { Sparkles, RefreshCw, X, Send, RotateCcw, Plus, Trash2, ExternalLink, FolderOpen, Copy, CheckSquare, Square, History } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
 import { useConfigStore } from '../stores/configStore'
 import type { FileStatus, DiffTarget } from '../types/svn'
@@ -84,19 +114,23 @@ const props = defineProps<{
   repoPath: string
   localChanges: FileStatus[]
   loading: boolean
+  commitHistory?: string[]
 }>()
 
 const emit = defineEmits<{
   refresh: []
   refreshLocalChanges: []
+  addCommitMessage: [msg: string]
 }>()
 
 const selectedPaths = ref(new Set<string>())
 const selectedFile = ref('')
 const lastClickIndex = ref(-1)
 const commitMessage = ref('')
+const showHistory = ref(false)
 const diffContent = ref('')
 const aiLoading = ref(false)
+const binarySizeDiff = ref<{ baseSize: number; currentSize: number } | null>(null)
 const toast = useToastStore()
 const configStore = useConfigStore()
 
@@ -104,6 +138,42 @@ const leftPanelWidth = ref(320)
 const isDragging = ref(false)
 const startX = ref(0)
 const startWidth = ref(0)
+
+const recentMessages = computed(() =>
+  (props.commitHistory ?? []).slice(0, 5),
+)
+
+function selectMessage(msg: string) {
+  commitMessage.value = msg
+  showHistory.value = false
+}
+
+const allSelected = computed(
+  () =>
+    props.localChanges.length > 0 &&
+    props.localChanges.every((f) => selectedPaths.value.has(f.path)),
+)
+
+function toggleAll() {
+  if (allSelected.value) {
+    selectedPaths.value = new Set()
+  } else {
+    selectedPaths.value = new Set(props.localChanges.map((f) => f.path))
+  }
+}
+
+const delta = computed(() => {
+  if (!binarySizeDiff.value) return 0
+  return binarySizeDiff.value.currentSize - binarySizeDiff.value.baseSize
+})
+
+function formatSize(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const abs = Math.abs(bytes)
+  if (abs < 1024) return bytes + ' B'
+  if (abs < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
 
 function onDragStart(e: MouseEvent | TouchEvent) {
   isDragging.value = true
@@ -132,6 +202,19 @@ function onDragEnd() {
 
 const ctxMenu = ref({ visible: false, x: 0, y: 0, file: null as FileStatus | null })
 
+const STATUS_LABELS: Record<string, string> = {
+  modified: 'M',
+  added: 'A',
+  deleted: 'D',
+  unversioned: '?',
+  missing: '!',
+  conflicted: 'C',
+}
+
+function statusLabel(status: string): string {
+  return STATUS_LABELS[status] ?? status[0].toUpperCase()
+}
+
 function displayPath(filePath: string): string {
   const normRepo = props.repoPath.replace(/[\/\\]+$/, '').replace(/\//g, '\\')
   const normFile = filePath.replace(/\//g, '\\')
@@ -141,23 +224,9 @@ function displayPath(filePath: string): string {
   return filePath
 }
 
-const allSelected = computed(
-  () =>
-    props.localChanges.length > 0 &&
-    props.localChanges.every((f) => selectedPaths.value.has(f.path)),
-)
-
 const canCommit = computed(
   () => selectedPaths.value.size > 0 && commitMessage.value.trim().length > 0,
 )
-
-function toggleAll() {
-  if (allSelected.value) {
-    selectedPaths.value = new Set()
-  } else {
-    selectedPaths.value = new Set(props.localChanges.map((f) => f.path))
-  }
-}
 
 function toggleFile(path: string) {
   const next = new Set(selectedPaths.value)
@@ -195,14 +264,10 @@ async function selectFile(file: FileStatus, index: number, event: MouseEvent) {
 
   // 查看 diff（仅 Ctrl+Click 不切换 diff）
   if (!event.ctrlKey && !event.metaKey) {
+    binarySizeDiff.value = null
     if (file.isDirectory) {
       diffContent.value = ''
       toast.info(t('localChanges.directoryNoDiff'))
-      return
-    }
-    if (file.status === 'deleted' || file.status === 'missing') {
-      diffContent.value = ''
-      toast.warning(`${t('common.status')}: ${file.status} — ${file.path}`)
       return
     }
     try {
@@ -213,13 +278,29 @@ async function selectFile(file: FileStatus, index: number, event: MouseEvent) {
         })
       } else {
         const target: DiffTarget = { type: 'file', data: { path: file.path } }
-        diffContent.value = await invoke<string>('svn_diff', {
+        const diff = await invoke<string>('svn_diff', {
           path: props.repoPath,
           target,
         })
+        // 检测二进制文件
+        if (diff.includes('Binary files') || diff.includes('不能以文本形式显示')) {
+          diffContent.value = ''
+          try {
+            const [baseSize, currentSize] = await invoke<[number, number]>('file_size_diff', {
+              repoPath: props.repoPath,
+              filePath: file.path,
+            })
+            binarySizeDiff.value = { baseSize, currentSize }
+          } catch {
+            binarySizeDiff.value = null
+          }
+        } else {
+          diffContent.value = diff
+        }
       }
     } catch (e) {
       diffContent.value = ''
+      binarySizeDiff.value = null
       toast.error(String(e), 0)
     }
   }
@@ -248,16 +329,19 @@ async function submitCommit() {
   if (configStore.config?.behavior.confirmBeforeCommit) {
     if (!confirm('确认提交?')) return
   }
+  const msg = commitMessage.value
   try {
     await invoke('svn_commit', {
       path: props.repoPath,
-      message: commitMessage.value,
+      message: msg,
       files: Array.from(selectedPaths.value),
     })
+    emit('addCommitMessage', msg)
     commitMessage.value = ''
     selectedPaths.value = new Set()
     selectedFile.value = ''
     diffContent.value = ''
+    binarySizeDiff.value = null
     emit('refreshLocalChanges')
     emit('refresh')
   } catch (e) {
@@ -270,6 +354,7 @@ function cancelCommit() {
   selectedPaths.value = new Set()
   selectedFile.value = ''
   diffContent.value = ''
+  binarySizeDiff.value = null
 }
 
 function openContextMenu(e: MouseEvent, file: FileStatus) {
@@ -283,6 +368,10 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   const isUnversioned = file.status === 'unversioned'
   const isModified = file.status === 'modified' || file.status === 'conflicted' || file.status === 'missing'
 
+  const paths = selectedPaths.value.has(file.path)
+    ? Array.from(selectedPaths.value)
+    : [file.path]
+
   return [
     {
       label: t('contextMenu.revert'),
@@ -291,7 +380,7 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
       action: async () => {
         if (configStore.config?.behavior.confirmBeforeRevert && !confirm(t('contextMenu.revertConfirm'))) return
         try {
-          await invoke('svn_revert', { path: props.repoPath, paths: [file.path] })
+          await invoke('svn_revert', { path: props.repoPath, paths })
           emit('refreshLocalChanges')
           toast.success(t('contextMenu.revert'))
         } catch (e) { toast.error(String(e)) }
@@ -303,7 +392,7 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
       disabled: !isUnversioned,
       action: async () => {
         try {
-          await invoke('svn_add', { path: props.repoPath, paths: [file.path] })
+          await invoke('svn_add', { path: props.repoPath, paths })
           emit('refreshLocalChanges')
           toast.success(t('contextMenu.add'))
         } catch (e) { toast.error(String(e)) }
@@ -315,7 +404,7 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
       disabled: isUnversioned,
       action: async () => {
         try {
-          await invoke('svn_delete', { path: props.repoPath, paths: [file.path], keepLocal: false })
+          await invoke('svn_delete', { path: props.repoPath, paths, keepLocal: false })
           emit('refreshLocalChanges')
           toast.success(t('contextMenu.delete'))
         } catch (e) { toast.error(String(e)) }
@@ -326,7 +415,7 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
       icon: Trash2,
       action: async () => {
         try {
-          await invoke('delete_files_from_disk', { path: props.repoPath, paths: [file.path] })
+          await invoke('delete_files_from_disk', { path: props.repoPath, paths })
           emit('refreshLocalChanges')
           toast.success(t('contextMenu.deleteFromDisk'))
         } catch (e) { toast.error(String(e)) }
@@ -431,6 +520,7 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
 }
 .selected-count {
   color: var(--text-secondary);
+  font-size: 12px;
 }
 .file-list {
   flex: 1;
@@ -462,8 +552,8 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
 .file-item {
   display: flex;
   align-items: center;
-  padding: 6px 8px;
-  gap: 8px;
+  padding: 4px 8px;
+  gap: 6px;
   cursor: pointer;
   font-size: 13px;
   border-bottom: 1px solid var(--border-light);
@@ -482,10 +572,10 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border-radius: 3px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: bold;
   color: #fff;
   flex-shrink: 0;
@@ -496,7 +586,6 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
 .status-badge.unversioned { background: var(--text-muted); }
 .status-badge.missing { background: #ff7a45; }
 .status-badge.conflicted { background: #f5222d; }
-/* 复选框样式 - 完全自定义 */
 .file-item input[type="checkbox"],
 .select-all input[type="checkbox"] {
   width: 14px;
@@ -547,12 +636,15 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   text-align: center;
   padding: 24px 0;
 }
+/* 右侧提交区 */
 .commit-section {
-  margin-top: 12px;
+  padding: 8px;
+  border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 .commit-input {
   width: 100%;
-  padding: 8px;
+  padding: 6px 8px;
   border: 1px solid var(--border-input);
   border-radius: 4px;
   font-size: 13px;
@@ -569,7 +661,7 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
 .commit-actions {
   display: flex;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: 6px;
   justify-content: flex-end;
 }
 .commit-actions button {
@@ -606,12 +698,66 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   background: var(--accent-hover) !important;
 }
 .ai-btn {
-  margin-right: auto;
   color: var(--purple-color);
   border-color: var(--purple-color);
 }
 .ai-btn:hover:not(:disabled) {
   background: rgba(114, 46, 209, 0.1);
+}
+.history-wrapper {
+  position: relative;
+  margin-right: auto;
+}
+.history-btn {
+  color: var(--text-secondary);
+}
+.history-btn:hover {
+  color: var(--accent-color);
+  border-color: var(--accent-color);
+}
+.history-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 4px;
+  min-width: 260px;
+  max-width: 400px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  z-index: 10;
+  overflow: hidden;
+}
+.history-item {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border-light);
+}
+.history-item:last-child {
+  border-bottom: none;
+}
+.history-item:hover {
+  background: var(--bg-hover);
+}
+.history-empty {
+  padding: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+/* 右侧 diff 区域 */
+.diff-area {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 .diff-placeholder {
   color: var(--text-muted);
@@ -619,4 +765,36 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   margin-top: 40px;
   font-size: 13px;
 }
+/* 二进制文件大小对比 */
+.binary-diff {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+}
+.binary-diff-title {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.binary-diff-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+  font-family: monospace;
+}
+.binary-size {
+  color: var(--text-primary);
+}
+.binary-arrow {
+  color: var(--text-muted);
+}
+.binary-delta {
+  font-size: 14px;
+  font-weight: 600;
+}
+.binary-delta.positive { color: var(--danger-color); }
+.binary-delta.negative { color: var(--success-color); }
 </style>
