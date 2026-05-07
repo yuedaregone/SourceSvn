@@ -28,7 +28,9 @@
             @contextmenu.prevent="openContextMenu($event, entry)"
             :class="{ expanded: expandedRevision === entry.revision, 'non-local': !isLocal(entry) }"
           >
-            <td class="col-revision">{{ entry.revision }}</td>
+            <td class="col-revision">
+              <span class="revision-badge">{{ entry.revision }}</span>
+            </td>
             <td class="col-author">{{ entry.author }}</td>
             <td class="col-date">{{ formatDate(entry.date) }}</td>
             <td class="col-message">{{ entry.message }}</td>
@@ -40,9 +42,15 @@
       </table>
     </div>
     <div class="pagination">
-      <button :disabled="currentPage <= 1" @click="currentPage--">{{ t('common.prevPage') }}</button>
+      <button :disabled="currentPage <= 1" @click="currentPage--" class="page-btn">
+        <ChevronLeft :size="14" />
+        {{ t('common.prevPage') }}
+      </button>
       <span class="page-info">{{ t('common.pageInfo', { current: currentPage, total: totalPages }) }}</span>
-      <button :disabled="currentPage >= totalPages" @click="currentPage++">{{ t('common.nextPage') }}</button>
+      <button :disabled="currentPage >= totalPages" @click="currentPage++" class="page-btn">
+        {{ t('common.nextPage') }}
+        <ChevronRight :size="14" />
+      </button>
     </div>
     <div v-if="expandedRevision" class="detail-panel" :style="{ height: detailPanelHeight + 'px' }">
       <div class="drag-bar" @mousedown="onDragStart" @touchstart="onDragStart">
@@ -56,10 +64,14 @@
       </div>
       <p class="detail-message">{{ expandedEntry?.message }}</p>
       <div class="detail-split">
-        <div class="detail-left">
+        <div class="detail-left" :style="{ width: splitLeftWidth + 'px' }">
           <h5>{{ t('logView.changedPaths') }}</h5>
+          <div v-if="fetchChangedPathsLoading" class="changed-paths-loading">
+            <div class="spinner" />
+            <span>{{ t('common.loading') }}</span>
+          </div>
           <div
-            v-for="cp in expandedEntry?.changedPaths"
+            v-for="cp in displayChangedPaths"
             :key="cp.path"
             class="changed-path"
             :class="{ active: selectedFilePath === cp.path }"
@@ -70,9 +82,18 @@
             <span class="path-text">{{ displayChangedPath(cp.path) }}</span>
           </div>
         </div>
+        <div class="h-drag-divider" @mousedown="onHDragStart" @touchstart="onHDragStart">
+          <div class="h-drag-handle"></div>
+        </div>
         <div class="detail-right">
-          <div v-if="fileDiffLoading" class="diff-loading">{{ t('common.loading') }}</div>
-          <div v-else-if="isBinaryFile" class="diff-binary">{{ t('common.binaryFile') }}</div>
+          <div v-if="fileDiffLoading" class="diff-loading">
+            <div class="spinner" />
+            <span>{{ t('common.loading') }}</span>
+          </div>
+          <div v-else-if="isBinaryFile" class="diff-binary">
+            <FileIcon :size="24" />
+            <span>{{ t('common.binaryFile') }}</span>
+          </div>
           <InlineDiff v-else-if="fileDiffText" :diff-text="fileDiffText" :empty-hint="t('common.viewDiff')" />
           <div v-else class="diff-placeholder">{{ t('common.viewDiff') }}</div>
         </div>
@@ -96,9 +117,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { X, Copy, RotateCcw, ExternalLink, FolderOpen, Eye, Download } from 'lucide-vue-next'
+import { X, Copy, RotateCcw, ExternalLink, FolderOpen, Eye, Download, ChevronLeft, ChevronRight, File as FileIcon } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
 import type { LogEntry, ChangedPath } from '../types/svn'
 import type { MenuItem } from '../components/ContextMenu.vue'
@@ -150,6 +171,12 @@ const detailPanelHeight = ref(300)
 const isDragging = ref(false)
 const startY = ref(0)
 const startHeight = ref(0)
+const splitLeftWidth = ref(400)
+const isHDragging = ref(false)
+const hStartX = ref(0)
+const hStartWidth = ref(0)
+const fetchedChangedPaths = ref<ChangedPath[] | null>(null)
+const fetchChangedPathsLoading = ref(false)
 
 const authors = computed(() => {
   const set = new Set(props.logEntries.map((e) => e.author))
@@ -198,7 +225,7 @@ watch([authorFilter, dateFrom, dateTo, searchText], () => {
   currentPage.value = 1
 })
 
-function toggleDetail(revision: number) {
+async function toggleDetail(revision: number) {
   if (expandedRevision.value === revision) {
     closeDetail()
   } else {
@@ -206,6 +233,24 @@ function toggleDetail(revision: number) {
     selectedFilePath.value = null
     fileDiffText.value = ''
     isBinaryFile.value = false
+    fetchedChangedPaths.value = null
+
+    // 非本地版本需要额外获取变更文件列表
+    const entry = props.logEntries.find((e) => e.revision === revision)
+    if (entry && (!entry.changedPaths || entry.changedPaths.length === 0) && !isLocal(entry)) {
+      fetchChangedPathsLoading.value = true
+      try {
+        const paths = await invoke<ChangedPath[]>('svn_log_changed_paths', {
+          path: props.repoPath,
+          revision: revision,
+        })
+        fetchedChangedPaths.value = paths
+      } catch {
+        fetchedChangedPaths.value = []
+      } finally {
+        fetchChangedPathsLoading.value = false
+      }
+    }
   }
 }
 
@@ -214,6 +259,7 @@ function closeDetail() {
   selectedFilePath.value = null
   fileDiffText.value = ''
   isBinaryFile.value = false
+  fetchedChangedPaths.value = null
 }
 
 function onDragStart(e: MouseEvent | TouchEvent) {
@@ -241,6 +287,38 @@ function onDragEnd() {
   document.removeEventListener('touchmove', onDragMove)
   document.removeEventListener('touchend', onDragEnd)
 }
+
+// 水平拖动：调整左右面板宽度
+function onHDragStart(e: MouseEvent | TouchEvent) {
+  isHDragging.value = true
+  hStartX.value = 'touches' in e ? e.touches[0].clientX : e.clientX
+  hStartWidth.value = splitLeftWidth.value
+  document.addEventListener('mousemove', onHDragMove)
+  document.addEventListener('mouseup', onHDragEnd)
+  document.addEventListener('touchmove', onHDragMove)
+  document.addEventListener('touchend', onHDragEnd)
+}
+
+function onHDragMove(e: MouseEvent | TouchEvent) {
+  if (!isHDragging.value) return
+  const currentX = 'touches' in e ? e.touches[0].clientX : e.clientX
+  const delta = currentX - hStartX.value
+  splitLeftWidth.value = Math.max(150, Math.min(600, hStartWidth.value + delta))
+}
+
+function onHDragEnd() {
+  isHDragging.value = false
+  document.removeEventListener('mousemove', onHDragMove)
+  document.removeEventListener('mouseup', onHDragEnd)
+  document.removeEventListener('touchmove', onHDragMove)
+  document.removeEventListener('touchend', onHDragEnd)
+}
+
+// 合并变更路径：优先使用已获取的数据，其次使用条目自带数据
+const displayChangedPaths = computed(() => {
+  if (fetchedChangedPaths.value !== null) return fetchedChangedPaths.value
+  return expandedEntry.value?.changedPaths ?? []
+})
 
 async function selectFile(filePath: string) {
   if (selectedFilePath.value === filePath) return
@@ -404,6 +482,17 @@ const fileCtxMenuItems = computed<MenuItem[]>(() => {
 onMounted(() => {
   refresh()
 })
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousemove', onDragMove)
+  document.removeEventListener('mouseup', onDragEnd)
+  document.removeEventListener('touchmove', onDragMove)
+  document.removeEventListener('touchend', onDragEnd)
+  document.removeEventListener('mousemove', onHDragMove)
+  document.removeEventListener('mouseup', onHDragEnd)
+  document.removeEventListener('touchmove', onHDragMove)
+  document.removeEventListener('touchend', onHDragEnd)
+})
 </script>
 
 <style scoped>
@@ -412,152 +501,216 @@ onMounted(() => {
   flex-direction: column;
   height: 100%;
 }
+
 .filter-bar {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-sm);
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
   flex-wrap: wrap;
 }
+
 .filter-select,
 .filter-date {
-  padding: 5px var(--spacing-sm);
-  border: 1px solid var(--border-input);
-  border-radius: 4px;
-  font-size: 13px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  transition: all var(--transition-fast);
 }
+
+.filter-select:focus,
+.filter-date:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-muted);
+}
+
 .filter-select {
   min-width: 100px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b95a5' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-3) center;
+  padding-right: var(--space-8);
 }
+
 .filter-date {
   width: 140px;
 }
+
 .date-separator {
-  color: var(--text-muted);
-  font-size: 13px;
+  color: var(--color-text-muted);
+  font-size: var(--text-base);
 }
+
 .search-input {
   flex: 1;
   min-width: 150px;
-  padding: 5px var(--spacing-md);
-  border: 1px solid var(--border-input);
-  border-radius: 4px;
-  font-size: 13px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  transition: all var(--transition-fast);
   order: 1;
 }
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-muted);
+}
+
 .log-table {
   flex: 1;
   overflow: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--bg-primary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-primary);
 }
+
 table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px;
+  font-size: var(--text-base);
 }
+
 th,
 td {
-  padding: var(--spacing-sm) var(--spacing-md);
+  padding: var(--space-3) var(--space-4);
   text-align: left;
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--color-border-light);
   white-space: nowrap;
 }
+
 th {
-  background: var(--bg-secondary);
+  background: var(--color-bg-secondary);
   font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   position: sticky;
   top: 0;
   z-index: 1;
-  color: var(--text-primary);
   user-select: none;
 }
+
 .col-revision {
-  width: 70px;
-  min-width: 70px;
+  width: 80px;
+  min-width: 80px;
 }
+
 .col-author {
   width: 120px;
   min-width: 100px;
 }
+
 .col-date {
   width: 130px;
   min-width: 110px;
 }
+
 .col-message {
   flex: 1;
   min-width: 150px;
   white-space: normal;
   word-break: break-word;
 }
+
+tr {
+  transition: background var(--transition-fast);
+}
+
 tr:hover {
-  background: var(--bg-hover);
+  background: var(--color-bg-hover);
   cursor: pointer;
 }
+
 tr.expanded {
-  background: var(--bg-active);
+  background: var(--color-bg-active);
 }
+
 .empty-row {
   text-align: center;
-  color: var(--text-muted);
-  padding: var(--spacing-xl) 0;
+  color: var(--color-text-muted);
+  padding: var(--space-8) 0;
 }
+
 tr.non-local {
-  opacity: 0.45;
+  opacity: 0.5;
 }
+
 tr.non-local:hover {
-  opacity: 0.7;
+  opacity: 0.8;
 }
+
+.revision-badge {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-accent);
+  background: var(--color-accent-muted);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
 .pagination {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-sm) 0;
-  border-top: 1px solid var(--border-light);
-  font-size: 13px;
-  background: var(--bg-primary);
-  border-radius: 0 0 8px 8px;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border-light);
+  font-size: var(--text-base);
+  background: var(--color-bg-primary);
 }
-.pagination button {
-  padding: 4px var(--spacing-md);
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary);
-  border-radius: 4px;
+
+.page-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-input);
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  font-size: 12px;
-  color: var(--text-primary);
-  transition: all 0.2s ease;
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  transition: all var(--transition-fast);
 }
-.pagination button:hover:not(:disabled) {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
+
+.page-btn:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
-.pagination button:disabled {
+
+.page-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
+
 .page-info {
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
 }
+
 .detail-panel {
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--color-border);
   padding: 0;
-  background: var(--bg-secondary);
-  border-radius: 0 0 8px 8px;
+  background: var(--color-bg-secondary);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   min-height: 200px;
   max-height: 50vh;
 }
+
 .drag-bar {
   height: 6px;
   cursor: ns-resize;
@@ -565,153 +718,237 @@ tr.non-local:hover {
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background var(--transition-fast);
 }
+
 .drag-bar:hover {
-  background: var(--bg-hover);
+  background: var(--color-bg-hover);
 }
+
 .drag-handle {
   width: 40px;
   height: 2px;
-  background: var(--border-light);
-  border-radius: 1px;
+  background: var(--color-border-light);
+  border-radius: var(--radius-full);
+  transition: background var(--transition-fast);
 }
+
 .drag-bar:hover .drag-handle,
 .drag-bar:active .drag-handle {
-  background: var(--border-color);
+  background: var(--color-border);
 }
+
 .detail-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 var(--spacing-md);
-  margin: var(--spacing-sm) 0;
+  padding: 0 var(--space-4);
+  margin: var(--space-3) 0;
 }
+
 .detail-header h4 {
   margin: 0;
-  font-size: 14px;
-  color: var(--text-primary);
+  font-size: var(--text-md);
+  color: var(--color-text-primary);
+  font-weight: 600;
 }
+
 .close-btn {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border: none;
   background: transparent;
   cursor: pointer;
-  border-radius: 4px;
-  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
 }
+
 .close-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
 }
+
 .detail-message {
-  color: var(--text-primary);
-  margin: 0 var(--spacing-md) var(--spacing-sm);
+  color: var(--color-text-primary);
+  margin: 0 var(--space-4) var(--space-3);
+  font-size: var(--text-base);
+  line-height: 1.6;
 }
+
 .changed-path {
-  font-size: 12px;
-  padding: 2px 0;
-  font-family: monospace;
+  font-size: var(--text-sm);
+  padding: var(--space-1) 0;
+  font-family: var(--font-mono);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
 }
+
 .action {
-  display: inline-block;
-  width: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  width: 24px;
+  height: 20px;
   text-align: center;
   font-weight: bold;
-  font-size: 11px;
-  border-radius: 2px;
+  font-size: var(--text-xs);
+  border-radius: var(--radius-sm);
   color: #fff;
-  padding: 1px 0;
+  flex-shrink: 0;
 }
+
 .action.modified {
-  background: var(--warning-color);
+  background: var(--color-warning);
 }
+
 .action.added {
-  background: var(--success-color);
+  background: var(--color-success);
 }
+
 .action.deleted {
-  background: var(--danger-color);
+  background: var(--color-danger);
 }
+
 .action.replaced {
-  background: var(--purple-color);
+  background: var(--color-purple);
 }
+
 .path-text {
-  color: var(--text-primary);
+  color: var(--color-text-primary);
 }
+
 .detail-split {
   display: flex;
-  gap: var(--spacing-md);
-  margin: 0 var(--spacing-md) var(--spacing-md);
+  gap: 0;
+  margin: 0 var(--space-4) var(--space-4);
   flex: 1;
   min-height: 150px;
   overflow: hidden;
 }
+
 .detail-left {
-  width: 300px;
   flex-shrink: 0;
-  overflow: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--bg-primary);
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-primary);
 }
+
 .detail-left h5 {
   margin: 0;
-  padding: 6px var(--spacing-sm);
-  font-size: 12px;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
   font-weight: 600;
-  color: var(--text-secondary);
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-light);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border-light);
   position: sticky;
   top: 0;
+  z-index: 1;
 }
+
 .detail-left .changed-path {
   cursor: pointer;
-  padding: 2px var(--spacing-sm);
+  padding: var(--space-1) var(--space-3);
+  transition: background var(--transition-fast);
 }
+
 .detail-left .changed-path:hover {
-  background: var(--bg-hover);
+  background: var(--color-bg-hover);
 }
+
 .detail-left .changed-path.active {
-  background: var(--bg-active);
+  background: var(--color-bg-active);
 }
+
+.h-drag-divider {
+  width: 6px;
+  cursor: ew-resize;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background var(--transition-fast);
+}
+
+.h-drag-divider:hover {
+  background: var(--color-bg-hover);
+}
+
+.h-drag-handle {
+  width: 2px;
+  height: 40px;
+  background: var(--color-border-light);
+  border-radius: var(--radius-full);
+  transition: background var(--transition-fast);
+}
+
+.h-drag-divider:hover .h-drag-handle,
+.h-drag-divider:active .h-drag-handle {
+  background: var(--color-border);
+}
+
+.changed-paths-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
 .detail-right {
   flex: 1;
   min-width: 0;
   overflow: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-primary);
 }
+
 .diff-loading,
 .diff-binary,
 .diff-placeholder {
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   text-align: center;
-  padding: 40px var(--spacing-md);
-  font-size: 13px;
+  padding: var(--space-10) var(--space-4);
+  font-size: var(--text-base);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
 }
+
 @media (max-width: 768px) {
   .filter-bar {
-    gap: var(--spacing-xs);
+    gap: var(--space-1);
   }
+
   .search-input {
     min-width: 100%;
     order: 1;
   }
+
   .detail-split {
     flex-direction: column;
   }
+
   .detail-left {
-    width: 100%;
+    width: 100% !important;
     max-height: 150px;
+  }
+
+  .h-drag-divider {
+    display: none;
   }
 }
 </style>

@@ -147,6 +147,22 @@ pub async fn svn_log_server(
     })
 }
 
+pub async fn svn_log_changed_paths(
+    path: &str,
+    revision: u64,
+    timeout_secs: u64,
+) -> Result<Vec<ChangedPath>, AppError> {
+    let rev_str = revision.to_string();
+    let args = vec!["log", "--xml", "-v", "-r", &rev_str, path];
+    let xml = crate::svn::run_svn_async(&args, timeout_secs).await?;
+    let entries = parse_log_xml(&xml)?;
+    Ok(entries
+        .into_iter()
+        .next()
+        .and_then(|e| e.changed_paths)
+        .unwrap_or_default())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

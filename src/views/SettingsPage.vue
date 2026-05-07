@@ -2,8 +2,10 @@
   <div class="settings-overlay" @mousedown.self="overlayMousedown = true" @click.self="onOverlayClick">
     <div class="settings-modal">
       <div class="settings-header">
-        <h3>设置</h3>
-        <button class="close-btn" @click="$emit('close')">&times;</button>
+        <h3 class="settings-title">{{ t('settings.title') }}</h3>
+        <button class="btn btn-icon btn-ghost" @click="$emit('close')">
+          <X :size="16" />
+        </button>
       </div>
       <div class="settings-body">
         <div class="settings-tabs">
@@ -13,41 +15,51 @@
             :class="{ active: activeTab === tab.key }"
             @click="activeTab = tab.key"
           >
-            {{ tab.label }}
+            <component :is="tab.icon" :size="16" />
+            <span>{{ tab.label }}</span>
           </button>
         </div>
         <div class="settings-content">
           <!-- General -->
           <div v-if="activeTab === 'general'" class="tab-panel">
             <div class="setting-row">
-              <label>主题</label>
+              <label class="setting-label">{{ t('settings.theme') }}</label>
               <div class="radio-group">
-                <label><input type="radio" v-model="config.appearance.theme" value="light" /> 亮色</label>
-                <label><input type="radio" v-model="config.appearance.theme" value="dark" /> 深色</label>
-                <label><input type="radio" v-model="config.appearance.theme" value="system" /> 跟随系统</label>
+                <label class="radio-option">
+                  <input type="radio" v-model="config.appearance.theme" value="light" class="radio" />
+                  <span>{{ t('settings.light') }}</span>
+                </label>
+                <label class="radio-option">
+                  <input type="radio" v-model="config.appearance.theme" value="dark" class="radio" />
+                  <span>{{ t('settings.dark') }}</span>
+                </label>
+                <label class="radio-option">
+                  <input type="radio" v-model="config.appearance.theme" value="system" class="radio" />
+                  <span>{{ t('settings.system') }}</span>
+                </label>
               </div>
             </div>
             <div class="setting-row">
-              <label>UI 字体</label>
+              <label class="setting-label">{{ t('settings.uiFont') }}</label>
               <div class="input-inline">
-                <input v-model="config.appearance.uiFontFamily" class="input-mid" />
-                <select v-model.number="config.appearance.uiFontSize" class="input-small">
+                <input v-model="config.appearance.uiFontFamily" class="input input-mid" />
+                <select v-model.number="config.appearance.uiFontSize" class="select input-small">
                   <option v-for="s in fontSizeOptions" :key="s" :value="s">{{ s }}px</option>
                 </select>
               </div>
             </div>
             <div class="setting-row">
-              <label>代码字体</label>
+              <label class="setting-label">{{ t('settings.codeFont') }}</label>
               <div class="input-inline">
-                <input v-model="config.appearance.codeFontFamily" class="input-mid" />
-                <select v-model.number="config.appearance.codeFontSize" class="input-small">
+                <input v-model="config.appearance.codeFontFamily" class="input input-mid" />
+                <select v-model.number="config.appearance.codeFontSize" class="select input-small">
                   <option v-for="s in fontSizeOptions" :key="s" :value="s">{{ s }}px</option>
                 </select>
               </div>
             </div>
             <div class="setting-row">
-              <label>图标大小</label>
-              <select v-model.number="config.appearance.iconSize" class="input-small">
+              <label class="setting-label">{{ t('settings.iconSize') }}</label>
+              <select v-model.number="config.appearance.iconSize" class="select">
                 <option :value="16">16px</option>
                 <option :value="20">20px</option>
                 <option :value="24">24px</option>
@@ -55,26 +67,36 @@
               </select>
             </div>
             <div class="setting-row">
-              <label>外部编辑器（可执行文件路径，留空使用系统默认）</label>
+              <label class="setting-label">{{ t('settings.externalEditor') }}</label>
               <div class="input-with-btn">
-                <input v-model="config.externalEditor" placeholder="例如 C:\Program Files\VS Code\Code.exe" />
-                <button @click="selectEditorPath" class="browse-btn">浏览...</button>
+                <input v-model="config.externalEditor" :placeholder="t('settings.editorPlaceholder')" class="input" />
+                <button @click="selectEditorPath" class="btn btn-secondary">
+                  <FolderOpen :size="14" />
+                  <span>{{ t('settings.browse') }}</span>
+                </button>
               </div>
             </div>
             <div class="setting-row">
-              <button @click="resetAppearance" class="reset-btn">恢复默认</button>
+              <button @click="resetAppearance" class="btn btn-secondary">
+                <RotateCcw :size="14" />
+                <span>{{ t('settings.resetDefault') }}</span>
+              </button>
             </div>
           </div>
 
           <!-- SVN -->
           <div v-if="activeTab === 'svn'" class="tab-panel">
             <div class="setting-row">
-              <label>SVN 可执行文件路径</label>
+              <label class="setting-label">{{ t('settings.svnPath') }}</label>
               <div class="input-with-btn">
-                <input v-model="config.svn.executable" placeholder="留空则自动检测" />
-                <button @click="selectSvnPath" class="browse-btn">浏览...</button>
-                <button @click="detectSvnPath" :disabled="isDetecting" class="detect-btn">
-                  {{ isDetecting ? '检测中...' : '自动检测' }}
+                <input v-model="config.svn.executable" :placeholder="t('settings.svnPathPlaceholder')" class="input" />
+                <button @click="selectSvnPath" class="btn btn-secondary">
+                  <FolderOpen :size="14" />
+                  <span>{{ t('settings.browse') }}</span>
+                </button>
+                <button @click="detectSvnPath" :disabled="isDetecting" class="btn btn-primary">
+                  <Search :size="14" />
+                  <span>{{ isDetecting ? t('settings.detecting') : t('settings.autoDetect') }}</span>
                 </button>
               </div>
               <span v-if="detectStatus" class="detect-status" :class="{ error: detectStatus.includes('失败') }">
@@ -86,48 +108,48 @@
           <!-- AI -->
           <div v-if="activeTab === 'ai'" class="tab-panel">
             <div class="setting-row">
-              <label>Provider</label>
-              <select v-model="config.ai.provider">
+              <label class="setting-label">Provider</label>
+              <select v-model="config.ai.provider" class="select">
                 <option value="openai">OpenAI</option>
                 <option value="anthropic">Anthropic</option>
-                <option value="custom">自定义</option>
+                <option value="custom">{{ t('settings.custom') }}</option>
               </select>
             </div>
             <div class="setting-row">
-              <label>API 端点</label>
-              <input v-model="config.ai.endpoint" placeholder="https://api.openai.com/v1" />
+              <label class="setting-label">{{ t('settings.apiEndpoint') }}</label>
+              <input v-model="config.ai.endpoint" placeholder="https://api.openai.com/v1" class="input" />
             </div>
             <div class="setting-row">
-              <label>API 密钥</label>
-              <input v-model="config.ai.apiKey" type="password" placeholder="sk-..." />
+              <label class="setting-label">{{ t('settings.apiKey') }}</label>
+              <input v-model="config.ai.apiKey" type="password" placeholder="sk-..." class="input" />
             </div>
             <div class="setting-row">
-              <label>模型</label>
-              <input v-model="config.ai.model" placeholder="gpt-4o-mini" />
+              <label class="setting-label">{{ t('settings.model') }}</label>
+              <input v-model="config.ai.model" placeholder="gpt-4o-mini" class="input" />
             </div>
             <div class="setting-row">
-              <label>超时（秒）</label>
-              <input type="number" v-model.number="config.ai.timeoutSecs" min="5" max="300" />
+              <label class="setting-label">{{ t('settings.timeout') }}</label>
+              <input type="number" v-model.number="config.ai.timeoutSecs" min="5" max="300" class="input" />
             </div>
             <div class="setting-row">
-              <label>提交信息生成 · System Prompt</label>
-              <textarea v-model="config.ai.commitPrompt" rows="4" class="prompt-textarea" placeholder="留空使用默认提示词"></textarea>
+              <label class="setting-label">{{ t('settings.commitPrompt') }}</label>
+              <textarea v-model="config.ai.commitPrompt" rows="4" class="textarea" :placeholder="t('settings.promptPlaceholder')"></textarea>
             </div>
             <div class="setting-row">
-              <label>代码审查 · System Prompt</label>
-              <textarea v-model="config.ai.reviewPrompt" rows="4" class="prompt-textarea" placeholder="留空使用默认提示词"></textarea>
+              <label class="setting-label">{{ t('settings.reviewPrompt') }}</label>
+              <textarea v-model="config.ai.reviewPrompt" rows="4" class="textarea" :placeholder="t('settings.promptPlaceholder')"></textarea>
             </div>
           </div>
 
           <!-- Advanced -->
           <div v-if="activeTab === 'advanced'" class="tab-panel">
             <div class="setting-row">
-              <label>SVN 超时（秒）</label>
-              <input type="number" v-model.number="config.advanced.svnTimeoutSecs" min="10" max="600" />
+              <label class="setting-label">{{ t('settings.svnTimeout') }}</label>
+              <input type="number" v-model.number="config.advanced.svnTimeoutSecs" min="10" max="600" class="input" />
             </div>
             <div class="setting-row">
-              <label>日志级别</label>
-              <select v-model="config.advanced.logLevel">
+              <label class="setting-label">{{ t('settings.logLevel') }}</label>
+              <select v-model="config.advanced.logLevel" class="select">
                 <option value="error">Error</option>
                 <option value="warn">Warn</option>
                 <option value="info">Info</option>
@@ -135,24 +157,30 @@
               </select>
             </div>
             <div class="setting-row setting-row-inline">
-              <label>提交前确认</label>
-              <input type="checkbox" v-model="config.behavior.confirmBeforeCommit" />
+              <label class="setting-label">{{ t('settings.confirmBeforeCommit') }}</label>
+              <input type="checkbox" v-model="config.behavior.confirmBeforeCommit" class="checkbox" />
             </div>
             <div class="setting-row setting-row-inline">
-              <label>Revert 前确认</label>
-              <input type="checkbox" v-model="config.behavior.confirmBeforeRevert" />
+              <label class="setting-label">{{ t('settings.confirmBeforeRevert') }}</label>
+              <input type="checkbox" v-model="config.behavior.confirmBeforeRevert" class="checkbox" />
             </div>
             <div class="setting-row">
-              <label>自动刷新间隔（秒，0=关闭）</label>
-              <input type="number" v-model.number="config.behavior.autoRefreshSecs" min="0" max="300" />
+              <label class="setting-label">{{ t('settings.autoRefresh') }}</label>
+              <input type="number" v-model.number="config.behavior.autoRefreshSecs" min="0" max="300" class="input" />
             </div>
           </div>
         </div>
       </div>
       <div class="settings-footer">
-        <button @click="$emit('close')" class="cancel-btn">取消</button>
-        <button @click="saveAndClose" class="save-btn">保存</button>
-        <button @click="apply" class="apply-btn">应用</button>
+        <button @click="$emit('close')" class="btn btn-secondary">{{ t('common.cancel') }}</button>
+        <button @click="apply" class="btn btn-secondary">
+          <Check :size="14" />
+          <span>{{ t('settings.apply') }}</span>
+        </button>
+        <button @click="saveAndClose" class="btn btn-primary">
+          <Save :size="14" />
+          <span>{{ t('settings.save') }}</span>
+        </button>
       </div>
     </div>
   </div>
@@ -166,6 +194,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { AppConfig } from '../types/config'
 import { t } from '../locales'
+import { X, Settings, GitBranch, Sparkles, Shield, FolderOpen, RotateCcw, Search, Check, Save } from 'lucide-vue-next'
 
 const emit = defineEmits<{
   close: []
@@ -184,10 +213,10 @@ function onOverlayClick() {
 }
 
 const tabs = computed(() => [
-  { key: 'general', label: t('settings.general') },
-  { key: 'svn', label: 'SVN' },
-  { key: 'ai', label: 'AI' },
-  { key: 'advanced', label: t('settings.advanced') },
+  { key: 'general', label: t('settings.general'), icon: Settings },
+  { key: 'svn', label: 'SVN', icon: GitBranch },
+  { key: 'ai', label: 'AI', icon: Sparkles },
+  { key: 'advanced', label: t('settings.advanced'), icon: Shield },
 ])
 
 const fontSizeOptions = [10, 11, 12, 13, 14, 15, 16, 18, 20]
@@ -266,13 +295,13 @@ function resetAppearance() {
 
 async function detectSvnPath() {
   isDetecting.value = true
-  detectStatus.value = '正在检测...'
+  detectStatus.value = t('settings.detectingStatus')
   try {
     const result = await invoke<string>('svn_detect_executable')
     config.svn.executable = result
-    detectStatus.value = '✓ 检测成功'
+    detectStatus.value = '✓ ' + t('settings.detectSuccess')
   } catch (error) {
-    detectStatus.value = `✗ 检测失败: ${error}`
+    detectStatus.value = `✗ ${t('settings.detectFailed')}: ${error}`
   } finally {
     isDetecting.value = false
   }
@@ -281,10 +310,10 @@ async function detectSvnPath() {
 async function selectSvnPath() {
   try {
     const selected = await open({
-      title: '选择 SVN 可执行文件',
+      title: t('settings.selectSvnPath'),
       filters: [
-        { name: '可执行文件', extensions: ['exe', 'bat', 'cmd'] },
-        { name: '所有文件', extensions: ['*'] },
+        { name: t('settings.executable'), extensions: ['exe', 'bat', 'cmd'] },
+        { name: t('settings.allFiles'), extensions: ['*'] },
       ],
     })
     if (selected) {
@@ -299,10 +328,10 @@ async function selectSvnPath() {
 async function selectEditorPath() {
   try {
     const selected = await open({
-      title: '选择外部编辑器',
+      title: t('settings.selectEditor'),
       filters: [
-        { name: '可执行文件', extensions: ['exe', 'bat', 'cmd'] },
-        { name: '所有文件', extensions: ['*'] },
+        { name: t('settings.executable'), extensions: ['exe', 'bat', 'cmd'] },
+        { name: t('settings.allFiles'), extensions: ['*'] },
       ],
     })
     if (selected) {
@@ -338,267 +367,253 @@ watch(() => config.behavior.autoRefreshSecs, () => {
 <style scoped>
 .settings-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--overlay-bg);
+  inset: 0;
+  background: var(--color-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 300;
+  z-index: var(--z-modal);
+  animation: fadeIn 0.2s ease;
 }
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .settings-modal {
-  background: var(--bg-primary);
-  border-radius: 8px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
   width: 640px;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-xl);
+  animation: scaleIn 0.2s ease;
 }
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .settings-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border-color);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
 }
-.settings-header h3 {
+
+.settings-title {
   margin: 0;
-  font-size: 16px;
-  color: var(--text-primary);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text-primary);
 }
-.close-btn {
-  border: none;
-  background: transparent;
-  font-size: 22px;
-  cursor: pointer;
-  color: var(--text-muted);
-  line-height: 1;
-}
-.close-btn:hover {
-  color: var(--text-primary);
-}
+
 .settings-body {
   display: flex;
   flex: 1;
   overflow: hidden;
   min-height: 360px;
 }
+
 .settings-tabs {
-  width: 120px;
-  border-right: 1px solid var(--border-color);
-  padding: 8px 0;
+  width: 140px;
+  border-right: 1px solid var(--color-border);
+  padding: var(--space-2) var(--space-1);
   flex-shrink: 0;
 }
+
 .settings-tabs button {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   width: 100%;
-  padding: 10px 16px;
+  padding: var(--space-2) var(--space-3);
   border: none;
   background: transparent;
   text-align: left;
   cursor: pointer;
-  font-size: 13px;
-  color: var(--text-primary);
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
 }
+
 .settings-tabs button:hover {
-  background: var(--bg-hover);
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
 }
+
 .settings-tabs button.active {
-  background: var(--bg-active);
-  color: var(--accent-color);
+  background: var(--color-accent-muted);
+  color: var(--color-accent);
   font-weight: 500;
 }
+
 .settings-content {
   flex: 1;
-  padding: 20px;
+  padding: var(--space-5);
   overflow: auto;
 }
+
 .tab-panel {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 }
+
 .setting-row {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-2);
 }
-.setting-row label {
-  font-size: 13px;
+
+.setting-label {
+  font-size: var(--text-base);
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
 }
+
 .setting-row-inline {
   flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-3);
 }
+
 .setting-row-inline label {
   flex: 1;
 }
-.setting-row-inline input[type='checkbox'] {
-  width: auto;
-}
-.setting-row input[type='text'],
-.setting-row input[type='password'],
-.setting-row input[type='number'],
-.setting-row input[type='search'],
-.setting-row input[type='url'],
-.setting-row input:not([type]),
-.setting-row select {
-  width: 100%;
-  padding: 6px 10px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary) !important;
-  color: var(--text-primary) !important;
-  border-radius: 4px;
-  font-size: 13px;
-  box-sizing: border-box;
-  -webkit-appearance: none;
-  appearance: none;
-}
-.setting-row input:focus,
-.setting-row select:focus {
-  border-color: var(--accent-color);
-  outline: none;
-}
+
 .radio-group {
   display: flex;
-  gap: 16px;
+  gap: var(--space-4);
 }
-.radio-group label {
+
+.radio-option {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-2);
   font-weight: 400;
   cursor: pointer;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
+  font-size: var(--text-base);
 }
+
 .input-inline {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
 }
+
 .input-inline .input-mid {
   flex: 1;
   min-width: 0;
   width: auto;
 }
+
 .input-inline .input-small {
   width: 90px;
   min-width: 90px;
   flex-shrink: 0;
 }
+
 .input-with-btn {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
 }
+
 .input-with-btn input {
   flex: 1;
 }
-.detect-btn {
-  padding: 6px 14px;
-  border: 1px solid var(--accent-color);
-  background: var(--bg-primary);
-  color: var(--accent-color);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  white-space: nowrap;
-}
-.detect-btn:hover:not(:disabled) {
-  background: var(--bg-active);
-}
-.detect-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.browse-btn {
-  padding: 6px 14px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  white-space: nowrap;
-}
-.browse-btn:hover {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
-}
+
 .detect-status {
-  font-size: 12px;
-  color: var(--success-color);
+  font-size: var(--text-sm);
+  color: var(--color-success);
 }
+
 .detect-status.error {
-  color: var(--danger-color);
+  color: var(--color-danger);
 }
-.reset-btn {
-  align-self: flex-start;
-  padding: 5px 14px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-}
-.reset-btn:hover {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
-}
-.prompt-textarea {
-  width: 100%;
-  padding: 6px 10px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary) !important;
-  color: var(--text-primary) !important;
-  border-radius: 4px;
-  font-size: 13px;
-  font-family: inherit;
-  resize: vertical;
-  box-sizing: border-box;
-}
-.prompt-textarea:focus {
-  border-color: var(--accent-color);
-  outline: none;
-}
+
 .settings-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 20px;
-  border-top: 1px solid var(--border-color);
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--color-border);
 }
-.settings-footer button {
-  padding: 6px 18px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  border-radius: 4px;
+
+.checkbox {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--color-border-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-primary);
   cursor: pointer;
-  font-size: 13px;
+  transition: all var(--transition-fast);
+  position: relative;
 }
-.cancel-btn:hover {
-  border-color: var(--text-muted);
+
+.checkbox:checked {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
 }
-.apply-btn {
-  color: var(--accent-color);
-  border-color: var(--accent-color);
+
+.checkbox:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
-.apply-btn:hover {
-  background: var(--bg-active);
+
+.checkbox:hover {
+  border-color: var(--color-accent);
 }
-.save-btn {
-  background: var(--accent-color);
-  color: #fff;
-  border-color: var(--accent-color);
+
+.radio {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--color-border-input);
+  border-radius: 50%;
+  background: var(--color-bg-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
 }
-.save-btn:hover {
-  background: var(--accent-hover);
+
+.radio:checked {
+  border-color: var(--color-accent);
+}
+
+.radio:checked::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
 }
 </style>

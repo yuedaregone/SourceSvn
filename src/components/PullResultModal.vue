@@ -9,7 +9,9 @@
           <span class="modal-title">{{ t('common.pullResult') }}</span>
           <span class="modal-rev" v-if="result && result.revision">r{{ result.revision }}</span>
         </div>
-        <button class="close-btn" :disabled="pulling" @click="$emit('close')">&times;</button>
+        <button class="btn btn-icon btn-ghost" :disabled="pulling" @click="$emit('close')">
+          <X :size="16" />
+        </button>
       </div>
 
       <div class="stats-bar" v-if="result && result.files.length > 0">
@@ -31,17 +33,12 @@
       </div>
 
       <div class="file-table-wrapper" v-if="result">
-        <div v-if="result.files.length === 0" class="loading-state">
-          <div class="spinner" />
-          <span>{{ t('common.pulling') }}</span>
-        </div>
-        <table v-else class="file-table">
+        <table v-if="result.files.length > 0" class="file-table">
           <thead>
             <tr>
               <th style="width: 36px"></th>
               <th style="width: 52px">{{ t('common.status') }}</th>
               <th>{{ t('common.filePath') }}</th>
-              <th style="width: 64px; text-align: center">{{ t('common.actions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -57,22 +54,6 @@
                 </span>
               </td>
               <td class="file-path" :title="file.path">{{ file.path }}</td>
-              <td style="text-align: center">
-                <button
-                  v-if="file.status === 'C'"
-                  class="diff-btn resolve-btn"
-                  @click="handleResolve(file)"
-                >
-                  {{ t('common.resolve') }}
-                </button>
-                <button
-                  v-else
-                  class="diff-btn"
-                  @click="handleViewDiff(file)"
-                >
-                  {{ t('common.view') }}
-                </button>
-              </td>
             </tr>
           </tbody>
         </table>
@@ -83,7 +64,10 @@
         <span>{{ t('common.pulling') }}</span>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-primary" :disabled="pulling" @click="$emit('close')">{{ t('common.close') }}</button>
+        <button class="btn btn-primary" :disabled="pulling" @click="$emit('close')">
+          <X :size="14" />
+          <span>{{ t('common.close') }}</span>
+        </button>
       </div>
     </div>
   </div>
@@ -91,9 +75,8 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Download } from 'lucide-vue-next'
-import type { UpdateResult, UpdateFileItem } from '../types/svn'
-import { useToastStore } from '../stores/toastStore'
+import { Download, X } from 'lucide-vue-next'
+import type { UpdateResult } from '../types/svn'
 import { t } from '../locales'
 
 const emit = defineEmits<{ close: [] }>()
@@ -140,120 +123,105 @@ function statusClass(status: string) {
   if (status === 'M') return 'merged'
   return 'added'
 }
-
-function handleResolve(_file: UpdateFileItem) {
-  // TODO: open third-party merge tool
-  useToastStore().info(t('common.resolve') + ': ' + _file.path)
-}
-
-function handleViewDiff(_file: UpdateFileItem) {
-  // TODO: open DiffViewer (deferred to avoid nested modal complexity)
-  useToastStore().info(t('common.view') + ': ' + _file.path)
-}
 </script>
 
 <style scoped>
 .dialog-overlay {
   position: fixed;
   inset: 0;
-  background: var(--overlay-bg, rgba(0, 0, 0, 0.5));
+  background: var(--color-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 300;
-}
-
-.modal {
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  width: 560px;
-  max-height: 460px;
-  box-shadow: var(--shadow, 0 8px 32px rgba(0, 0, 0, 0.4));
-  display: flex;
-  flex-direction: column;
+  z-index: var(--z-modal);
   animation: fadeIn 0.2s ease;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.96); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  width: min(720px, 80vw);
+  height: min(640px, 75vh);
+  box-shadow: var(--shadow-xl);
+  display: flex;
+  flex-direction: column;
+  animation: scaleIn 0.2s ease;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px 12px;
-  border-bottom: 1px solid var(--border);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .modal-header-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .modal-icon {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
-  background: var(--accent, #7c6ff7);
+  border-radius: var(--radius-md);
+  background: var(--color-accent-muted);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--color-accent);
 }
 
 .modal-title {
-  font-size: 15px;
+  font-size: var(--text-md);
   font-weight: 600;
+  color: var(--color-text-primary);
 }
 
 .modal-rev {
-  font-size: 12px;
-  color: var(--text-secondary);
-  background: var(--bg-tertiary, #33334d);
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.close-btn {
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted, #707090);
-  cursor: pointer;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  transition: all 0.15s;
-}
-.close-btn:hover {
-  background: var(--bg-tertiary, #33334d);
-  color: var(--text-primary);
-}
-.close-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-secondary);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
 }
 
 .stats-bar {
   display: flex;
-  gap: 16px;
-  padding: 10px 20px;
-  background: var(--bg-secondary, #2a2a3d);
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-base);
 }
 
 .stat-item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .stat-dot {
@@ -261,15 +229,38 @@ function handleViewDiff(_file: UpdateFileItem) {
   height: 8px;
   border-radius: 50%;
 }
-.stat-dot.conflict { background: var(--red, #f87171); }
-.stat-dot.merged { background: var(--yellow, #fbbf24); }
-.stat-dot.added { background: var(--green, #4ade80); }
 
-.stat-label { color: var(--text-secondary); }
-.stat-value { font-weight: 600; }
-.conflict-value { color: var(--red, #f87171); }
-.merged-value { color: var(--yellow, #fbbf24); }
-.added-value { color: var(--green, #4ade80); }
+.stat-dot.conflict {
+  background: var(--color-danger);
+}
+
+.stat-dot.merged {
+  background: var(--color-warning);
+}
+
+.stat-dot.added {
+  background: var(--color-success);
+}
+
+.stat-label {
+  color: var(--color-text-secondary);
+}
+
+.stat-value {
+  font-weight: 600;
+}
+
+.conflict-value {
+  color: var(--color-danger);
+}
+
+.merged-value {
+  color: var(--color-warning);
+}
+
+.added-value {
+  color: var(--color-success);
+}
 
 .file-table-wrapper {
   flex: 1;
@@ -277,74 +268,52 @@ function handleViewDiff(_file: UpdateFileItem) {
   min-height: 0;
 }
 
-.file-table-wrapper::-webkit-scrollbar { width: 6px; }
-.file-table-wrapper::-webkit-scrollbar-track { background: transparent; }
-.file-table-wrapper::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 3px;
-}
-
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 40px 20px;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
-.spinner {
-  width: 24px;
-  height: 24px;
-  border: 2.5px solid var(--border);
-  border-top-color: var(--accent, #7c6ff7);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 .file-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 .file-table th {
   position: sticky;
   top: 0;
-  background: var(--bg-secondary, #2a2a3d);
+  background: var(--color-bg-secondary);
   text-align: left;
-  padding: 5px 8px;
-  font-weight: 500;
-  color: var(--text-muted, #707090);
-  font-size: 11px;
+  padding: var(--space-2) var(--space-3);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--color-border);
   z-index: 1;
 }
 
 .file-table td {
-  padding: 4px 8px;
-  border-bottom: 1px solid rgba(61, 61, 92, 0.4);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-light);
   vertical-align: middle;
 }
 
-.file-table tr:hover { background: var(--bg-secondary, #2a2a3d); }
+.file-table tr {
+  transition: background var(--transition-fast);
+}
+
+.file-table tr:hover {
+  background: var(--color-bg-hover);
+}
 
 .file-table tr.row-conflict {
-  background: rgba(248, 113, 113, 0.08);
+  background: var(--color-danger-muted);
 }
+
 .file-table tr.row-conflict:hover {
-  background: rgba(248, 113, 113, 0.14);
+  background: var(--color-danger-muted);
+  opacity: 0.8;
 }
+
 .file-table tr.row-conflict td:first-child {
-  box-shadow: inset 3px 0 0 var(--red, #f87171);
+  box-shadow: inset 3px 0 0 var(--color-danger);
 }
 
 .status-badge {
@@ -353,108 +322,53 @@ function handleViewDiff(_file: UpdateFileItem) {
   justify-content: center;
   width: 22px;
   height: 22px;
-  border-radius: 5px;
-  font-size: 11px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
   font-weight: 700;
 }
+
 .status-badge.conflict {
-  background: rgba(248, 113, 113, 0.15);
-  color: var(--red, #f87171);
+  background: var(--color-danger-muted);
+  color: var(--color-danger);
 }
+
 .status-badge.merged {
-  background: rgba(251, 191, 36, 0.15);
-  color: var(--yellow, #fbbf24);
+  background: var(--color-warning-muted);
+  color: var(--color-warning);
 }
+
 .status-badge.added {
-  background: rgba(74, 222, 128, 0.15);
-  color: var(--green, #4ade80);
+  background: var(--color-success-muted);
+  color: var(--color-success);
 }
 
 .file-path {
-  font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', monospace;
-  color: var(--text-primary);
+  font-family: var(--font-mono);
+  color: var(--color-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 300px;
-}
-
-.diff-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 10px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-secondary);
-  border-radius: 5px;
-  font-size: 11px;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-.diff-btn:hover {
-  background: var(--accent, #7c6ff7);
-  border-color: var(--accent, #7c6ff7);
-  color: white;
-}
-
-.resolve-btn {
-  border-color: rgba(248, 113, 113, 0.4);
-  color: var(--red, #f87171);
-}
-.resolve-btn:hover {
-  background: var(--red, #f87171);
-  border-color: var(--red, #f87171);
-  color: white;
+  font-size: var(--text-sm);
 }
 
 .running-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 20px;
-  background: var(--bg-secondary, #2a2a3d);
-  border-top: 1px solid var(--border);
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.spinner-sm {
-  width: 14px;
-  height: 14px;
-  border-width: 2px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-5);
+  background: var(--color-bg-secondary);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
 }
 
 .modal-footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: 12px 20px;
-  border-top: 1px solid var(--border);
-  gap: 10px;
-}
-
-.btn {
-  padding: 7px 18px;
-  border-radius: 7px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  border: 1px solid var(--border);
-  transition: all 0.15s;
-}
-
-.btn-primary {
-  background: var(--accent, #7c6ff7);
-  border-color: var(--accent, #7c6ff7);
-  color: white;
-}
-.btn-primary:hover {
-  background: var(--accent-hover, #9b90f9);
-}
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--color-border);
+  gap: var(--space-2);
 }
 </style>

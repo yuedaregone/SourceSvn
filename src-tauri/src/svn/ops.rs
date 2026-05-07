@@ -157,6 +157,26 @@ fn parse_blame_xml(xml: &str) -> Result<Vec<BlameEntry>, AppError> {
         .collect())
 }
 
+pub async fn svn_resolve(
+    path: &str,
+    paths: &[String],
+    accept: &str,
+    timeout_secs: u64,
+) -> Result<Vec<String>, AppError> {
+    let accept_arg = match accept {
+        "theirs" => "theirs-conflict",
+        "mine" => "mine-conflict",
+        "working" => "working",
+        _ => return Err(AppError::Svn(format!("Invalid accept strategy: {}", accept))),
+    };
+    let mut args = vec!["resolve", "--accept", accept_arg, "-R"];
+    for p in paths {
+        args.push(p);
+    }
+    crate::svn::run_svn_async_in_dir(&args, timeout_secs, Some(path)).await?;
+    Ok(paths.to_vec())
+}
+
 /// 获取文件的工作副本大小和 SVN base 版本大小
 pub async fn file_size_diff(
     repo_path: &str,

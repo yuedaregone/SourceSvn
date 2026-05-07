@@ -1,8 +1,5 @@
 <template>
   <div class="tab-bar">
-    <button class="settings-btn" @click="$emit('openSettings')" :title="t('globalTabBar.settings')">
-      <Settings :size="16" />
-    </button>
     <div class="tabs">
       <div
         v-for="(tab, index) in tabs"
@@ -14,9 +11,13 @@
         @contextmenu.prevent="openContextMenu($event, index)"
       >
         <span class="tab-title">{{ getTabTitle(tab.repoPath) }}</span>
-        <button class="tab-close" @click.stop="$emit('closeTab', index)">&times;</button>
+        <button class="tab-close" @click.stop="$emit('closeTab', index)">
+          <X :size="12" />
+        </button>
       </div>
-      <button class="add-tab-btn" @click="$emit('addTab')" :title="t('globalTabBar.addRepo')"><Plus :size="16" /></button>
+      <button class="add-tab-btn" @click="$emit('addTab')" :title="t('globalTabBar.addRepo')">
+        <Plus :size="14" />
+      </button>
     </div>
     <ContextMenu
       :visible="ctxMenu.visible"
@@ -31,7 +32,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { Settings, Plus, Copy } from 'lucide-vue-next'
+import { Plus, Copy, X } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
 import type { TabInfo } from '../types/config'
 import type { MenuItem } from './ContextMenu.vue'
@@ -44,7 +45,6 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  openSettings: []
   switchTab: [index: number]
   closeTab: [index: number]
   closeOtherTabs: [index: number]
@@ -106,72 +106,87 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
 .tab-bar {
   display: flex;
   align-items: center;
-  height: 36px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
-  padding: 0 4px;
-  gap: 2px;
+  height: 38px;
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+  padding: 0 var(--space-2);
+  gap: var(--space-1);
 }
-.settings-btn {
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: 16px;
-  border-radius: 4px;
-  color: var(--text-primary);
-}
-.settings-btn:hover {
-  background: var(--bg-hover);
-}
+
 .tabs {
   display: flex;
   flex: 1;
   overflow-x: auto;
-  gap: 2px;
+  gap: var(--space-1);
+  padding: var(--space-1) 0;
 }
+
 .tab {
   display: flex;
   align-items: center;
-  padding: 4px 8px;
-  background: var(--bg-tertiary);
-  border-radius: 4px 4px 0 0;
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
   cursor: pointer;
   white-space: nowrap;
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  transition: all var(--transition-fast);
+  gap: var(--space-2);
 }
+
+.tab:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
 .tab.active {
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  border-bottom: 2px solid var(--accent-color);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  border-bottom: 2px solid var(--color-accent);
 }
+
 .tab-close {
-  margin-left: 4px;
   border: none;
   background: transparent;
   cursor: pointer;
-  font-size: 14px;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  opacity: 0;
 }
+
+.tab:hover .tab-close {
+  opacity: 1;
+}
+
 .tab-close:hover {
-  color: var(--text-primary);
+  color: var(--color-danger);
+  background: var(--color-danger-muted);
 }
+
 .add-tab-btn {
-  border: 1px dashed var(--border-input);
+  border: 1px dashed var(--color-border-input);
   background: transparent;
   width: 28px;
   height: 28px;
   padding: 0;
   cursor: pointer;
-  border-radius: 4px;
-  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: all var(--transition-fast);
 }
+
 .add-tab-btn:hover {
-  background: var(--bg-hover);
+  background: var(--color-bg-hover);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 </style>

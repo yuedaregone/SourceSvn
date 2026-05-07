@@ -114,43 +114,56 @@ function handleClick(item: MenuItem) {
 
 .context-menu {
   position: fixed;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 4px 0;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-1) 0;
   min-width: 180px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-lg);
   z-index: 10000;
   user-select: none;
+  animation: scaleIn 0.15s ease;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .context-menu-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  font-size: 13px;
-  color: var(--text-primary);
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-base);
+  color: var(--color-text-primary);
   cursor: pointer;
   white-space: nowrap;
+  transition: background var(--transition-fast);
 }
 
 .context-menu-item:hover:not(.disabled) {
-  background: var(--bg-hover);
+  background: var(--color-bg-hover);
 }
 
 .context-menu-item.disabled {
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   cursor: default;
 }
 
 .context-menu-icon {
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
   flex-shrink: 0;
 }
 
 .context-menu-item.disabled .context-menu-icon {
-  color: var(--text-muted);
+  color: var(--color-text-muted);
 }
 
 .context-menu-label {
@@ -158,14 +171,15 @@ function handleClick(item: MenuItem) {
 }
 
 .context-menu-shortcut {
-  color: var(--text-muted);
-  font-size: 12px;
-  margin-left: 16px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  margin-left: var(--space-4);
+  font-family: var(--font-mono);
 }
 
 .context-menu-divider {
   height: 1px;
-  background: var(--border-color);
-  margin: 4px 8px;
+  background: var(--color-border);
+  margin: var(--space-1) var(--space-2);
 }
 </style>

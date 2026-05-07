@@ -1,16 +1,16 @@
 <template>
   <div class="local-changes-view">
     <div class="left-panel" :style="{ width: leftPanelWidth + 'px' }">
-      <div class="file-list-header">
-        <label class="select-all">
-          <input type="checkbox" :checked="allSelected" @change="toggleAll" />
-          <span>{{ t('common.selectAll') }}</span>
-        </label>
-        <span class="selected-count">{{ t('localChanges.selectedOf', { selected: selectedPaths.size, total: props.localChanges.length }) }}</span>
-      </div>
       <div class="file-list" :class="{ loading: props.loading }">
         <div v-if="props.loading" class="loading-overlay">
-          <RefreshCw :size="24" class="spin" />
+          <div class="spinner" />
+        </div>
+        <div class="file-list-header">
+          <label class="select-all">
+            <input type="checkbox" :checked="allSelected" @change="toggleAll" class="checkbox" />
+            <span>{{ t('common.selectAll') }}</span>
+          </label>
+          <span class="selected-count">{{ t('localChanges.selectedOf', { selected: selectedPaths.size, total: props.localChanges.length }) }}</span>
         </div>
         <div
           v-for="(file, index) in props.localChanges"
@@ -25,11 +25,15 @@
             :checked="selectedPaths.has(file.path)"
             @click.stop="toggleFile(file.path)"
             :disabled="props.loading"
+            class="checkbox"
           />
           <span class="status-badge" :class="file.status">{{ statusLabel(file.status) }}</span>
           <span class="file-path" :class="{ dir: file.isDirectory }">{{ displayPath(file.path) }}</span>
         </div>
-        <div v-if="!props.loading && props.localChanges.length === 0" class="empty-list">{{ t('common.noLocalChanges') }}</div>
+        <div v-if="!props.loading && props.localChanges.length === 0" class="empty-list">
+          <FileIcon :size="24" />
+          <span>{{ t('common.noLocalChanges') }}</span>
+        </div>
       </div>
     </div>
     <div class="drag-bar" @mousedown="onDragStart" @touchstart="onDragStart">
@@ -52,7 +56,10 @@
         <!-- 代码 diff -->
         <InlineDiff v-else-if="diffContent" :diff-text="diffContent" :empty-hint="t('common.clickToViewDiff')" />
         <!-- 空状态 -->
-        <div v-else class="diff-placeholder">{{ t('common.clickToViewDiff') }}</div>
+        <div v-else class="diff-placeholder">
+          <GitCompare :size="32" />
+          <span>{{ t('common.clickToViewDiff') }}</span>
+        </div>
       </div>
       <div class="commit-section" @click="showHistory = false">
         <textarea
@@ -63,7 +70,7 @@
         ></textarea>
         <div class="commit-actions">
           <div class="history-wrapper">
-            <button @click.stop="showHistory = !showHistory" class="history-btn icon-btn" :title="t('localChanges.recentCommits')">
+            <button @click.stop="showHistory = !showHistory" class="action-btn icon-btn" :title="t('localChanges.recentCommits')">
               <History :size="16" />
             </button>
             <div v-if="showHistory" class="history-dropdown" @click.stop>
@@ -76,10 +83,10 @@
               <div v-if="recentMessages.length === 0" class="history-empty">{{ t('localChanges.noRecentCommits') }}</div>
             </div>
           </div>
-          <button @click="generateAiMessage" :disabled="aiLoading || selectedPaths.size === 0" class="ai-btn" :title="t('localChanges.aiGenerate')">
+          <button @click="generateAiMessage" :disabled="aiLoading || selectedPaths.size === 0" class="action-btn ai-btn" :title="t('localChanges.aiGenerate')">
             <Sparkles :size="16" />
           </button>
-          <button @click="cancelCommit" class="cancel-btn icon-btn" :title="t('common.cancel')">
+          <button @click="cancelCommit" class="action-btn icon-btn" :title="t('common.cancel')">
             <X :size="16" />
           </button>
           <button @click="submitCommit" :disabled="!canCommit" class="commit-btn" :title="t('common.submit')">
@@ -101,7 +108,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { Sparkles, RefreshCw, X, Send, RotateCcw, Plus, Trash2, ExternalLink, FolderOpen, Copy, CheckSquare, Square, History } from 'lucide-vue-next'
+import { Sparkles, X, Send, RotateCcw, Plus, Trash2, ExternalLink, FolderOpen, Copy, CheckSquare, Square, History, File as FileIcon, GitCompare, GitMerge } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
 import { useConfigStore } from '../stores/configStore'
 import type { FileStatus, DiffTarget } from '../types/svn'
@@ -134,7 +141,7 @@ const binarySizeDiff = ref<{ baseSize: number; currentSize: number } | null>(nul
 const toast = useToastStore()
 const configStore = useConfigStore()
 
-const leftPanelWidth = ref(320)
+const leftPanelWidth = ref(350)
 const isDragging = ref(false)
 const startX = ref(0)
 const startWidth = ref(0)
@@ -189,7 +196,7 @@ function onDragMove(e: MouseEvent | TouchEvent) {
   if (!isDragging.value) return
   const currentX = 'touches' in e ? e.touches[0].clientX : e.clientX
   const delta = currentX - startX.value
-  leftPanelWidth.value = Math.max(200, Math.min(800, startWidth.value + delta))
+  leftPanelWidth.value = Math.max(180, Math.min(500, startWidth.value + delta))
 }
 
 function onDragEnd() {
@@ -367,6 +374,7 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   if (!file) return []
   const isUnversioned = file.status === 'unversioned'
   const isModified = file.status === 'modified' || file.status === 'conflicted' || file.status === 'missing'
+  const isConflicted = file.status === 'conflicted'
 
   const paths = selectedPaths.value.has(file.path)
     ? Array.from(selectedPaths.value)
@@ -383,6 +391,30 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
           await invoke('svn_revert', { path: props.repoPath, paths })
           emit('refreshLocalChanges')
           toast.success(t('contextMenu.revert'))
+        } catch (e) { toast.error(String(e)) }
+      },
+    },
+    {
+      label: t('contextMenu.acceptTheirs'),
+      icon: GitMerge,
+      disabled: !isConflicted,
+      action: async () => {
+        try {
+          await invoke('svn_resolve', { path: props.repoPath, paths, accept: 'theirs' })
+          emit('refreshLocalChanges')
+          toast.success(t('contextMenu.acceptTheirs'))
+        } catch (e) { toast.error(String(e)) }
+      },
+    },
+    {
+      label: t('contextMenu.acceptMine'),
+      icon: GitMerge,
+      disabled: !isConflicted,
+      action: async () => {
+        try {
+          await invoke('svn_resolve', { path: props.repoPath, paths, accept: 'mine' })
+          emit('refreshLocalChanges')
+          toast.success(t('contextMenu.acceptMine'))
         } catch (e) { toast.error(String(e)) }
       },
     },
@@ -463,16 +495,18 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
 .local-changes-view {
   display: flex;
   height: 100%;
-  gap: 2px;
+  gap: 0;
 }
+
 .left-panel {
   flex: none;
   display: flex;
   flex-direction: column;
-  min-width: 200px;
-  max-width: 800px;
+  min-width: 180px;
+  max-width: 500px;
   overflow: hidden;
 }
+
 .drag-bar {
   width: 6px;
   cursor: ew-resize;
@@ -481,276 +515,332 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: background var(--transition-fast);
 }
+
 .drag-bar:hover {
-  background: var(--bg-hover);
+  background: var(--color-bg-hover);
 }
+
 .drag-handle {
   width: 2px;
   height: 40px;
-  background: var(--border-light);
-  border-radius: 1px;
+  background: var(--color-border-light);
+  border-radius: var(--radius-full);
+  transition: background var(--transition-fast);
 }
+
 .drag-bar:hover .drag-handle,
 .drag-bar:active .drag-handle {
-  background: var(--border-color);
+  background: var(--color-border);
 }
+
 .right-panel {
   flex: 1;
   min-width: 0;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   overflow: hidden;
-  background: var(--bg-primary);
+  background: var(--color-bg-primary);
   display: flex;
   flex-direction: column;
 }
+
 .file-list-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-  font-size: 13px;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-base);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
+
 .select-all {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-2);
   cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
 }
+
 .selected-count {
-  color: var(--text-secondary);
-  font-size: 12px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
 }
+
 .file-list {
   flex: 1;
   overflow: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   min-height: 0;
-  background: var(--bg-primary);
+  background: var(--color-bg-primary);
   position: relative;
 }
+
 .file-list.loading {
   pointer-events: none;
 }
+
 .loading-overlay {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-primary);
+  background: var(--color-bg-primary);
   opacity: 0.9;
+  z-index: 10;
 }
-.loading-overlay .spin {
-  animation: spin 1s linear infinite;
-}
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+
 .file-item {
   display: flex;
   align-items: center;
-  padding: 4px 8px;
-  gap: 6px;
+  padding: var(--space-2) var(--space-3);
+  gap: var(--space-2);
   cursor: pointer;
-  font-size: 13px;
-  border-bottom: 1px solid var(--border-light);
+  font-size: var(--text-base);
+  border-bottom: 1px solid var(--color-border-light);
   user-select: none;
+  transition: background var(--transition-fast);
 }
+
 .file-item:hover {
-  background: var(--bg-hover);
+  background: var(--color-bg-hover);
 }
+
 .file-item.selected {
-  background: var(--bg-active);
+  background: var(--color-bg-active);
 }
+
 .file-item.checked:not(.selected) {
-  background: var(--bg-hover);
+  background: var(--color-accent-muted);
 }
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  font-size: 10px;
-  font-weight: bold;
-  color: #fff;
-  flex-shrink: 0;
-}
-.status-badge.modified { background: var(--warning-color); }
-.status-badge.added { background: var(--success-color); }
-.status-badge.deleted { background: var(--danger-color); }
-.status-badge.unversioned { background: var(--text-muted); }
-.status-badge.missing { background: #ff7a45; }
-.status-badge.conflicted { background: #f5222d; }
+
 .file-item input[type="checkbox"],
 .select-all input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
-  cursor: pointer;
   appearance: none;
-  -webkit-appearance: none;
-  background-color: var(--bg-primary);
-  border: 1px solid var(--border-input);
-  border-radius: 3px;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--color-border-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.file-item input[type="checkbox"]::before,
-.select-all input[type="checkbox"]::before {
+
+.file-item input[type="checkbox"]:checked,
+.select-all input[type="checkbox"]:checked {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.file-item input[type="checkbox"]:checked::after,
+.select-all input[type="checkbox"]:checked::after {
   content: '';
-  width: 6px;
-  height: 6px;
-  background-color: transparent;
-  border-radius: 2px;
-  transition: background-color 0.2s;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  position: absolute;
+  left: 4px;
+  top: 1px;
 }
-.file-item input[type="checkbox"]:checked::before,
-.select-all input[type="checkbox"]:checked::before {
-  background-color: var(--accent-color);
-}
+
 .file-item input[type="checkbox"]:hover,
 .select-all input[type="checkbox"]:hover {
-  border-color: var(--accent-color);
+  border-color: var(--color-accent);
 }
-[data-theme="dark"] .file-item input[type="checkbox"],
-[data-theme="dark"] .select-all input[type="checkbox"] {
-  background-color: var(--bg-secondary);
-}
+
 .file-path {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: monospace;
-  font-size: 12px;
-  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
 }
+
 .empty-list {
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   text-align: center;
-  padding: 24px 0;
+  padding: var(--space-8) 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
 }
+
 /* 右侧提交区 */
 .commit-section {
-  padding: 8px;
-  border-top: 1px solid var(--border-color);
+  padding: var(--space-3);
+  border-top: 1px solid var(--color-border);
   flex-shrink: 0;
 }
+
 .commit-input {
   width: 100%;
-  padding: 6px 8px;
-  border: 1px solid var(--border-input);
-  border-radius: 4px;
-  font-size: 13px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
   resize: none;
-  font-family: inherit;
+  font-family: var(--font-ui);
   box-sizing: border-box;
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  transition: all var(--transition-fast);
 }
+
 .commit-input:focus {
-  border-color: var(--accent-color);
+  border-color: var(--color-accent);
   outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent-muted);
 }
+
 .commit-actions {
   display: flex;
-  gap: 6px;
-  margin-top: 6px;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
   justify-content: flex-end;
 }
-.commit-actions button {
-  padding: 6px 16px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--text-primary);
-  display: flex;
+
+.action-btn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-input);
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  transition: all var(--transition-fast);
 }
-.commit-actions button:hover:not(:disabled) {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
+
+.action-btn:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
-.commit-actions button:disabled {
+
+.action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.commit-actions .icon-btn {
-  padding: 6px;
-  width: 28px;
-  height: 28px;
+
+.action-btn.icon-btn {
+  padding: 0;
+  width: 32px;
 }
+
 .commit-btn {
-  background: var(--accent-color) !important;
-  color: #fff !important;
-  border-color: var(--accent-color) !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 var(--space-4);
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  transition: all var(--transition-fast);
 }
+
 .commit-btn:hover:not(:disabled) {
-  background: var(--accent-hover) !important;
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+  box-shadow: var(--shadow-glow);
 }
+
+.commit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .ai-btn {
-  color: var(--purple-color);
-  border-color: var(--purple-color);
+  color: var(--color-purple);
+  border-color: var(--color-purple-muted);
 }
+
 .ai-btn:hover:not(:disabled) {
-  background: rgba(114, 46, 209, 0.1);
+  background: var(--color-purple-muted);
+  border-color: var(--color-purple);
 }
+
 .history-wrapper {
   position: relative;
   margin-right: auto;
 }
-.history-btn {
-  color: var(--text-secondary);
-}
-.history-btn:hover {
-  color: var(--accent-color);
-  border-color: var(--accent-color);
-}
+
 .history-dropdown {
   position: absolute;
-  bottom: 100%;
+  bottom: calc(100% + var(--space-2));
   left: 0;
-  margin-bottom: 4px;
   min-width: 260px;
   max-width: 400px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  box-shadow: var(--shadow);
-  z-index: 10;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-dropdown);
   overflow: hidden;
+  animation: slideUp 0.15s ease;
 }
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .history-item {
-  padding: 6px 10px;
-  font-size: 12px;
-  color: var(--text-primary);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
   cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--color-border-light);
+  transition: background var(--transition-fast);
 }
+
 .history-item:last-child {
   border-bottom: none;
 }
+
 .history-item:hover {
-  background: var(--bg-hover);
+  background: var(--color-bg-hover);
 }
+
 .history-empty {
-  padding: 10px;
-  font-size: 12px;
-  color: var(--text-muted);
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
   text-align: center;
 }
+
 /* 右侧 diff 区域 */
 .diff-area {
   flex: 1;
@@ -759,12 +849,18 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   display: flex;
   flex-direction: column;
 }
+
 .diff-placeholder {
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   text-align: center;
-  margin-top: 40px;
-  font-size: 13px;
+  margin-top: var(--space-10);
+  font-size: var(--text-base);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
 }
+
 /* 二进制文件大小对比 */
 .binary-diff {
   display: flex;
@@ -772,29 +868,40 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  gap: 16px;
+  gap: var(--space-4);
 }
+
 .binary-diff-title {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
 }
+
 .binary-diff-info {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 18px;
-  font-family: monospace;
+  gap: var(--space-3);
+  font-size: var(--text-xl);
+  font-family: var(--font-mono);
 }
+
 .binary-size {
-  color: var(--text-primary);
+  color: var(--color-text-primary);
 }
+
 .binary-arrow {
-  color: var(--text-muted);
+  color: var(--color-text-muted);
 }
+
 .binary-delta {
-  font-size: 14px;
+  font-size: var(--text-md);
   font-weight: 600;
 }
-.binary-delta.positive { color: var(--danger-color); }
-.binary-delta.negative { color: var(--success-color); }
+
+.binary-delta.positive {
+  color: var(--color-danger);
+}
+
+.binary-delta.negative {
+  color: var(--color-success);
+}
 </style>

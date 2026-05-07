@@ -1,28 +1,31 @@
 <template>
   <div class="shelve-view">
     <div class="shelve-header">
-      <button @click="showSaveDialog = true" class="primary-btn" :title="t('shelveView.saveCurrentChanges')">
+      <button @click="showSaveDialog = true" class="btn btn-primary" :title="t('shelveView.saveCurrentChanges')">
         <Save :size="16" />
+        <span>{{ t('shelveView.save') }}</span>
       </button>
-      <button @click="refresh" class="action-btn icon-btn" :disabled="props.loading" :title="t('common.refresh')">
+      <button @click="refresh" class="btn btn-secondary" :disabled="props.loading" :title="t('common.refresh')">
         <RefreshCw :size="16" />
       </button>
       <div class="header-right">
         <button
           @click="bulkApply"
           :disabled="selectedNames.size === 0"
-          class="action-btn"
+          class="btn btn-secondary"
           :title="t('shelveView.applySelected')"
         >
           <Check :size="16" />
+          <span>{{ t('shelveView.apply') }}</span>
         </button>
         <button
           @click="bulkDelete"
           :disabled="selectedNames.size === 0"
-          class="action-btn danger"
+          class="btn btn-danger"
           :title="t('shelveView.deleteSelected')"
         >
           <Trash2 :size="16" />
+          <span>{{ t('shelveView.delete') }}</span>
         </button>
       </div>
     </div>
@@ -31,7 +34,7 @@
         <thead>
           <tr>
             <th class="col-check">
-              <input type="checkbox" :checked="allSelected" @change="toggleAll" />
+              <input type="checkbox" :checked="allSelected" @change="toggleAll" class="checkbox" />
             </th>
             <th class="col-name">{{ t('common.name') }}</th>
             <th class="col-date">{{ t('common.date') }}</th>
@@ -50,37 +53,55 @@
                 type="checkbox"
                 :checked="selectedNames.has(shelve.name)"
                 @change="toggleSelect(shelve.name)"
+                class="checkbox"
               />
             </td>
-            <td class="col-name">{{ shelve.name }}</td>
-            <td class="col-date">{{ formatDate(shelve.date) }}</td>
+            <td class="col-name">
+              <span class="shelve-name">{{ shelve.name }}</span>
+            </td>
+            <td class="col-date">
+              <span class="date-text">{{ formatDate(shelve.date) }}</span>
+            </td>
             <td class="col-actions">
-              <button @click="applyShelve(shelve.name)" class="table-btn icon-btn" :title="t('common.apply')">
+              <button @click="applyShelve(shelve.name)" class="btn btn-icon btn-secondary" :title="t('common.apply')">
                 <ArrowRight :size="14" />
               </button>
-              <button @click="deleteShelve(shelve.name)" class="table-btn danger icon-btn" :title="t('common.delete')">
+              <button @click="deleteShelve(shelve.name)" class="btn btn-icon btn-danger" :title="t('common.delete')">
                 <X :size="14" />
               </button>
             </td>
           </tr>
         </tbody>
       </table>
-      <div v-if="props.shelves.length === 0" class="empty">{{ t('common.noShelves') }}</div>
+      <div v-if="props.shelves.length === 0" class="empty">
+        <Package :size="24" />
+        <span>{{ t('common.noShelves') }}</span>
+      </div>
     </div>
-    <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
+    <div v-if="errorMessage" class="error-message">
+      <AlertCircle :size="14" />
+      <span>{{ errorMessage }}</span>
+    </div>
     <div v-if="showSaveDialog" class="dialog-overlay" @click.self="showSaveDialog = false">
       <div class="dialog">
-        <h3>{{ t('common.saveShelve') }}</h3>
-        <input
-          v-model="shelveName"
-          :placeholder="t('common.shelveName')"
-          class="dialog-input"
-          @keyup.enter="saveShelve"
-          ref="nameInput"
-        />
-        <div class="dialog-actions">
-          <button @click="showSaveDialog = false" class="cancel-btn">{{ t('common.cancel') }}</button>
-          <button @click="saveShelve" :disabled="!shelveName.trim()" class="primary-btn">{{ t('common.save') }}</button>
+        <div class="dialog-header">
+          <h3 class="dialog-title">{{ t('common.saveShelve') }}</h3>
+          <button class="btn btn-icon btn-ghost" @click="showSaveDialog = false">
+            <X :size="16" />
+          </button>
+        </div>
+        <div class="dialog-body">
+          <input
+            v-model="shelveName"
+            :placeholder="t('common.shelveName')"
+            class="input"
+            @keyup.enter="saveShelve"
+            ref="nameInput"
+          />
+        </div>
+        <div class="dialog-footer">
+          <button @click="showSaveDialog = false" class="btn btn-secondary">{{ t('common.cancel') }}</button>
+          <button @click="saveShelve" :disabled="!shelveName.trim()" class="btn btn-primary">{{ t('common.save') }}</button>
         </div>
       </div>
     </div>
@@ -97,7 +118,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { Save, RefreshCw, Check, Trash2, ArrowRight, X, Pencil } from 'lucide-vue-next'
+import { Save, RefreshCw, Check, Trash2, ArrowRight, X, Pencil, Package, AlertCircle } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
 import type { ShelveInfo } from '../types/svn'
 import type { MenuItem } from '../components/ContextMenu.vue'
@@ -284,206 +305,213 @@ onMounted(() => {
   flex-direction: column;
   height: 100%;
 }
+
 .shelve-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
 }
+
 .header-right {
   margin-left: auto;
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
 }
-.primary-btn {
-  padding: 6px 14px;
-  border: 1px solid var(--accent-color);
-  background: var(--accent-color);
-  color: #fff;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.primary-btn:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.action-btn {
-  padding: 6px 14px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.action-btn:hover:not(:disabled) {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
-}
-.action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.action-btn.danger {
-  color: var(--danger-color);
-  border-color: var(--danger-color);
-}
-.action-btn.danger:hover:not(:disabled) {
-  background: var(--bg-hover);
-}
-.action-btn.icon-btn {
-  padding: 6px;
-  width: 28px;
-  height: 28px;
-}
+
 .shelve-list {
   flex: 1;
   overflow: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: var(--bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-primary);
 }
+
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--text-base);
 }
+
 th,
 td {
-  padding: 8px 12px;
+  padding: var(--space-3) var(--space-4);
   text-align: left;
-  border-bottom: 1px solid var(--border-light);
-  color: var(--text-primary);
+  border-bottom: 1px solid var(--color-border-light);
+  color: var(--color-text-primary);
 }
+
 th {
-  background: var(--bg-secondary);
+  background: var(--color-bg-secondary);
   font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   position: sticky;
   top: 0;
+  z-index: 1;
 }
+
 .col-check {
   width: 40px;
   text-align: center;
 }
+
 .col-name {
   min-width: 160px;
 }
+
+.shelve-name {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
 .col-date {
   width: 180px;
 }
+
+.date-text {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
 .col-actions {
-  width: 120px;
+  width: 100px;
 }
+
+tr {
+  transition: background var(--transition-fast);
+}
+
 tr:hover {
-  background: var(--bg-hover);
+  background: var(--color-bg-hover);
 }
+
 tr.selected {
-  background: var(--bg-active);
+  background: var(--color-bg-active);
 }
-.table-btn {
-  padding: 3px 10px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  margin-right: 4px;
-  color: var(--text-primary);
+
+.empty {
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: var(--space-8) 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.error-message {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-danger-muted);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  color: var(--color-danger);
+  font-size: var(--text-sm);
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: var(--space-2);
 }
-.table-btn:hover {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
-}
-.table-btn.danger {
-  color: var(--danger-color);
-  border-color: var(--danger-color);
-}
-.table-btn.danger:hover {
-  background: var(--bg-hover);
-}
-.table-btn.icon-btn {
-  padding: 3px;
-  width: 24px;
-  height: 24px;
-}
-.empty {
-  color: var(--text-muted);
-  text-align: center;
-  padding: 24px 0;
-}
-.error-message {
-  margin-top: 8px;
-  padding: 6px 8px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--danger-color);
-  border-radius: 4px;
-  color: var(--danger-color);
-  font-size: 12px;
-}
+
 .dialog-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--overlay-bg);
+  inset: 0;
+  background: var(--color-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: var(--z-modal);
+  animation: fadeIn 0.2s ease;
 }
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .dialog {
-  background: var(--bg-primary);
-  padding: 20px;
-  border-radius: 8px;
-  min-width: 320px;
-  box-shadow: var(--shadow);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  width: 400px;
+  box-shadow: var(--shadow-xl);
+  animation: scaleIn 0.2s ease;
 }
-.dialog h3 {
-  margin: 0 0 12px;
-  font-size: 15px;
-  color: var(--text-primary);
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
-.dialog-input {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--border-input);
-  border-radius: 4px;
-  font-size: 13px;
-  box-sizing: border-box;
-  background: var(--bg-primary);
-  color: var(--text-primary);
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
 }
-.dialog-input:focus {
-  border-color: var(--accent-color);
-  outline: none;
+
+.dialog-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text-primary);
 }
-.dialog-actions {
+
+.dialog-body {
+  padding: var(--space-5);
+}
+
+.dialog-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 12px;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--color-border);
 }
-.cancel-btn {
-  padding: 6px 14px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary);
-  border-radius: 4px;
+
+.checkbox {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--color-border-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-primary);
   cursor: pointer;
-  font-size: 13px;
-  color: var(--text-primary);
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.checkbox:checked {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.checkbox:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.checkbox:hover {
+  border-color: var(--color-accent);
 }
 </style>

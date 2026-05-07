@@ -3,7 +3,7 @@
     <div class="browser-content">
       <div class="tree-panel">
         <div v-if="props.loading" class="tree-loading">
-          <RefreshCw :size="16" class="spin" />
+          <div class="spinner" />
         </div>
         <template v-else>
           <div
@@ -40,18 +40,30 @@
             </span>
           </div>
         </template>
-        <div v-if="!props.loading && treeItems.length === 0" class="empty-tree">{{ t('common.emptyDir') }}</div>
+        <div v-if="!props.loading && treeItems.length === 0" class="empty-tree">
+          <FolderIcon :size="24" />
+          <span>{{ t('common.emptyDir') }}</span>
+        </div>
       </div>
       <div class="content-panel">
         <div v-if="selectedFilePath" class="content-header">
           <span class="content-filename">{{ selectedFilePath }}</span>
           <div class="content-actions">
-            <button @click="$emit('viewHistory', fullPath)" class="action-btn">{{ t('common.history') }}</button>
-            <button @click="$emit('aiReview', fullPath)" class="action-btn ai">{{ t('common.aiReview') }}</button>
+            <button @click="$emit('viewHistory', fullPath)" class="action-btn">
+              <History :size="14" />
+              <span>{{ t('common.history') }}</span>
+            </button>
+            <button @click="$emit('aiReview', fullPath)" class="action-btn ai-btn">
+              <Sparkles :size="14" />
+              <span>{{ t('common.aiReview') }}</span>
+            </button>
           </div>
         </div>
         <pre v-if="fileContent" class="file-content">{{ fileContent }}</pre>
-        <div v-else class="content-placeholder">{{ t('common.clickToViewContent') }}</div>
+        <div v-else class="content-placeholder">
+          <FileText :size="32" />
+          <span>{{ t('common.clickToViewContent') }}</span>
+        </div>
       </div>
     </div>
     <ContextMenu
@@ -67,7 +79,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { RefreshCw, ExternalLink, FolderOpen, Copy, History, Terminal, ChevronRight, Folder as FolderIcon, File as FileIcon, Loader2 } from 'lucide-vue-next'
+import { RefreshCw, ExternalLink, FolderOpen, Copy, History, Terminal, ChevronRight, Folder as FolderIcon, File as FileIcon, Loader2, Sparkles, FileText } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
 import type { DirEntry } from '../types/svn'
 import type { MenuItem } from '../components/ContextMenu.vue'
@@ -277,43 +289,51 @@ onMounted(() => {
   flex-direction: column;
   height: 100%;
 }
+
 .browser-content {
   display: flex;
   flex: 1;
-  gap: 12px;
+  gap: var(--space-3);
   min-height: 0;
 }
+
 .tree-panel {
   width: 280px;
   min-width: 200px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   overflow: auto;
-  background: var(--bg-primary);
+  background: var(--color-bg-primary);
 }
+
 .tree-loading {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px 0;
-  color: var(--text-muted);
+  padding: var(--space-6) 0;
+  color: var(--color-text-muted);
 }
+
 .tree-item {
   display: flex;
   align-items: center;
-  padding: 4px 10px;
-  gap: 6px;
+  padding: var(--space-2) var(--space-3);
+  gap: var(--space-2);
   cursor: pointer;
-  font-size: 13px;
-  color: var(--text-primary);
+  font-size: var(--text-base);
+  color: var(--color-text-primary);
   white-space: nowrap;
+  transition: background var(--transition-fast);
 }
+
 .tree-item:hover {
-  background: var(--bg-hover);
+  background: var(--color-bg-hover);
 }
+
 .tree-item.selected {
-  background: var(--bg-active);
+  background: var(--color-bg-active);
 }
+
 .tree-arrow {
   display: inline-flex;
   align-items: center;
@@ -321,109 +341,147 @@ onMounted(() => {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  transition: transform 0.15s ease;
-  color: var(--text-muted);
+  transition: transform var(--transition-fast);
+  color: var(--color-text-muted);
 }
+
 .tree-arrow.expanded {
   transform: rotate(90deg);
 }
+
 .tree-arrow-placeholder {
   width: 16px;
   flex-shrink: 0;
 }
+
 .entry-icon {
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
 }
+
 .entry-name {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: var(--text-sm);
 }
+
 .entry-size {
-  font-size: 11px;
-  color: var(--text-muted);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
   flex-shrink: 0;
+  font-family: var(--font-mono);
 }
+
 .dir-loading {
   display: inline-flex;
   align-items: center;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   flex-shrink: 0;
 }
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+
 .spin {
   animation: spin 1s linear infinite;
 }
-.empty-tree {
-  color: var(--text-muted);
-  text-align: center;
-  padding: 24px 0;
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
+
+.empty-tree {
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: var(--space-8) 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .content-panel {
   flex: 1;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   overflow: auto;
   display: flex;
   flex-direction: column;
-  background: var(--bg-primary);
+  background: var(--color-bg-primary);
 }
+
 .content-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
 }
+
 .content-filename {
-  font-size: 13px;
+  font-size: var(--text-base);
   font-weight: 500;
-  font-family: monospace;
-  color: var(--text-primary);
+  font-family: var(--font-mono);
+  color: var(--color-text-primary);
 }
+
 .content-actions {
   display: flex;
-  gap: 6px;
+  gap: var(--space-2);
 }
+
 .action-btn {
-  padding: 3px 10px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary);
-  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  height: 28px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-input);
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  font-size: 12px;
-  color: var(--text-primary);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  transition: all var(--transition-fast);
 }
+
 .action-btn:hover {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
-.action-btn.ai {
-  border-color: var(--purple-color);
-  color: var(--purple-color);
+
+.action-btn.ai-btn {
+  color: var(--color-purple);
+  border-color: var(--color-purple-muted);
 }
-.action-btn.ai:hover {
-  background: var(--bg-hover);
+
+.action-btn.ai-btn:hover {
+  background: var(--color-purple-muted);
+  border-color: var(--color-purple);
 }
+
 .file-content {
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 13px;
+  font-family: var(--font-code);
+  font-size: var(--text-base);
   white-space: pre-wrap;
   word-break: break-all;
-  padding: 12px;
+  padding: var(--space-4);
   margin: 0;
-  line-height: 1.5;
-  color: var(--text-primary);
+  line-height: 1.6;
+  color: var(--color-text-primary);
 }
+
 .content-placeholder {
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   text-align: center;
-  margin-top: 40px;
+  margin-top: var(--space-10);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
 }
 </style>

@@ -2,64 +2,86 @@
   <div v-if="visible" class="dialog-overlay" @mousedown.self="overlayMousedown = true" @click.self="onOverlayClick">
     <div class="dialog">
       <div class="dialog-header">
-        <h3>打开仓库</h3>
-        <button class="close-btn" @click="$emit('close')">&times;</button>
+        <h3 class="dialog-title">{{ t('addRepo.title') }}</h3>
+        <button class="btn btn-icon btn-ghost" @click="$emit('close')">
+          <X :size="16" />
+        </button>
       </div>
       <div class="dialog-body">
         <div class="mode-tabs">
-          <button :class="{ active: mode === 'local' }" @click="mode = 'local'">打开工作副本</button>
-          <button :class="{ active: mode === 'checkout' }" @click="mode = 'checkout'">检出仓库</button>
+          <button
+            :class="{ active: mode === 'local' }"
+            @click="mode = 'local'"
+            class="mode-tab"
+          >
+            <FolderOpen :size="16" />
+            <span>{{ t('addRepo.openWorkingCopy') }}</span>
+          </button>
+          <button
+            :class="{ active: mode === 'checkout' }"
+            @click="mode = 'checkout'"
+            class="mode-tab"
+          >
+            <Download :size="16" />
+            <span>{{ t('addRepo.checkoutRepo') }}</span>
+          </button>
         </div>
 
         <div v-if="mode === 'local'" class="form-section">
-          <label>工作副本路径</label>
+          <label class="form-label">{{ t('addRepo.workingCopyPath') }}</label>
           <div class="input-with-btn">
-            <input v-model="localPath" placeholder="C:\path\to\working\copy" @keyup.enter="openLocal" />
-            <button @click="browseLocalPath" class="browse-btn" title="浏览...">
+            <input v-model="localPath" :placeholder="t('addRepo.pathPlaceholder')" @keyup.enter="openLocal" class="input" />
+            <button @click="browseLocalPath" class="btn btn-secondary" :title="t('addRepo.browse')">
               <FolderOpen :size="16" />
             </button>
           </div>
         </div>
 
         <div v-if="mode === 'checkout'" class="form-section">
-          <label>仓库 URL</label>
-          <input v-model="repoUrl" placeholder="https://svn.example.com/repo/trunk" />
-          <label>检出到</label>
-          <input v-model="checkoutDest" placeholder="C:\path\to\destination" />
+          <label class="form-label">{{ t('addRepo.repoUrl') }}</label>
+          <input v-model="repoUrl" placeholder="https://svn.example.com/repo/trunk" class="input" />
+          <label class="form-label">{{ t('addRepo.checkoutTo') }}</label>
+          <input v-model="checkoutDest" placeholder="C:\path\to\destination" class="input" />
         </div>
 
         <div v-if="recentRepos.length > 0" class="recent-section">
-          <h4>最近打开</h4>
+          <h4 class="recent-title">{{ t('addRepo.recentRepos') }}</h4>
           <div
             v-for="repo in recentRepos"
             :key="repo.path"
             class="recent-item"
             @click="selectRecent(repo.path)"
           >
+            <FolderOpen :size="14" class="recent-icon" />
             <span class="recent-path">{{ repo.path }}</span>
             <span class="recent-date">{{ formatDate(repo.lastOpened) }}</span>
           </div>
         </div>
 
-        <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
+        <div v-if="errorMessage" class="error-message">
+          <AlertCircle :size="14" />
+          <span>{{ errorMessage }}</span>
+        </div>
       </div>
       <div class="dialog-footer">
-        <button @click="$emit('close')" class="cancel-btn">取消</button>
+        <button @click="$emit('close')" class="btn btn-secondary">{{ t('common.cancel') }}</button>
         <button
           v-if="mode === 'local'"
           @click="openLocal"
           :disabled="!localPath.trim()"
-          class="confirm-btn"
+          class="btn btn-primary"
         >
-          打开
+          <FolderOpen :size="14" />
+          <span>{{ t('addRepo.open') }}</span>
         </button>
         <button
           v-if="mode === 'checkout'"
           @click="doCheckout"
           :disabled="!repoUrl.trim() || !checkoutDest.trim()"
-          class="confirm-btn"
+          class="btn btn-primary"
         >
-          检出
+          <Download :size="14" />
+          <span>{{ t('addRepo.checkout') }}</span>
         </button>
       </div>
     </div>
@@ -70,8 +92,9 @@
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
-import { FolderOpen } from 'lucide-vue-next'
+import { FolderOpen, Download, X, AlertCircle } from 'lucide-vue-next'
 import type { RepoEntry } from '../types/config'
+import { t } from '../locales'
 
 defineProps<{
   visible: boolean
@@ -111,7 +134,7 @@ function selectRecent(path: string) {
 
 async function browseLocalPath() {
   const selected = await open({
-    title: '选择工作副本目录',
+    title: t('addRepo.selectDirectory'),
     directory: true,
   })
   if (selected) {
@@ -134,7 +157,7 @@ async function doCheckout() {
     })
     emit('openRepo', checkoutDest.value.trim())
   } catch (e) {
-    errorMessage.value = `检出失败: ${e}`
+    errorMessage.value = `${t('addRepo.checkoutFailed')}: ${e}`
   }
 }
 </script>
@@ -142,193 +165,190 @@ async function doCheckout() {
 <style scoped>
 .dialog-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--overlay-bg);
+  inset: 0;
+  background: var(--color-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 300;
+  z-index: var(--z-modal);
+  animation: fadeIn 0.2s ease;
 }
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .dialog {
-  background: var(--bg-primary);
-  border-radius: 8px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
   width: 480px;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-xl);
+  animation: scaleIn 0.2s ease;
 }
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .dialog-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border-color);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
 }
-.dialog-header h3 {
+
+.dialog-title {
   margin: 0;
-  font-size: 15px;
-  color: var(--text-primary);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text-primary);
 }
-.close-btn {
-  border: none;
-  background: transparent;
-  font-size: 22px;
-  cursor: pointer;
-  color: var(--text-muted);
-}
-.close-btn:hover {
-  color: var(--text-primary);
-}
+
 .dialog-body {
   flex: 1;
-  padding: 16px 20px;
+  padding: var(--space-5);
   overflow: auto;
 }
+
 .mode-tabs {
   display: flex;
-  gap: 4px;
-  margin-bottom: 16px;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
 }
-.mode-tabs button {
+
+.mode-tab {
   flex: 1;
-  padding: 8px 12px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-}
-.mode-tabs button.active {
-  background: var(--accent-color);
-  color: #fff;
-  border-color: var(--accent-color);
-}
-.form-section {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 16px;
-}
-.form-section label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-.form-section input {
-  width: 100%;
-  padding: 7px 10px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  border-radius: 4px;
-  font-size: 13px;
-  box-sizing: border-box;
-}
-.form-section input:focus {
-  border-color: var(--accent-color);
-  outline: none;
-}
-.input-with-btn {
-  display: flex;
-  gap: 8px;
-}
-.input-with-btn input {
-  flex: 1;
-}
-.browse-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 10px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border-radius: 4px;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-input);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  border-radius: var(--radius-md);
   cursor: pointer;
+  font-size: var(--text-base);
+  transition: all var(--transition-fast);
 }
-.browse-btn:hover {
-  background: var(--bg-hover);
+
+.mode-tab:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
+
+.mode-tab.active {
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+  border-color: var(--color-accent);
+}
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.form-label {
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.input-with-btn {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.input-with-btn input {
+  flex: 1;
+}
+
 .recent-section {
-  margin-top: 8px;
+  margin-top: var(--space-3);
 }
-.recent-section h4 {
-  margin: 0 0 8px;
-  font-size: 13px;
-  color: var(--text-secondary);
+
+.recent-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  font-weight: 500;
 }
+
 .recent-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 7px 10px;
-  border: 1px solid var(--border-light);
-  border-radius: 4px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  margin-bottom: 4px;
-  font-size: 13px;
+  margin-bottom: var(--space-1);
+  font-size: var(--text-base);
+  transition: all var(--transition-fast);
 }
+
 .recent-item:hover {
-  background: var(--bg-hover);
-  border-color: var(--border-input);
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-input);
 }
+
+.recent-icon {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
 .recent-path {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
 }
+
 .recent-date {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-left: 12px;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin-left: var(--space-3);
   flex-shrink: 0;
 }
+
 .error-message {
-  margin-top: 8px;
-  padding: 6px 10px;
-  background: var(--diff-del-bg);
-  border: 1px solid var(--danger-color);
-  border-radius: 4px;
-  color: var(--danger-color);
-  font-size: 12px;
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-danger-muted);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
+
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 20px;
-  border-top: 1px solid var(--border-color);
-}
-.cancel-btn {
-  padding: 6px 18px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-}
-.confirm-btn {
-  padding: 6px 18px;
-  border: 1px solid var(--accent-color);
-  background: var(--accent-color);
-  color: #fff;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-}
-.confirm-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.confirm-btn:hover:not(:disabled) {
-  background: var(--accent-hover);
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--color-border);
 }
 </style>

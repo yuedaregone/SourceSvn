@@ -2,12 +2,23 @@
   <div v-if="visible" class="diff-overlay" @mousedown.self="overlayMousedown = true" @click.self="onOverlayClick">
     <div class="diff-modal">
       <div class="diff-header">
-        <span class="diff-filename">{{ t('diffViewer.file') }}: {{ filePath }}</span>
-        <div class="diff-mode-toggle">
-          <button :class="{ active: mode === 'unified' }" @click="mode = 'unified'">{{ t('diffViewer.unifiedView') }}</button>
-          <button :class="{ active: mode === 'side_by_side' }" @click="mode = 'side_by_side'">{{ t('diffViewer.sideBySideView') }}</button>
+        <div class="diff-header-left">
+          <FileIcon :size="16" class="file-icon" />
+          <span class="diff-filename">{{ t('diffViewer.file') }}: {{ filePath }}</span>
         </div>
-        <button class="close-btn" @click="$emit('close')">&times;</button>
+        <div class="diff-mode-toggle">
+          <button :class="{ active: mode === 'unified' }" @click="mode = 'unified'" class="mode-btn">
+            <AlignLeft :size="14" />
+            <span>{{ t('diffViewer.unifiedView') }}</span>
+          </button>
+          <button :class="{ active: mode === 'side_by_side' }" @click="mode = 'side_by_side'" class="mode-btn">
+            <Columns :size="14" />
+            <span>{{ t('diffViewer.sideBySideView') }}</span>
+          </button>
+        </div>
+        <button class="btn btn-icon btn-ghost" @click="$emit('close')">
+          <X :size="16" />
+        </button>
       </div>
       <div class="diff-content">
         <template v-if="mode === 'unified'">
@@ -54,8 +65,14 @@
         </template>
       </div>
       <div class="diff-footer">
-        <button @click="copyDiff" class="footer-btn">{{ t('diffViewer.copyDiff') }}</button>
-        <button @click="$emit('aiReview', diffText)" class="footer-btn ai">{{ t('diffViewer.aiReview') }}</button>
+        <button @click="copyDiff" class="btn btn-secondary">
+          <Copy :size="14" />
+          <span>{{ t('diffViewer.copyDiff') }}</span>
+        </button>
+        <button @click="$emit('aiReview', diffText)" class="btn btn-secondary ai-btn">
+          <Sparkles :size="14" />
+          <span>{{ t('diffViewer.aiReview') }}</span>
+        </button>
       </div>
     </div>
   </div>
@@ -65,6 +82,7 @@
 import { ref, computed } from 'vue'
 import { useToastStore } from '../stores/toastStore'
 import { t } from '../locales'
+import { X, File as FileIcon, AlignLeft, Columns, Copy, Sparkles } from 'lucide-vue-next'
 
 const overlayMousedown = ref(false)
 function onOverlayClick() {
@@ -159,186 +177,236 @@ async function copyDiff() {
 <style scoped>
 .diff-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--overlay-bg);
+  inset: 0;
+  background: var(--color-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 200;
+  z-index: var(--z-overlay);
+  animation: fadeIn 0.2s ease;
 }
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .diff-modal {
-  background: var(--bg-primary);
-  border-radius: 8px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
   width: 85%;
   height: 85%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-xl);
+  animation: scaleIn 0.2s ease;
 }
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .diff-header {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
-  gap: 12px;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  gap: var(--space-3);
 }
-.diff-filename {
-  font-size: 13px;
-  font-family: monospace;
+
+.diff-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   flex: 1;
+  overflow: hidden;
+}
+
+.file-icon {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.diff-filename {
+  font-size: var(--text-base);
+  font-family: var(--font-mono);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
 }
+
 .diff-mode-toggle {
   display: flex;
-  gap: 4px;
+  gap: var(--space-1);
+  background: var(--color-bg-secondary);
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
 }
-.diff-mode-toggle button {
-  padding: 4px 10px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-}
-.diff-mode-toggle button.active {
-  background: var(--accent-color);
-  color: #fff;
-  border-color: var(--accent-color);
-}
-.close-btn {
+
+.mode-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
   border: none;
   background: transparent;
-  font-size: 22px;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  color: var(--text-muted);
+  font-size: var(--text-sm);
+  transition: all var(--transition-fast);
 }
-.close-btn:hover {
-  color: var(--text-primary);
+
+.mode-btn:hover {
+  color: var(--color-text-primary);
 }
+
+.mode-btn.active {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
 .diff-content {
   flex: 1;
   overflow: auto;
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 13px;
-  background: var(--bg-secondary);
+  font-family: var(--font-code);
+  font-size: var(--text-base);
+  background: var(--color-bg-primary);
 }
+
 .diff-table {
   width: 100%;
   border-collapse: collapse;
 }
+
 .diff-table td {
-  padding: 0 8px;
+  padding: 0 var(--space-2);
   white-space: pre;
   vertical-align: top;
   line-height: 1.6;
 }
+
 .line-no {
   width: 50px;
   text-align: right;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   user-select: none;
-  padding-right: 8px;
-  border-right: 1px solid var(--border-color);
+  padding-right: var(--space-2);
+  border-right: 1px solid var(--color-border);
+  font-size: var(--text-sm);
 }
+
 .line-prefix {
   width: 20px;
   text-align: center;
   user-select: none;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
 }
+
 .line-text {
   white-space: pre;
   margin: 0;
 }
+
 .line-add {
-  background: var(--diff-add-bg);
+  background: var(--color-diff-add-bg);
 }
+
 .line-del {
-  background: var(--diff-del-bg);
+  background: var(--color-diff-del-bg);
 }
+
 .line-hunk {
-  background: var(--diff-hunk-bg);
-  color: var(--text-secondary);
+  background: var(--color-diff-hunk-bg);
+  color: var(--color-text-secondary);
 }
+
 .line-add .line-text {
-  color: var(--diff-add-text);
+  color: var(--color-diff-add-text);
 }
+
 .line-del .line-text {
-  color: var(--diff-del-text);
+  color: var(--color-diff-del-text);
 }
+
 .side-by-side {
   display: flex;
   height: 100%;
   overflow: hidden;
 }
+
 .side-col {
   flex: 1;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--border-color);
+  border-right: 1px solid var(--color-border);
   overflow: hidden;
 }
+
 .side-col:last-child {
   border-right: none;
 }
+
 .side-header {
-  padding: 6px 12px;
-  background: var(--bg-tertiary);
-  font-size: 12px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-secondary);
+  font-size: var(--text-sm);
   font-weight: 600;
-  color: var(--text-secondary);
-  border-bottom: 1px solid var(--border-color);
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
+
 .side-lines {
   flex: 1;
   overflow: auto;
 }
+
 .side-line {
   display: flex;
   min-height: 22px;
   line-height: 1.6;
 }
+
 .side-line .line-no {
   min-width: 40px;
-  padding: 0 6px;
+  padding: 0 var(--space-2);
 }
+
 .side-line .line-text {
   flex: 1;
-  padding: 0 8px;
+  padding: 0 var(--space-2);
 }
+
 .diff-footer {
   display: flex;
-  gap: 8px;
-  padding: 10px 16px;
-  border-top: 1px solid var(--border-color);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
 }
-.footer-btn {
-  padding: 6px 14px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
+
+.ai-btn {
+  color: var(--color-purple);
+  border-color: var(--color-purple-muted);
 }
-.footer-btn:hover {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
-}
-.footer-btn.ai {
-  border-color: var(--purple-color);
-  color: var(--purple-color);
-}
-.footer-btn.ai:hover {
-  background: var(--bg-active);
+
+.ai-btn:hover {
+  background: var(--color-purple-muted);
+  border-color: var(--color-purple);
 }
 </style>

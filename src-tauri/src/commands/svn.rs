@@ -1,7 +1,8 @@
 use crate::app_state::AppState;
 use crate::svn;
 use crate::svn::models::{
-    BlameEntry, CommitResult, DiffTarget, DirEntry, FileStatus, LogEntry, RepoInfo, WcLogResult,
+    BlameEntry, ChangedPath, CommitResult, DiffTarget, DirEntry, FileStatus, LogEntry, RepoInfo,
+    WcLogResult,
 };
 use tauri::{AppHandle, State};
 
@@ -43,6 +44,18 @@ pub async fn svn_log_server(
 ) -> Result<WcLogResult, String> {
     let timeout = get_timeout(&state)?;
     svn::log::svn_log_server(&path, limit, timeout)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn svn_log_changed_paths(
+    state: State<'_, AppState>,
+    path: String,
+    revision: u64,
+) -> Result<Vec<ChangedPath>, String> {
+    let timeout = get_timeout(&state)?;
+    svn::log::svn_log_changed_paths(&path, revision, timeout)
         .await
         .map_err(|e| e.to_string())
 }
@@ -191,6 +204,19 @@ pub async fn svn_delete(
 ) -> Result<Vec<String>, String> {
     let timeout = get_timeout(&state)?;
     svn::ops::svn_delete(&path, &paths, keep_local, timeout)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn svn_resolve(
+    state: State<'_, AppState>,
+    path: String,
+    paths: Vec<String>,
+    accept: String,
+) -> Result<Vec<String>, String> {
+    let timeout = get_timeout(&state)?;
+    svn::ops::svn_resolve(&path, &paths, &accept, timeout)
         .await
         .map_err(|e| e.to_string())
 }

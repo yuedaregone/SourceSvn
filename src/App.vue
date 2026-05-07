@@ -3,7 +3,6 @@
     <GlobalTabBar
       :tabs="tabs"
       :activeTabIndex="activeTabIndex"
-      @openSettings="showSettings = true"
       @switchTab="switchTab"
       @closeTab="closeTab"
       @closeOtherTabs="closeOtherTabs"
@@ -12,17 +11,16 @@
     />
     <Toolbar
       v-if="tabs.length > 0"
-      :loading="(currentTabStore?.logLoading || currentTabStore?.changesLoading || currentTabStore?.fileBrowserLoading || currentTabStore?.shelvesLoading || false) || cleanupLoading"
+      :busy="isBusy"
+      :activeView="currentTabStore?.activeView ?? 'log'"
       @pull="handlePull"
       @cleanup="handleCleanup"
       @cleanupOptions="handleCleanup"
       @refresh="handleRefresh"
+      @switchView="switchView"
+      @openSettings="showSettings = true"
     />
     <div class="main-content" v-if="tabs.length > 0">
-      <IconNavBar
-        :activeView="currentTabStore?.activeView ?? 'log'"
-        @switchView="switchView"
-      />
       <div class="view-area">
         <LogView
           v-if="currentTabStore && currentTabStore.activeView === 'log'"
@@ -112,7 +110,6 @@ import { useTabStore } from './stores/tabStore'
 import type { TabInfo, RepoEntry } from './types/config'
 import type { ActiveView } from './types/svn'
 import GlobalTabBar from './components/GlobalTabBar.vue'
-import IconNavBar from './components/IconNavBar.vue'
 import Toolbar from './components/Toolbar.vue'
 import LogView from './views/LogView.vue'
 import LocalChangesView from './views/LocalChangesView.vue'
@@ -147,6 +144,12 @@ const showPullResult = ref(false)
 const pullResult = ref<UpdateResult | null>(null)
 const pulling = ref(false)
 const cleanupLoading = ref(false)
+
+const isBusy = computed(() => {
+  const store = currentTabStore.value
+  return pulling.value || cleanupLoading.value ||
+    store?.logLoading || store?.changesLoading || store?.fileBrowserLoading || store?.shelvesLoading || false
+})
 
 const recentRepos = computed<RepoEntry[]>(() => {
   return configStore.config?.session.recentRepos ?? []
@@ -253,7 +256,7 @@ function stopAutoRefresh() {
 function handleKeydown(e: KeyboardEvent) {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return
   const views: ActiveView[] = ['log', 'localChanges', 'fileBrowser', 'shelve']
-  if (e.ctrlKey && e.key >= '1' && e.key <= '4') {
+  if (e.altKey && e.key >= '1' && e.key <= '4') {
     e.preventDefault()
     switchView(views[parseInt(e.key) - 1])
   } else if (e.key === 'F5') {
@@ -534,65 +537,77 @@ async function handleAiReview(diff: string) {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  font-family: var(--font-ui);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
 }
+
 .main-content {
   display: flex;
   flex: 1;
   overflow: hidden;
 }
+
 .view-area {
   flex: 1;
   overflow: auto;
-  padding: var(--spacing-md);
+  padding: var(--space-3);
 }
+
 .empty-state {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(135deg, var(--color-bg-primary) 0%, var(--color-bg-secondary) 100%);
 }
+
 .empty-content {
   text-align: center;
-  padding: var(--spacing-xl);
+  padding: var(--space-8);
+  animation: fadeIn 0.5s ease;
 }
+
 .empty-icon {
   width: 80px;
   height: 80px;
-  margin: 0 auto var(--spacing-lg);
-  border-radius: 50%;
-  background: var(--bg-tertiary);
+  margin: 0 auto var(--space-5);
+  border-radius: var(--radius-xl);
+  background: var(--color-accent-muted);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent-color);
+  color: var(--color-accent);
 }
+
 .empty-title {
-  font-size: 28px;
+  font-size: var(--text-3xl);
   font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: var(--spacing-sm);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+  font-family: var(--font-mono);
 }
+
 .empty-hint {
-  color: var(--text-muted);
-  font-size: 14px;
-  margin-bottom: var(--spacing-lg);
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  margin-bottom: var(--space-5);
 }
+
 .empty-action {
-  padding: var(--spacing-sm) var(--spacing-xl);
-  background: var(--accent-color);
-  color: white;
+  padding: var(--space-3) var(--space-6);
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--text-md);
   font-weight: 500;
-  transition: background 0.2s;
+  transition: all var(--transition-fast);
 }
+
 .empty-action:hover {
-  background: var(--accent-hover);
+  background: var(--color-accent-hover);
+  box-shadow: var(--shadow-glow);
 }
 </style>
