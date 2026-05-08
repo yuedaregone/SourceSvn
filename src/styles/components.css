@@ -442,12 +442,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
+  min-width: 24px;
+  width: 24px;
   height: 20px;
   font-size: var(--text-xs);
-  font-weight: 700;
+  font-weight: bold;
   border-radius: var(--radius-sm);
   color: white;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .status-badge.modified {

@@ -225,6 +225,7 @@ async function copyDiff() {
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--color-border);
   gap: var(--space-3);
+  flex-shrink: 0;
 }
 
 .diff-header-left {

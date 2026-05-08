@@ -71,22 +71,18 @@ function getIcon(type: string) {
 
 .toast.success {
   border-color: var(--color-success);
-  border-left: 3px solid var(--color-success);
 }
 
 .toast.error {
   border-color: var(--color-danger);
-  border-left: 3px solid var(--color-danger);
 }
 
 .toast.warning {
   border-color: var(--color-warning);
-  border-left: 3px solid var(--color-warning);
 }
 
 .toast.info {
   border-color: var(--color-accent);
-  border-left: 3px solid var(--color-accent);
 }
 
 .toast-icon {

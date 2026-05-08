@@ -41,20 +41,13 @@
     </div>
     <div class="right-panel">
       <div class="diff-area">
-        <!-- 二进制文件大小对比 -->
-        <div v-if="binarySizeDiff" class="binary-diff">
-          <div class="binary-diff-title">{{ t('localChanges.binarySizeDiff') }}</div>
-          <div class="binary-diff-info">
-            <span class="binary-size">{{ formatSize(binarySizeDiff.baseSize) }}</span>
-            <span class="binary-arrow">→</span>
-            <span class="binary-size">{{ formatSize(binarySizeDiff.currentSize) }}</span>
-            <span class="binary-delta" :class="{ positive: delta > 0, negative: delta < 0 }">
-              ({{ delta > 0 ? '+' : '' }}{{ formatSize(delta) }})
-            </span>
-          </div>
+        <!-- 二进制文件提示 -->
+        <div v-if="isBinaryFile" class="binary-diff">
+          <FileIcon :size="24" />
+          <span>{{ t('common.binaryFile') }}</span>
         </div>
         <!-- 代码 diff -->
-        <InlineDiff v-else-if="diffContent" :diff-text="diffContent" :empty-hint="t('common.clickToViewDiff')" />
+        <CodeDiffViewer v-else-if="oldContent !== undefined && newContent !== undefined" :old-string="oldContent" :new-string="newContent" :filename="selectedFile" :empty-hint="t('common.clickToViewDiff')" />
         <!-- 空状态 -->
         <div v-else class="diff-placeholder">
           <GitCompare :size="32" />
@@ -73,6 +66,9 @@
             <button @click.stop="showHistory = !showHistory" class="action-btn icon-btn" :title="t('localChanges.recentCommits')">
               <History :size="16" />
             </button>
+            <button @click="generateAiMessage" :disabled="aiLoading || selectedPaths.size === 0" class="action-btn ai-btn" :title="t('localChanges.aiGenerate')">
+              <Sparkles :size="16" />
+            </button>
             <div v-if="showHistory" class="history-dropdown" @click.stop>
               <div
                 v-for="(msg, i) in recentMessages"
@@ -83,9 +79,6 @@
               <div v-if="recentMessages.length === 0" class="history-empty">{{ t('localChanges.noRecentCommits') }}</div>
             </div>
           </div>
-          <button @click="generateAiMessage" :disabled="aiLoading || selectedPaths.size === 0" class="action-btn ai-btn" :title="t('localChanges.aiGenerate')">
-            <Sparkles :size="16" />
-          </button>
           <button @click="cancelCommit" class="action-btn icon-btn" :title="t('common.cancel')">
             <X :size="16" />
           </button>
@@ -114,7 +107,7 @@ import { useConfigStore } from '../stores/configStore'
 import type { FileStatus, DiffTarget } from '../types/svn'
 import type { MenuItem } from '../components/ContextMenu.vue'
 import ContextMenu from '../components/ContextMenu.vue'
-import InlineDiff from '../components/InlineDiff.vue'
+import CodeDiffViewer from '../components/CodeDiffViewer.vue'
 import { t } from '../locales'
 
 const props = defineProps<{
@@ -135,9 +128,10 @@ const selectedFile = ref('')
 const lastClickIndex = ref(-1)
 const commitMessage = ref('')
 const showHistory = ref(false)
-const diffContent = ref('')
+const oldContent = ref<string | undefined>(undefined)
+const newContent = ref<string | undefined>(undefined)
 const aiLoading = ref(false)
-const binarySizeDiff = ref<{ baseSize: number; currentSize: number } | null>(null)
+const isBinaryFile = ref(false)
 const toast = useToastStore()
 const configStore = useConfigStore()
 
@@ -169,19 +163,6 @@ function toggleAll() {
   }
 }
 
-const delta = computed(() => {
-  if (!binarySizeDiff.value) return 0
-  return binarySizeDiff.value.currentSize - binarySizeDiff.value.baseSize
-})
-
-function formatSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const abs = Math.abs(bytes)
-  if (abs < 1024) return bytes + ' B'
-  if (abs < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-}
-
 function onDragStart(e: MouseEvent | TouchEvent) {
   isDragging.value = true
   startX.value = 'touches' in e ? e.touches[0].clientX : e.clientX
@@ -196,7 +177,7 @@ function onDragMove(e: MouseEvent | TouchEvent) {
   if (!isDragging.value) return
   const currentX = 'touches' in e ? e.touches[0].clientX : e.clientX
   const delta = currentX - startX.value
-  leftPanelWidth.value = Math.max(180, Math.min(500, startWidth.value + delta))
+  leftPanelWidth.value = Math.max(180, Math.min(window.innerWidth - 300, startWidth.value + delta))
 }
 
 function onDragEnd() {
@@ -271,43 +252,57 @@ async function selectFile(file: FileStatus, index: number, event: MouseEvent) {
 
   // 查看 diff（仅 Ctrl+Click 不切换 diff）
   if (!event.ctrlKey && !event.metaKey) {
-    binarySizeDiff.value = null
+    isBinaryFile.value = false
+    isBinaryFile.value = false
+    oldContent.value = undefined
+    newContent.value = undefined
     if (file.isDirectory) {
-      diffContent.value = ''
       toast.info(t('localChanges.directoryNoDiff'))
       return
     }
     try {
-      if (file.status === 'unversioned') {
-        diffContent.value = await invoke<string>('diff_unversioned_file', {
-          repoPath: props.repoPath,
-          filePath: file.path,
-        })
+      if (file.status === 'unversioned' || file.status === 'added') {
+        // 未版本化/新增文件：old 为空，new 为本地文件内容
+        try {
+          oldContent.value = ''
+          newContent.value = await invoke<string>('read_local_file', {
+            repoPath: props.repoPath,
+            filePath: file.path,
+          })
+        } catch {
+          toast.info(t('localChanges.directoryNoDiff'))
+        }
+      } else if (file.status === 'deleted' || file.status === 'missing') {
+        // 已删除/丢失：尝试获取 BASE 内容，目录会失败则显示提示
+        try {
+          oldContent.value = await invoke<string>('svn_cat_in_dir', { repoPath: props.repoPath, filePath: file.path })
+          newContent.value = ''
+        } catch {
+          toast.info(t('localChanges.directoryNoDiff'))
+        }
       } else {
+        // 先用 svn diff 检测是否为二进制文件
         const target: DiffTarget = { type: 'file', data: { path: file.path } }
         const diff = await invoke<string>('svn_diff', {
           path: props.repoPath,
           target,
         })
-        // 检测二进制文件
         if (diff.includes('Binary files') || diff.includes('不能以文本形式显示')) {
-          diffContent.value = ''
-          try {
-            const [baseSize, currentSize] = await invoke<[number, number]>('file_size_diff', {
-              repoPath: props.repoPath,
-              filePath: file.path,
-            })
-            binarySizeDiff.value = { baseSize, currentSize }
-          } catch {
-            binarySizeDiff.value = null
-          }
+          isBinaryFile.value = true
         } else {
-          diffContent.value = diff
+          // 文本文件：分别获取 old（BASE）和 new（本地工作副本）
+          const [old, cur] = await Promise.all([
+            invoke<string>('svn_cat_in_dir', { repoPath: props.repoPath, filePath: file.path }),
+            invoke<string>('read_local_file', { repoPath: props.repoPath, filePath: file.path }),
+          ])
+          oldContent.value = old
+          newContent.value = cur
         }
       }
     } catch (e) {
-      diffContent.value = ''
-      binarySizeDiff.value = null
+      oldContent.value = undefined
+      newContent.value = undefined
+      isBinaryFile.value = false
       toast.error(String(e), 0)
     }
   }
@@ -347,8 +342,9 @@ async function submitCommit() {
     commitMessage.value = ''
     selectedPaths.value = new Set()
     selectedFile.value = ''
-    diffContent.value = ''
-    binarySizeDiff.value = null
+    oldContent.value = undefined
+    newContent.value = undefined
+    isBinaryFile.value = false
     emit('refreshLocalChanges')
     emit('refresh')
   } catch (e) {
@@ -360,8 +356,9 @@ function cancelCommit() {
   commitMessage.value = ''
   selectedPaths.value = new Set()
   selectedFile.value = ''
-  diffContent.value = ''
-  binarySizeDiff.value = null
+  oldContent.value = undefined
+  newContent.value = undefined
+  isBinaryFile.value = false
 }
 
 function openContextMenu(e: MouseEvent, file: FileStatus) {
@@ -503,7 +500,7 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   display: flex;
   flex-direction: column;
   min-width: 180px;
-  max-width: 500px;
+  max-width: 75%;
   overflow: hidden;
 }
 
@@ -537,7 +534,7 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
 
 .right-panel {
   flex: 1;
-  min-width: 0;
+  min-width: 300px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -684,14 +681,14 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
 
 /* 右侧提交区 */
 .commit-section {
-  padding: var(--space-3);
+  padding: var(--space-2);
   border-top: 1px solid var(--color-border);
   flex-shrink: 0;
 }
 
 .commit-input {
   width: 100%;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2);
   border: 1px solid var(--color-border-input);
   border-radius: var(--radius-md);
   font-size: var(--text-base);
@@ -786,6 +783,8 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
 .history-wrapper {
   position: relative;
   margin-right: auto;
+  display: flex;
+  gap: var(--space-2);
 }
 
 .history-dropdown {
@@ -861,47 +860,14 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   gap: var(--space-3);
 }
 
-/* 二进制文件大小对比 */
+/* 二进制文件提示 */
 .binary-diff {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
-  gap: var(--space-4);
-}
-
-.binary-diff-title {
-  font-size: var(--text-base);
-  color: var(--color-text-secondary);
-}
-
-.binary-diff-info {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  font-size: var(--text-xl);
-  font-family: var(--font-mono);
-}
-
-.binary-size {
-  color: var(--color-text-primary);
-}
-
-.binary-arrow {
+  gap: 8px;
   color: var(--color-text-muted);
-}
-
-.binary-delta {
-  font-size: var(--text-md);
-  font-weight: 600;
-}
-
-.binary-delta.positive {
-  color: var(--color-danger);
-}
-
-.binary-delta.negative {
-  color: var(--color-success);
+  margin-top: 40px;
+  font-size: 13px;
 }
 </style>

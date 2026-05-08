@@ -184,7 +184,7 @@ async function doCheckout() {
 }
 
 .dialog {
-  background: var(--color-bg-elevated);
+  background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
   width: 480px;

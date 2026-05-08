@@ -10,12 +10,14 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "vue": "^3.5.13",
     "@tauri-apps/api": "^2.3.0",
-    "@tauri-apps/plugin-shell": "^2.2.1",
     "@tauri-apps/plugin-dialog": "^2.2.1",
+    "@tauri-apps/plugin-shell": "^2.2.1",
+    "highlight.js": "^11.11.1",
     "lucide-vue-next": "^0.468.0",
-    "pinia": "^3.0.2"
+    "pinia": "^3.0.2",
+    "v-code-diff": "^1.13.1",
+    "vue": "^3.5.13"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.5.0",

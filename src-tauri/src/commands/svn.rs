@@ -172,6 +172,38 @@ pub async fn diff_unversioned_file(repo_path: String, file_path: String) -> Resu
 }
 
 #[tauri::command]
+pub async fn read_local_file(repo_path: String, file_path: String) -> Result<String, String> {
+    svn::diff::read_local_file(&repo_path, &file_path)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn svn_cat_at_revision(
+    state: State<'_, AppState>,
+    repo_path: String,
+    file_path: String,
+    revision: String,
+) -> Result<String, String> {
+    let timeout = get_timeout(&state)?;
+    svn::cat::svn_cat_at_revision(&repo_path, &file_path, &revision, timeout)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn svn_cat_in_dir(
+    state: State<'_, AppState>,
+    repo_path: String,
+    file_path: String,
+) -> Result<String, String> {
+    let timeout = get_timeout(&state)?;
+    svn::cat::svn_cat_in_dir(&repo_path, &file_path, timeout)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn svn_revert(
     state: State<'_, AppState>,
     path: String,

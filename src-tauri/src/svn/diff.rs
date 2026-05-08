@@ -54,7 +54,8 @@ pub async fn svn_diff(
     }
 }
 
-pub async fn diff_unversioned_file(repo_path: &str, file_path: &str) -> Result<String, AppError> {
+/// 读取本地文件内容（复用 diff_unversioned_file 的读文件+解码逻辑）
+pub async fn read_local_file_content(repo_path: &str, file_path: &str) -> Result<String, AppError> {
     let full_path = Path::new(repo_path).join(file_path);
     let bytes = tokio::fs::read(&full_path).await.map_err(|e| {
         AppError::Fs(format!(
@@ -63,8 +64,15 @@ pub async fn diff_unversioned_file(repo_path: &str, file_path: &str) -> Result<S
             e
         ))
     })?;
+    Ok(crate::svn::decode_bytes(&bytes))
+}
 
-    let content = crate::svn::decode_bytes(&bytes);
+pub async fn read_local_file(repo_path: &str, file_path: &str) -> Result<String, AppError> {
+    read_local_file_content(repo_path, file_path).await
+}
+
+pub async fn diff_unversioned_file(repo_path: &str, file_path: &str) -> Result<String, AppError> {
+    let content = read_local_file_content(repo_path, file_path).await?;
 
     let filename = Path::new(file_path)
         .file_name()

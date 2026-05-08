@@ -94,7 +94,7 @@
             <FileIcon :size="24" />
             <span>{{ t('common.binaryFile') }}</span>
           </div>
-          <InlineDiff v-else-if="fileDiffText" :diff-text="fileDiffText" :empty-hint="t('common.viewDiff')" />
+          <CodeDiffViewer v-else-if="oldContent !== undefined && newContent !== undefined" :old-string="oldContent" :new-string="newContent" :filename="selectedFilePath || undefined" :empty-hint="t('common.viewDiff')" />
           <div v-else class="diff-placeholder">{{ t('common.viewDiff') }}</div>
         </div>
       </div>
@@ -124,7 +124,7 @@ import { useToastStore } from '../stores/toastStore'
 import type { LogEntry, ChangedPath } from '../types/svn'
 import type { MenuItem } from '../components/ContextMenu.vue'
 import ContextMenu from '../components/ContextMenu.vue'
-import InlineDiff from '../components/InlineDiff.vue'
+import CodeDiffViewer from '../components/CodeDiffViewer.vue'
 import { t } from '../locales'
 
 const props = defineProps<{
@@ -164,7 +164,8 @@ const expandedRevision = ref<number | null>(null)
 const currentPage = ref(1)
 const pageSize = 50
 const selectedFilePath = ref<string | null>(null)
-const fileDiffText = ref('')
+const oldContent = ref<string | undefined>(undefined)
+const newContent = ref<string | undefined>(undefined)
 const fileDiffLoading = ref(false)
 const isBinaryFile = ref(false)
 const detailPanelHeight = ref(300)
@@ -231,7 +232,8 @@ async function toggleDetail(revision: number) {
   } else {
     expandedRevision.value = revision
     selectedFilePath.value = null
-    fileDiffText.value = ''
+    oldContent.value = undefined
+    newContent.value = undefined
     isBinaryFile.value = false
     fetchedChangedPaths.value = null
 
@@ -257,7 +259,8 @@ async function toggleDetail(revision: number) {
 function closeDetail() {
   expandedRevision.value = null
   selectedFilePath.value = null
-  fileDiffText.value = ''
+  oldContent.value = undefined
+  newContent.value = undefined
   isBinaryFile.value = false
   fetchedChangedPaths.value = null
 }
@@ -324,22 +327,36 @@ async function selectFile(filePath: string) {
   if (selectedFilePath.value === filePath) return
   if (expandedRevision.value == null) return
   selectedFilePath.value = filePath
-  fileDiffText.value = ''
+  oldContent.value = undefined
+  newContent.value = undefined
   isBinaryFile.value = false
   fileDiffLoading.value = true
   try {
-    const result = await invoke<string>('svn_diff', {
+    const rev = String(expandedRevision.value)
+    const baseRev = String(expandedRevision.value - 1)
+    // 先用 svn diff 检测是否为二进制文件
+    const diff = await invoke<string>('svn_diff', {
       path: props.repoPath,
-      target: { type: 'fileAtRevision', data: { path: filePath, revision: String(expandedRevision.value), baseRevision: String(expandedRevision.value - 1) } },
+      target: { type: 'fileAtRevision', data: { path: filePath, revision: rev, baseRevision: baseRev } },
     })
-    if (result.includes('Binary files')) {
+    if (diff.includes('Binary files')) {
       isBinaryFile.value = true
     } else {
-      fileDiffText.value = result
+      // 文本文件：获取两个版本的内容
+      const [old, cur] = await Promise.all([
+        invoke<string>('svn_cat_at_revision', { repoPath: props.repoPath, filePath, revision: baseRev }),
+        invoke<string>('svn_cat_at_revision', { repoPath: props.repoPath, filePath, revision: rev }),
+      ])
+      oldContent.value = old
+      newContent.value = cur
     }
   } catch (error) {
     const err = error as Error
-    fileDiffText.value = t('common.error') + ': ' + (err.message || String(error))
+    oldContent.value = undefined
+    newContent.value = undefined
+    // 显示错误信息
+    oldContent.value = ''
+    newContent.value = t('common.error') + ': ' + (err.message || String(error))
   } finally {
     fileDiffLoading.value = false
   }

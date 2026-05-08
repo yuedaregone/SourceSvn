@@ -147,7 +147,7 @@ function statusClass(status: string) {
 }
 
 .modal {
-  background: var(--color-bg-elevated);
+  background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
   width: min(720px, 80vw);

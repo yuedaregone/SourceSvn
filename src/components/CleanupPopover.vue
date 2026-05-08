@@ -86,33 +86,33 @@ function toggle(key: keyof CleanupConfig, event: Event) {
   padding-top: 60px;
 }
 .cleanup-popover {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   width: 340px;
 }
 .popover-header {
-  padding: 10px 14px;
+  padding: var(--space-3) var(--space-4);
   font-size: 13px;
   font-weight: 600;
-  border-bottom: 1px solid var(--border-color);
-  color: var(--text-primary);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-primary);
 }
 .popover-body {
-  padding: 8px 14px;
+  padding: var(--space-2) var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
 }
 .option-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 0;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
   cursor: pointer;
   font-size: 12px;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
 }
 .option-item input[type='checkbox'] {
   margin: 0;
@@ -124,19 +124,19 @@ function toggle(key: keyof CleanupConfig, event: Event) {
 .option-flag {
   font-family: monospace;
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--color-text-secondary);
 }
 .popover-footer {
-  padding: 10px 14px;
-  border-top: 1px solid var(--border-color);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
   display: flex;
   justify-content: flex-end;
-  gap: 6px;
+  gap: var(--space-2);
 }
 .btn-execute {
-  padding: 4px 14px;
-  border: 1px solid var(--accent-color);
-  background: var(--accent-color);
+  padding: var(--space-1) var(--space-4);
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
   color: #fff;
   border-radius: 4px;
   cursor: pointer;
@@ -146,16 +146,16 @@ function toggle(key: keyof CleanupConfig, event: Event) {
   opacity: 0.9;
 }
 .btn-cancel {
-  padding: 4px 14px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  padding: var(--space-1) var(--space-4);
+  border: 1px solid var(--color-border-input);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
 }
 .btn-cancel:hover {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 </style>
