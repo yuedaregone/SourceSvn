@@ -3,7 +3,6 @@ use crate::svn::models::BlameEntry;
 use quick_xml::de::from_str;
 use serde::Deserialize;
 use std::path::Path;
-use tokio::io::AsyncReadExt;
 
 /// Walk up from `path` to find the nearest directory containing `.svn`.
 pub fn find_svn_root(path: &str) -> Result<String, AppError> {
@@ -17,7 +16,7 @@ pub fn find_svn_root(path: &str) -> Result<String, AppError> {
         }
         dir = parent;
     }
-    Err(AppError::Svn(format!(
+    Err(AppError::svn_other(format!(
         "No .svn directory found from {}",
         path
     )))
@@ -134,10 +133,10 @@ struct BlameEntryRaw {
 
 fn parse_blame_xml(xml: &str) -> Result<Vec<BlameEntry>, AppError> {
     let blame: BlameXml = from_str(xml)
-        .map_err(|e| AppError::Svn(format!("Failed to parse blame XML: {}", e)))?;
+        .map_err(|e| AppError::svn_parse(format!("Failed to parse blame XML: {}", e)))?;
 
     let target = blame.target.ok_or_else(|| {
-        AppError::Svn("No target found in blame XML".to_string())
+        AppError::svn_parse("No target found in blame XML")
     })?;
 
     let entries = target.entries.unwrap_or_default();
@@ -167,7 +166,7 @@ pub async fn svn_resolve(
         "theirs" => "theirs-conflict",
         "mine" => "mine-conflict",
         "working" => "working",
-        _ => return Err(AppError::Svn(format!("Invalid accept strategy: {}", accept))),
+        _ => return Err(AppError::svn_other(format!("Invalid accept strategy: {}", accept))),
     };
     let mut args = vec!["resolve", "--accept", accept_arg, "-R"];
     for p in paths {
@@ -190,27 +189,14 @@ pub async fn file_size_diff(
         .unwrap_or(0);
 
     // base 版本大小：svn cat 输出字节数
-    let child = tokio::process::Command::new(crate::svn::find_svn_executable()?)
-        .args(["cat", file_path])
-        .current_dir(repo_path)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| AppError::Svn(format!("Failed to spawn svn cat: {}", e)))?;
-
-    let output = tokio::time::timeout(
-        std::time::Duration::from_secs(timeout_secs),
-        async {
-            let mut stdout = child.stdout.ok_or_else(|| AppError::Svn("No stdout".into()))?;
-            let mut buf = Vec::new();
-            stdout.read_to_end(&mut buf).await.map_err(|e| AppError::Svn(e.to_string()))?;
-            Ok::<u64, AppError>(buf.len() as u64)
-        },
+    let output = crate::svn::run_svn_async_in_dir(
+        &["cat", file_path],
+        timeout_secs,
+        Some(repo_path),
     )
-    .await
-    .map_err(|_| AppError::Svn("svn cat timed out".into()))??;
+    .await?;
 
-    Ok((output, current_size))
+    Ok((output.len() as u64, current_size))
 }
 
 #[cfg(test)]

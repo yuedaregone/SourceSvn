@@ -37,7 +37,7 @@ struct WcStatus {
 
 pub fn parse_status_xml(xml: &str) -> Result<Vec<FileStatus>, AppError> {
     let status: StatusXml = from_str(xml)
-        .map_err(|e| AppError::Svn(format!("Failed to parse status XML: {}", e)))?;
+        .map_err(|e| AppError::svn_parse(format!("Failed to parse status XML: {}", e)))?;
 
     let targets = status.targets.unwrap_or_default();
 

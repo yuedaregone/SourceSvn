@@ -45,7 +45,7 @@ pub async fn run_svn_async_in_dir(
     let svn_path =
         tokio::task::spawn_blocking(|| find_svn_executable())
             .await
-            .map_err(|e| AppError::Svn(format!("Task join error: {}", e)))??;
+            .map_err(|e| AppError::svn_io(format!("Task join error: {}", e)))??;
 
     let mut cmd = Command::new(&svn_path);
     cmd.args(args);
@@ -65,25 +65,56 @@ async fn run_cmd_output(
     mut cmd: Command,
     timeout_secs: u64,
 ) -> Result<String, AppError> {
-    let output = tokio::time::timeout(Duration::from_secs(timeout_secs), cmd.output())
-        .await
-        .map_err(|_| {
-            AppError::Svn(format!(
-                "SVN command timed out after {} seconds",
-                timeout_secs
-            ))
-        })?
-        .map_err(|e| AppError::Svn(format!("Failed to execute svn: {}", e)))?;
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::piped());
 
-    if !output.status.success() {
-        let stderr = decode_bytes(&output.stderr);
-        return Err(AppError::Svn(format!(
-            "SVN command failed: {}",
-            stderr.trim()
-        )));
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| AppError::svn_spawn(e.to_string()))?;
+
+    let mut stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| AppError::svn_io("Failed to capture svn stdout"))?;
+    let mut stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| AppError::svn_io("Failed to capture svn stderr"))?;
+
+    // 并发读取 stdout 和 stderr，避免管道缓冲区满时死锁
+    let read_output = async {
+        let stdout_handle = tokio::spawn(async move {
+            let mut buf = Vec::new();
+            tokio::io::AsyncReadExt::read_to_end(&mut stdout, &mut buf).await?;
+            Ok::<Vec<u8>, std::io::Error>(buf)
+        });
+        let stderr_handle = tokio::spawn(async move {
+            let mut buf = Vec::new();
+            tokio::io::AsyncReadExt::read_to_end(&mut stderr, &mut buf).await?;
+            Ok::<Vec<u8>, std::io::Error>(buf)
+        });
+
+        let stdout_buf = stdout_handle.await??;
+        let stderr_buf = stderr_handle.await??;
+        let status = child.wait().await?;
+        Ok::<_, std::io::Error>((status, stdout_buf, stderr_buf))
+    };
+
+    match tokio::time::timeout(Duration::from_secs(timeout_secs), read_output).await {
+        Ok(Ok((status, stdout, stderr))) => {
+            if !status.success() {
+                let code = status.code().unwrap_or(-1);
+                return Err(AppError::svn_exit_code(code, decode_bytes(&stderr)));
+            }
+            Ok(decode_bytes(&stdout))
+        }
+        Ok(Err(e)) => Err(AppError::svn_io(e.to_string())),
+        Err(_) => {
+            let _ = child.kill().await;
+            let _ = child.wait().await;
+            Err(AppError::svn_timeout(timeout_secs))
+        }
     }
-
-    Ok(decode_bytes(&output.stdout))
 }
 
 static SVN_PATH: Mutex<Option<String>> = Mutex::new(None);
@@ -122,7 +153,7 @@ pub fn find_svn_executable() -> Result<String, AppError> {
         c.creation_flags(0x08000000); // CREATE_NO_WINDOW
         c.output()
     }
-        .map_err(|e| AppError::Svn(format!("Failed to find svn: {}", e)))?;
+        .map_err(|e| AppError::svn_io(format!("Failed to find svn: {}", e)))?;
 
     if output.status.success() {
         let stdout = decode_bytes(&output.stdout);
@@ -136,7 +167,5 @@ pub fn find_svn_executable() -> Result<String, AppError> {
         }
     }
 
-    Err(AppError::Svn(
-        "SVN command line tool not found. Please install SVN client or configure path.".to_string(),
-    ))
+    Err(AppError::svn_not_found())
 }

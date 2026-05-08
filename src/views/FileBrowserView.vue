@@ -79,7 +79,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { RefreshCw, ExternalLink, FolderOpen, Copy, History, Terminal, ChevronRight, Folder as FolderIcon, File as FileIcon, Loader2, Sparkles, FileText } from 'lucide-vue-next'
+import { ExternalLink, FolderOpen, Copy, History, Terminal, ChevronRight, Folder as FolderIcon, File as FileIcon, Loader2, Sparkles, FileText } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
 import type { DirEntry } from '../types/svn'
 import type { MenuItem } from '../components/ContextMenu.vue'

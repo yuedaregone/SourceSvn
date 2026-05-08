@@ -59,7 +59,7 @@
           v-model="commitMessage"
           :placeholder="t('localChanges.commitMessage')"
           rows="2"
-          class="commit-input"
+          class="textarea textarea--no-resize"
         ></textarea>
         <div class="commit-actions">
           <div class="history-wrapper">
@@ -135,10 +135,23 @@ const isBinaryFile = ref(false)
 const toast = useToastStore()
 const configStore = useConfigStore()
 
-const leftPanelWidth = ref(350)
+const leftPanelWidth = ref(loadPanelWidth())
 const isDragging = ref(false)
 const startX = ref(0)
 const startWidth = ref(0)
+
+function loadPanelWidth(): number {
+  const saved = localStorage.getItem('localChanges.leftPanelWidth')
+  if (saved) {
+    const w = parseInt(saved, 10)
+    if (!isNaN(w) && w >= 180 && w <= 800) return w
+  }
+  return 420
+}
+
+function savePanelWidth(width: number) {
+  localStorage.setItem('localChanges.leftPanelWidth', String(width))
+}
 
 const recentMessages = computed(() =>
   (props.commitHistory ?? []).slice(0, 5),
@@ -182,6 +195,7 @@ function onDragMove(e: MouseEvent | TouchEvent) {
 
 function onDragEnd() {
   isDragging.value = false
+  savePanelWidth(leftPanelWidth.value)
   document.removeEventListener('mousemove', onDragMove)
   document.removeEventListener('mouseup', onDragEnd)
   document.removeEventListener('touchmove', onDragMove)
@@ -684,26 +698,6 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   padding: var(--space-2);
   border-top: 1px solid var(--color-border);
   flex-shrink: 0;
-}
-
-.commit-input {
-  width: 100%;
-  padding: var(--space-2);
-  border: 1px solid var(--color-border-input);
-  border-radius: var(--radius-md);
-  font-size: var(--text-base);
-  resize: none;
-  font-family: var(--font-ui);
-  box-sizing: border-box;
-  background: var(--color-bg-primary);
-  color: var(--color-text-primary);
-  transition: all var(--transition-fast);
-}
-
-.commit-input:focus {
-  border-color: var(--color-accent);
-  outline: none;
-  box-shadow: 0 0 0 3px var(--color-accent-muted);
 }
 
 .commit-actions {

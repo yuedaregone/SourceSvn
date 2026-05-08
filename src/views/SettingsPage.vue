@@ -133,11 +133,11 @@
             </div>
             <div class="setting-row">
               <label class="setting-label">{{ t('settings.commitPrompt') }}</label>
-              <textarea v-model="config.ai.commitPrompt" rows="4" class="textarea" :placeholder="t('settings.promptPlaceholder')"></textarea>
+              <textarea v-model="config.ai.commitPrompt" rows="4" class="textarea textarea--no-resize" :placeholder="t('settings.promptPlaceholder')"></textarea>
             </div>
             <div class="setting-row">
               <label class="setting-label">{{ t('settings.reviewPrompt') }}</label>
-              <textarea v-model="config.ai.reviewPrompt" rows="4" class="textarea" :placeholder="t('settings.promptPlaceholder')"></textarea>
+              <textarea v-model="config.ai.reviewPrompt" rows="4" class="textarea textarea--no-resize" :placeholder="t('settings.promptPlaceholder')"></textarea>
             </div>
           </div>
 
@@ -390,7 +390,7 @@ watch(() => config.behavior.autoRefreshSecs, () => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
   width: 640px;
-  max-height: 80vh;
+  height: 520px;
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-xl);

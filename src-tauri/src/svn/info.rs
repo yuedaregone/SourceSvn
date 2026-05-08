@@ -40,11 +40,11 @@ struct InfoCommit {
 
 fn parse_info_xml(xml: &str) -> Result<RepoInfo, AppError> {
     let info_xml: InfoXml =
-        from_str(xml).map_err(|e| AppError::Svn(format!("Failed to parse info XML: {}", e)))?;
+        from_str(xml).map_err(|e| AppError::svn_parse(format!("Failed to parse info XML: {}", e)))?;
 
     let entry = info_xml
         .entry
-        .ok_or_else(|| AppError::Svn("No entry found in info XML".to_string()))?;
+        .ok_or_else(|| AppError::svn_parse("No entry found in info XML"))?;
 
     let url = entry.url.unwrap_or_default();
     let revision = entry
@@ -95,10 +95,10 @@ pub struct RepoInfoParsed {
 
 pub fn parse_info_for_log(xml: &str) -> Result<RepoInfoParsed, AppError> {
     let info_xml: InfoXml =
-        quick_xml::de::from_str(xml).map_err(|e| AppError::Svn(format!("Failed to parse info XML: {}", e)))?;
+        quick_xml::de::from_str(xml).map_err(|e| AppError::svn_parse(format!("Failed to parse info XML: {}", e)))?;
     let entry = info_xml
         .entry
-        .ok_or_else(|| AppError::Svn("No entry found in info XML".to_string()))?;
+        .ok_or_else(|| AppError::svn_parse("No entry found in info XML"))?;
     let url = entry.url.unwrap_or_default();
     let root = entry
         .repository

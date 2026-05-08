@@ -116,7 +116,7 @@ pub async fn shelve_save(
 
     let diff = crate::svn::run_svn_async(&["diff", repo_path], timeout_secs)
         .await
-        .map_err(|e| AppError::Svn(format!("Failed to get diff: {}", e)))?;
+        .map_err(|e| AppError::svn_other(format!("Failed to get diff: {}", e)))?;
 
     if diff.trim().is_empty() {
         return Err(AppError::Fs("No changes to shelve".to_string()));

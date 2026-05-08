@@ -36,7 +36,7 @@ struct ListCommit {
 
 fn parse_list_xml(xml: &str) -> Result<Vec<DirEntry>, AppError> {
     let list_xml: ListXml =
-        from_str(xml).map_err(|e| AppError::Svn(format!("Failed to parse list XML: {}", e)))?;
+        from_str(xml).map_err(|e| AppError::svn_parse(format!("Failed to parse list XML: {}", e)))?;
 
     let entries: Vec<ListItem> = list_xml
         .lists

@@ -166,12 +166,17 @@
   width: 100%;
   resize: vertical;
   min-height: 60px;
+  box-sizing: border-box;
 }
 
 .textarea:focus {
   outline: none;
   border-color: var(--color-accent);
   box-shadow: 0 0 0 3px var(--color-accent-muted);
+}
+
+.textarea--no-resize {
+  resize: none;
 }
 
 /* 复选框 */

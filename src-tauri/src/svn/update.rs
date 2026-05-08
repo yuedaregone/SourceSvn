@@ -89,12 +89,12 @@ pub async fn svn_update_streaming(path: &str, timeout_secs: u64, app: &AppHandle
 
     let mut child = cmd
         .spawn()
-        .map_err(|e| AppError::Svn(format!("Failed to execute svn: {}", e)))?;
+        .map_err(|e| AppError::svn_spawn(e.to_string()))?;
 
     let mut stdout = child
         .stdout
         .take()
-        .ok_or_else(|| AppError::Svn("Failed to capture svn stdout".to_string()))?;
+        .ok_or_else(|| AppError::svn_io("Failed to capture svn stdout"))?;
 
     let mut buf = Vec::new();
     let mut found_files = false;
@@ -102,7 +102,7 @@ pub async fn svn_update_streaming(path: &str, timeout_secs: u64, app: &AppHandle
     let result = tokio::time::timeout(Duration::from_secs(timeout_secs), async {
         let mut tmp = [0u8; 4096];
         loop {
-            let n = stdout.read(&mut tmp).await.map_err(|e| AppError::Svn(format!("Failed to read svn output: {}", e)))?;
+            let n = stdout.read(&mut tmp).await.map_err(|e| AppError::svn_io(format!("Failed to read svn output: {}", e)))?;
             if n == 0 {
                 // Flush remaining bytes
                 if !buf.is_empty() {
@@ -133,11 +133,12 @@ pub async fn svn_update_streaming(path: &str, timeout_secs: u64, app: &AppHandle
             let status = child
                 .wait()
                 .await
-                .map_err(|e| AppError::Svn(format!("Failed to wait for svn: {}", e)))?;
+                .map_err(|e| AppError::svn_io(format!("Failed to wait for svn: {}", e)))?;
             if !status.success() {
-                let msg = format!("SVN command failed with exit code: {}", status);
+                let code = status.code().unwrap_or(-1);
+                let msg = format!("SVN command failed with exit code: {}", code);
                 let _ = app.emit("svn_update_progress", SvnUpdateEvent::Error { message: msg.clone() });
-                return Err(AppError::Svn(msg));
+                return Err(AppError::svn_exit_code(code, msg));
             }
             if !found_files {
                 let _ = app.emit("svn_update_progress", SvnUpdateEvent::UpToDate { revision: 0 });
@@ -149,10 +150,11 @@ pub async fn svn_update_streaming(path: &str, timeout_secs: u64, app: &AppHandle
             Err(e)
         }
         Err(_) => {
-            let msg = format!("SVN command timed out after {} seconds", timeout_secs);
-            let _ = app.emit("svn_update_progress", SvnUpdateEvent::Error { message: msg.clone() });
+            let _ = app.emit("svn_update_progress", SvnUpdateEvent::Error {
+                message: format!("SVN command timed out after {} seconds", timeout_secs)
+            });
             let _ = child.kill().await;
-            Err(AppError::Svn(msg))
+            Err(AppError::svn_timeout(timeout_secs))
         }
     }
 }

@@ -38,7 +38,9 @@
 
 <script setup lang="ts">
 import { computed, ref, nextTick } from 'vue'
-import { CodeDiff, hljs } from 'v-code-diff'
+import { CodeDiff } from 'v-code-diff'
+import vCodeDiff from 'v-code-diff'
+const hljs = vCodeDiff.hljs
 import { ChevronUp, ChevronDown } from 'lucide-vue-next'
 import { t } from '../locales'
 

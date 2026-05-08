@@ -168,11 +168,21 @@ const oldContent = ref<string | undefined>(undefined)
 const newContent = ref<string | undefined>(undefined)
 const fileDiffLoading = ref(false)
 const isBinaryFile = ref(false)
-const detailPanelHeight = ref(300)
+
+function loadNumber(key: string, fallback: number, min: number, max: number): number {
+  const saved = localStorage.getItem(key)
+  if (saved) {
+    const v = parseInt(saved, 10)
+    if (!isNaN(v) && v >= min && v <= max) return v
+  }
+  return fallback
+}
+
+const detailPanelHeight = ref(loadNumber('logView.detailPanelHeight', 450, 100, 600))
 const isDragging = ref(false)
 const startY = ref(0)
 const startHeight = ref(0)
-const splitLeftWidth = ref(400)
+const splitLeftWidth = ref(loadNumber('logView.splitLeftWidth', 400, 150, 600))
 const isHDragging = ref(false)
 const hStartX = ref(0)
 const hStartWidth = ref(0)
@@ -285,6 +295,7 @@ function onDragMove(e: MouseEvent | TouchEvent) {
 
 function onDragEnd() {
   isDragging.value = false
+  localStorage.setItem('logView.detailPanelHeight', String(detailPanelHeight.value))
   document.removeEventListener('mousemove', onDragMove)
   document.removeEventListener('mouseup', onDragEnd)
   document.removeEventListener('touchmove', onDragMove)
@@ -311,6 +322,7 @@ function onHDragMove(e: MouseEvent | TouchEvent) {
 
 function onHDragEnd() {
   isHDragging.value = false
+  localStorage.setItem('logView.splitLeftWidth', String(splitLeftWidth.value))
   document.removeEventListener('mousemove', onHDragMove)
   document.removeEventListener('mouseup', onHDragEnd)
   document.removeEventListener('touchmove', onHDragMove)
@@ -926,10 +938,12 @@ tr.non-local:hover {
 .detail-right {
   flex: 1;
   min-width: 0;
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-bg-primary);
+  display: flex;
+  flex-direction: column;
 }
 
 .diff-loading,

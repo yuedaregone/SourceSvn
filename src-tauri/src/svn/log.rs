@@ -40,7 +40,7 @@ struct PathEntryXml {
 
 pub fn parse_log_xml(xml: &str) -> Result<Vec<LogEntry>, AppError> {
     let log: LogXml = from_str(xml)
-        .map_err(|e| AppError::Svn(format!("Failed to parse log XML: {}", e)))?;
+        .map_err(|e| AppError::svn_parse(format!("Failed to parse log XML: {}", e)))?;
 
     let entries = log.entries.unwrap_or_default();
 
