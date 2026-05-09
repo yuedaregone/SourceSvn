@@ -137,7 +137,6 @@ SourceSvn/
 ├── src/                          # Vue 前端
 │   ├── components/
 │   │   ├── GlobalTabBar.vue      # 顶部页签栏
-│   │   ├── IconNavBar.vue        # 极窄图标导航
 │   │   ├── Toolbar.vue           # 仓库操作工具栏
 │   │   ├── DiffViewer.vue        # 差异查看器
 │   │   └── AiReviewPanel.vue     # AI 审查面板

@@ -309,9 +309,8 @@ AI 请求失败时自动重试：
 ```
 App.vue
 ├── GlobalTabBar.vue          — 顶部页签管理，全局设置按钮（打开设置模态框）
-├── Toolbar.vue               — 仓库级操作按钮（拉取/提交/刷新等）
-├── IconNavBar.vue            — 极窄图标导航（36-48px），4个图标对应 ActiveView
-└── <component :is="currentView"> — 右侧功能视图区，仅一个实例，切换页签时刷新数据
+├── Toolbar.vue               — 仓库级操作按钮（拉取/提交/刷新/视图切换等）
+└── <component :is="currentView"> — 功能视图区，仅一个实例，切换页签时刷新数据
     ├── LogView.vue
     ├── LocalChangesView.vue
     ├── FileBrowserView.vue   — 支持通过版本选择器切换版本
