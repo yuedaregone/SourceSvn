@@ -33,6 +33,8 @@ struct WcStatus {
     copy_from_url: Option<String>,
     #[serde(rename = "@kind")]
     kind: Option<String>,
+    #[serde(rename = "@tree-conflicted")]
+    tree_conflicted: Option<String>,
 }
 
 pub fn parse_status_xml(xml: &str) -> Result<Vec<FileStatus>, AppError> {
@@ -50,14 +52,18 @@ pub fn parse_status_xml(xml: &str) -> Result<Vec<FileStatus>, AppError> {
     Ok(all_entries
         .into_iter()
         .map(|entry| {
-            let status_type = match entry.wc_status.item.as_str() {
-                "modified" => FileStatusType::Modified,
-                "added" => FileStatusType::Added,
-                "deleted" => FileStatusType::Deleted,
-                "unversioned" => FileStatusType::Unversioned,
-                "missing" => FileStatusType::Missing,
-                "conflicted" => FileStatusType::Conflicted,
-                _ => FileStatusType::Unversioned,
+            let status_type = if entry.wc_status.tree_conflicted.as_deref() == Some("true") {
+                FileStatusType::Conflicted
+            } else {
+                match entry.wc_status.item.as_str() {
+                    "modified" => FileStatusType::Modified,
+                    "added" => FileStatusType::Added,
+                    "deleted" => FileStatusType::Deleted,
+                    "unversioned" => FileStatusType::Unversioned,
+                    "missing" => FileStatusType::Missing,
+                    "conflicted" => FileStatusType::Conflicted,
+                    _ => FileStatusType::Unversioned,
+                }
             };
 
             FileStatus {

@@ -484,6 +484,14 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
       label: t('contextMenu.copyPath'),
       icon: Copy,
       action: () => {
+        navigator.clipboard.writeText(displayPath(file.path))
+        toast.success(t('contextMenu.copySuccess'))
+      },
+    },
+    {
+      label: t('contextMenu.copyAbsPath'),
+      icon: Copy,
+      action: () => {
         navigator.clipboard.writeText(file.path)
         toast.success(t('contextMenu.copySuccess'))
       },

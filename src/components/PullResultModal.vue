@@ -46,6 +46,7 @@
               v-for="file in sortedFiles"
               :key="file.path"
               :class="{ 'row-conflict': file.status === 'C' }"
+              @contextmenu.prevent="openContextMenu($event, file)"
             >
               <td />
               <td>
@@ -71,15 +72,26 @@
       </div>
     </div>
   </div>
+  <ContextMenu
+    :visible="ctxMenu.visible"
+    :x="ctxMenu.x"
+    :y="ctxMenu.y"
+    :items="ctxMenuItems"
+    @close="ctxMenu.visible = false"
+  />
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { Download, X } from 'lucide-vue-next'
-import type { UpdateResult } from '../types/svn'
+import { ref, computed, watch } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
+import { Download, X, ExternalLink, FolderOpen, Copy, GitMerge } from 'lucide-vue-next'
+import type { UpdateResult, UpdateFileItem } from '../types/svn'
+import type { MenuItem } from './ContextMenu.vue'
+import ContextMenu from './ContextMenu.vue'
+import { useToastStore } from '../stores/toastStore'
 import { t } from '../locales'
 
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; refresh: [] }>()
 const overlayMousedown = ref(false)
 function onOverlayClick() {
   if (!overlayMousedown.value) return
@@ -91,31 +103,112 @@ const props = defineProps<{
   visible: boolean
   result: UpdateResult | null
   pulling: boolean
+  repoPath: string
 }>()
+
+const toast = useToastStore()
+
+// Local mutable copy of files for status updates after resolve
+const localFiles = ref<UpdateFileItem[]>([])
+watch(() => props.result?.files, (files) => {
+  localFiles.value = files ? [...files] : []
+}, { immediate: true })
+
+const ctxMenu = ref({ visible: false, x: 0, y: 0, file: null as UpdateFileItem | null })
+
+function openContextMenu(e: MouseEvent, file: UpdateFileItem) {
+  ctxMenu.value = { visible: true, x: e.clientX, y: e.clientY, file }
+}
+
+function fullPath(relPath: string): string {
+  return `${props.repoPath}\\${relPath.replace(/^\//, '').replace(/\//g, '\\')}`
+}
+
+const ctxMenuItems = computed<MenuItem[]>(() => {
+  const file = ctxMenu.value.file
+  if (!file) return []
+  const absPath = fullPath(file.path)
+  const isConflict = file.status === 'C'
+
+  return [
+    {
+      label: t('contextMenu.openWithEditor'),
+      icon: ExternalLink,
+      action: async () => {
+        try { await invoke('open_file_with_default_app', { path: absPath }) } catch (e) { toast.error(String(e)) }
+      },
+    },
+    {
+      label: t('contextMenu.showInExplorer'),
+      icon: FolderOpen,
+      action: async () => {
+        try { await invoke('open_in_system', { path: absPath }) } catch (e) { toast.error(String(e)) }
+      },
+    },
+    { divider: true },
+    {
+      label: t('contextMenu.copyPath'),
+      icon: Copy,
+      action: () => {
+        navigator.clipboard.writeText(file.path)
+        toast.success(t('contextMenu.copySuccess'))
+      },
+    },
+    { divider: true },
+    {
+      label: t('contextMenu.acceptTheirs'),
+      icon: GitMerge,
+      disabled: !isConflict,
+      action: async () => {
+        try {
+          await invoke('svn_resolve', { path: props.repoPath, paths: [file.path], accept: 'theirs' })
+          const f = localFiles.value.find(f => f.path === file.path)
+          if (f) f.status = 'M'
+          toast.success(t('contextMenu.acceptTheirs'))
+          emit('refresh')
+        } catch (e) { toast.error(String(e)) }
+      },
+    },
+    {
+      label: t('contextMenu.acceptMine'),
+      icon: GitMerge,
+      disabled: !isConflict,
+      action: async () => {
+        try {
+          await invoke('svn_resolve', { path: props.repoPath, paths: [file.path], accept: 'mine' })
+          const f = localFiles.value.find(f => f.path === file.path)
+          if (f) f.status = 'M'
+          toast.success(t('contextMenu.acceptMine'))
+          emit('refresh')
+        } catch (e) { toast.error(String(e)) }
+      },
+    },
+  ]
+})
 
 const STATUS_ORDER: Record<string, number> = { C: 0, M: 1, A: 2, U: 2 }
 
 const sortedFiles = computed(() => {
   if (!props.result) return []
-  return [...props.result.files].sort((a, b) => {
+  return [...localFiles.value].sort((a, b) => {
     const sa = STATUS_ORDER[a.status] ?? 9
     const sb = STATUS_ORDER[b.status] ?? 9
     if (sa !== sb) return sa - sb
     // 同状态内：后接收的排上面（反转原始顺序）
-    const ia = props.result!.files.indexOf(a)
-    const ib = props.result!.files.indexOf(b)
+    const ia = localFiles.value.indexOf(a)
+    const ib = localFiles.value.indexOf(b)
     return ib - ia
   })
 })
 
 const conflictCount = computed(
-  () => props.result?.files.filter((f) => f.status === 'C').length ?? 0,
+  () => localFiles.value.filter((f) => f.status === 'C').length ?? 0,
 )
 const mergedCount = computed(
-  () => props.result?.files.filter((f) => f.status === 'M').length ?? 0,
+  () => localFiles.value.filter((f) => f.status === 'M').length ?? 0,
 )
 const updatedCount = computed(
-  () => props.result?.files.filter((f) => f.status === 'A' || f.status === 'U').length ?? 0,
+  () => localFiles.value.filter((f) => f.status === 'A' || f.status === 'U').length ?? 0,
 )
 
 function statusClass(status: string) {

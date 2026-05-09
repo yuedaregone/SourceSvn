@@ -95,7 +95,9 @@
       :visible="showPullResult"
       :result="pullResult"
       :pulling="pulling"
+      :repoPath="currentTabStore?.repoPath ?? ''"
       @close="showPullResult = false"
+      @refresh="refreshCurrentView()"
     />
     <Toast />
   </div>

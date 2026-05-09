@@ -290,7 +290,12 @@ pub fn delete_files_from_disk(path: String, paths: Vec<String>) -> Result<Vec<St
         if !canonical.starts_with(&base) {
             return Err(format!("Path traversal rejected: {}", p));
         }
-        match std::fs::remove_file(&canonical) {
+        let result = if canonical.is_dir() {
+            std::fs::remove_dir_all(&canonical)
+        } else {
+            std::fs::remove_file(&canonical)
+        };
+        match result {
             Ok(()) => deleted.push(p.clone()),
             Err(e) => log::warn!("Failed to delete {}: {}", canonical.display(), e),
         }
@@ -306,28 +311,46 @@ pub fn find_svn_root(path: String) -> Result<String, String> {
 #[tauri::command]
 pub fn open_in_system(path: String) -> Result<(), String> {
     let p = std::path::Path::new(&path);
-    let cmd = if p.is_dir() {
+    if p.is_dir() {
         #[cfg(target_os = "windows")]
-        { ("explorer", vec![path]) }
+        std::process::Command::new("explorer")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open: {}", e))?;
         #[cfg(target_os = "macos")]
-        { ("open", vec![path]) }
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open: {}", e))?;
         #[cfg(target_os = "linux")]
-        { ("xdg-open", vec![path]) }
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open: {}", e))?;
     } else {
         #[cfg(target_os = "windows")]
-        { ("explorer", vec![format!("/select,{}", path)]) }
+        {
+            use std::os::windows::process::CommandExt;
+            let mut cmd = std::process::Command::new("explorer");
+            cmd.creation_flags(0x08000000);
+            cmd.raw_arg(format!("/select,\"{}\"", path));
+            cmd.spawn().map_err(|e| format!("Failed to open: {}", e))?;
+        }
         #[cfg(target_os = "macos")]
-        { ("open", vec!["-R".to_string(), path]) }
+        std::process::Command::new("open")
+            .arg("-R")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open: {}", e))?;
         #[cfg(target_os = "linux")]
         {
             let parent = p.parent().unwrap_or(p);
-            ("xdg-open", vec![parent.to_string_lossy().into_owned()])
+            std::process::Command::new("xdg-open")
+                .arg(parent)
+                .spawn()
+                .map_err(|e| format!("Failed to open: {}", e))?;
         }
-    };
-    std::process::Command::new(cmd.0)
-        .args(&cmd.1)
-        .spawn()
-        .map_err(|e| format!("Failed to open: {}", e))?;
+    }
     Ok(())
 }
 
