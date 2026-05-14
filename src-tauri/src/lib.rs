@@ -89,3 +89,36 @@ pub fn run() {
         std::process::exit(1);
     }
 }
+
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+    use crate::hook::*;
+
+    #[tokio::test]
+    async fn test_hook_integration() {
+        let state = AppState::new();
+
+        let config = HooksConfig {
+            enabled: true,
+            handlers: vec![
+                HookHandlerConfig {
+                    name: "test-handler".to_string(),
+                    hook_type: HookType::PostCommit,
+                    script_path: "/path/to/script.js".to_string(),
+                    enabled: true,
+                },
+            ],
+        };
+
+        assert!(config.enabled);
+        assert_eq!(config.handlers.len(), 1);
+        assert_eq!(config.handlers[0].name, "test-handler");
+
+        let context = HookContext::new(HookType::PostCommit, "/test/path".to_string());
+        let event = HookEvent::new(HookType::PostCommit, context);
+        let results = state.hook_event_bus.emit(event).await;
+
+        assert!(results.is_empty());
+    }
+}
