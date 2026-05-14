@@ -5,6 +5,9 @@ pub mod logger;
 pub mod handler;
 pub mod script;
 
+#[cfg(test)]
+mod tests;
+
 pub use types::*;
 pub use config::*;
 pub use event_bus::{DefaultEventBus, EventBus};
