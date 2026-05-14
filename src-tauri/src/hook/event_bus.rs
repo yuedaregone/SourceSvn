@@ -9,9 +9,9 @@ use super::types::*;
 
 #[async_trait]
 pub trait EventBus: Send + Sync {
-    async fn emit(&self, event: HookEvent);
-    fn subscribe(&self, hook_type: HookType, handler: Box<dyn HookHandler>);
-    fn unsubscribe(&self, hook_type: HookType, handler_name: &str);
+    async fn emit(&self, event: HookEvent) -> Vec<Result<HookResult, HookError>>;
+    async fn subscribe(&self, hook_type: HookType, handler: Arc<dyn HookHandler>);
+    async fn unsubscribe(&self, hook_type: HookType, handler_name: &str);
 }
 
 #[async_trait]
@@ -22,7 +22,7 @@ pub trait HookHandler: Send + Sync {
 }
 
 pub struct DefaultEventBus {
-    handlers: Arc<RwLock<HashMap<HookType, Vec<Box<dyn HookHandler>>>>>,
+    handlers: Arc<RwLock<HashMap<HookType, Vec<Arc<dyn HookHandler>>>>>,
     logger: Arc<dyn Logger>,
 }
 
@@ -37,35 +37,45 @@ impl DefaultEventBus {
 
 #[async_trait]
 impl EventBus for DefaultEventBus {
-    async fn emit(&self, event: HookEvent) {
-        let handlers = self.handlers.read().await;
-        if let Some(handlers) = handlers.get(&event.hook_type) {
-            for handler in handlers {
-                let start = std::time::Instant::now();
-                self.logger.log_hook_start(&event.hook_type, handler.name());
+    async fn emit(&self, event: HookEvent) -> Vec<Result<HookResult, HookError>> {
+        let handlers = {
+            let guard = self.handlers.read().await;
+            guard.get(&event.hook_type).cloned()
+        };
 
-                match handler.execute(&event.context).await {
-                    Ok(_) => {
-                        let duration = start.elapsed();
-                        self.logger
-                            .log_hook_end(&event.hook_type, handler.name(), duration);
-                    }
-                    Err(e) => {
-                        self.logger
-                            .log_hook_error(&event.hook_type, handler.name(), &e);
-                    }
+        let Some(handlers) = handlers else {
+            return Vec::new();
+        };
+
+        let mut results = Vec::with_capacity(handlers.len());
+        for handler in &handlers {
+            let start = std::time::Instant::now();
+            self.logger.log_hook_start(&event.hook_type, handler.name());
+
+            match handler.execute(&event.context).await {
+                Ok(result) => {
+                    let duration = start.elapsed();
+                    self.logger
+                        .log_hook_end(&event.hook_type, handler.name(), duration);
+                    results.push(Ok(result));
+                }
+                Err(e) => {
+                    self.logger
+                        .log_hook_error(&event.hook_type, handler.name(), &e);
+                    results.push(Err(e));
                 }
             }
         }
+        results
     }
 
-    fn subscribe(&self, hook_type: HookType, handler: Box<dyn HookHandler>) {
-        let mut handlers = self.handlers.blocking_write();
+    async fn subscribe(&self, hook_type: HookType, handler: Arc<dyn HookHandler>) {
+        let mut handlers = self.handlers.write().await;
         handlers.entry(hook_type).or_default().push(handler);
     }
 
-    fn unsubscribe(&self, hook_type: HookType, handler_name: &str) {
-        let mut handlers = self.handlers.blocking_write();
+    async fn unsubscribe(&self, hook_type: HookType, handler_name: &str) {
+        let mut handlers = self.handlers.write().await;
         if let Some(handlers) = handlers.get_mut(&hook_type) {
             handlers.retain(|h| h.name() != handler_name);
         }
@@ -176,106 +186,97 @@ mod tests {
         (Arc::new(logger), start, end, error)
     }
 
-    #[test]
-    fn test_emit_calls_subscribed_handler() {
+    #[tokio::test]
+    async fn test_emit_calls_subscribed_handler() {
         let (logger, _, _, _) = make_logger();
         let bus = DefaultEventBus::new(logger);
         let call_count = Arc::new(AtomicUsize::new(0));
-        let handler = Box::new(MockHandler::new("test", call_count.clone()));
+        let handler: Arc<dyn HookHandler> = Arc::new(MockHandler::new("test", call_count.clone()));
 
-        bus.subscribe(HookType::PreCommit, handler);
+        bus.subscribe(HookType::PreCommit, handler).await;
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let context = HookContext::new(HookType::PreCommit, "/repo".into());
-            let event = HookEvent::new(HookType::PreCommit, context);
-            bus.emit(event).await;
-        });
+        let context = HookContext::new(HookType::PreCommit, "/repo".into());
+        let event = HookEvent::new(HookType::PreCommit, context);
+        let results = bus.emit(event).await;
 
         assert_eq!(call_count.load(Ordering::SeqCst), 1);
+        assert_eq!(results.len(), 1);
+        assert!(results[0].is_ok());
     }
 
-    #[test]
-    fn test_emit_does_not_call_handler_for_different_hook_type() {
+    #[tokio::test]
+    async fn test_emit_does_not_call_handler_for_different_hook_type() {
         let (logger, _, _, _) = make_logger();
         let bus = DefaultEventBus::new(logger);
         let call_count = Arc::new(AtomicUsize::new(0));
-        let handler = Box::new(MockHandler::new("test", call_count.clone()));
+        let handler: Arc<dyn HookHandler> = Arc::new(MockHandler::new("test", call_count.clone()));
 
-        bus.subscribe(HookType::PreCommit, handler);
+        bus.subscribe(HookType::PreCommit, handler).await;
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let context = HookContext::new(HookType::PostCommit, "/repo".into());
-            let event = HookEvent::new(HookType::PostCommit, context);
-            bus.emit(event).await;
-        });
+        let context = HookContext::new(HookType::PostCommit, "/repo".into());
+        let event = HookEvent::new(HookType::PostCommit, context);
+        let results = bus.emit(event).await;
 
         assert_eq!(call_count.load(Ordering::SeqCst), 0);
+        assert!(results.is_empty());
     }
 
-    #[test]
-    fn test_unsubscribe_removes_handler() {
+    #[tokio::test]
+    async fn test_unsubscribe_removes_handler() {
         let (logger, _, _, _) = make_logger();
         let bus = DefaultEventBus::new(logger);
         let call_count = Arc::new(AtomicUsize::new(0));
-        let handler = Box::new(MockHandler::new("test", call_count.clone()));
+        let handler: Arc<dyn HookHandler> = Arc::new(MockHandler::new("test", call_count.clone()));
 
-        bus.subscribe(HookType::PreCommit, handler);
-        bus.unsubscribe(HookType::PreCommit, "test");
+        bus.subscribe(HookType::PreCommit, handler).await;
+        bus.unsubscribe(HookType::PreCommit, "test").await;
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let context = HookContext::new(HookType::PreCommit, "/repo".into());
-            let event = HookEvent::new(HookType::PreCommit, context);
-            bus.emit(event).await;
-        });
+        let context = HookContext::new(HookType::PreCommit, "/repo".into());
+        let event = HookEvent::new(HookType::PreCommit, context);
+        let results = bus.emit(event).await;
 
         assert_eq!(call_count.load(Ordering::SeqCst), 0);
+        assert!(results.is_empty());
     }
 
-    #[test]
-    fn test_emit_logs_success() {
+    #[tokio::test]
+    async fn test_emit_logs_success() {
         let (logger, start_count, end_count, error_count) = make_logger();
         let bus = DefaultEventBus::new(logger);
-        let handler = Box::new(MockHandler::new("test", Arc::new(AtomicUsize::new(0))));
+        let handler: Arc<dyn HookHandler> = Arc::new(MockHandler::new("test", Arc::new(AtomicUsize::new(0))));
 
-        bus.subscribe(HookType::PreCommit, handler);
+        bus.subscribe(HookType::PreCommit, handler).await;
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let context = HookContext::new(HookType::PreCommit, "/repo".into());
-            let event = HookEvent::new(HookType::PreCommit, context);
-            bus.emit(event).await;
-        });
+        let context = HookContext::new(HookType::PreCommit, "/repo".into());
+        let event = HookEvent::new(HookType::PreCommit, context);
+        bus.emit(event).await;
 
         assert_eq!(start_count.load(Ordering::SeqCst), 1);
         assert_eq!(end_count.load(Ordering::SeqCst), 1);
         assert_eq!(error_count.load(Ordering::SeqCst), 0);
     }
 
-    #[test]
-    fn test_emit_logs_error_on_failure() {
+    #[tokio::test]
+    async fn test_emit_logs_error_on_failure() {
         let (logger, start_count, end_count, error_count) = make_logger();
         let bus = DefaultEventBus::new(logger);
-        let handler = Box::new(FailingHandler);
+        let handler: Arc<dyn HookHandler> = Arc::new(FailingHandler);
 
-        bus.subscribe(HookType::PreCommit, handler);
+        bus.subscribe(HookType::PreCommit, handler).await;
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let context = HookContext::new(HookType::PreCommit, "/repo".into());
-            let event = HookEvent::new(HookType::PreCommit, context);
-            bus.emit(event).await;
-        });
+        let context = HookContext::new(HookType::PreCommit, "/repo".into());
+        let event = HookEvent::new(HookType::PreCommit, context);
+        let results = bus.emit(event).await;
 
         assert_eq!(start_count.load(Ordering::SeqCst), 1);
         assert_eq!(end_count.load(Ordering::SeqCst), 0);
         assert_eq!(error_count.load(Ordering::SeqCst), 1);
+        assert_eq!(results.len(), 1);
+        assert!(results[0].is_err());
     }
 
-    #[test]
-    fn test_multiple_handlers_for_same_type() {
+    #[tokio::test]
+    async fn test_multiple_handlers_for_same_type() {
         let (logger, _, _, _) = make_logger();
         let bus = DefaultEventBus::new(logger);
         let count1 = Arc::new(AtomicUsize::new(0));
@@ -283,21 +284,21 @@ mod tests {
 
         bus.subscribe(
             HookType::PreCommit,
-            Box::new(MockHandler::new("h1", count1.clone())),
-        );
+            Arc::new(MockHandler::new("h1", count1.clone())),
+        ).await;
         bus.subscribe(
             HookType::PreCommit,
-            Box::new(MockHandler::new("h2", count2.clone())),
-        );
+            Arc::new(MockHandler::new("h2", count2.clone())),
+        ).await;
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let context = HookContext::new(HookType::PreCommit, "/repo".into());
-            let event = HookEvent::new(HookType::PreCommit, context);
-            bus.emit(event).await;
-        });
+        let context = HookContext::new(HookType::PreCommit, "/repo".into());
+        let event = HookEvent::new(HookType::PreCommit, context);
+        let results = bus.emit(event).await;
 
         assert_eq!(count1.load(Ordering::SeqCst), 1);
         assert_eq!(count2.load(Ordering::SeqCst), 1);
+        assert_eq!(results.len(), 2);
+        assert!(results[0].is_ok());
+        assert!(results[1].is_ok());
     }
 }
