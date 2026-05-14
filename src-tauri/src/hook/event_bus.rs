@@ -179,6 +179,7 @@ mod tests {
         ) {
             self.error_count.fetch_add(1, Ordering::SeqCst);
         }
+        fn log_hook_cancel(&self, _hook_type: &HookType, _handler_name: &str, _reason: &str) {}
     }
 
     fn make_logger() -> (Arc<dyn Logger>, Arc<AtomicUsize>, Arc<AtomicUsize>, Arc<AtomicUsize>) {
