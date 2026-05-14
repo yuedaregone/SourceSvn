@@ -41,12 +41,19 @@ impl FileLogger {
         if let Some(parent) = self.log_path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
-        if let Ok(mut file) = OpenOptions::new()
+        let file_result = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&self.log_path)
-        {
-            let _ = writeln!(file, "{}", message);
+            .open(&self.log_path);
+        match file_result {
+            Ok(mut file) => {
+                if writeln!(file, "{}", message).is_err() {
+                    eprintln!("[log write error] {}", message);
+                }
+            }
+            Err(_) => {
+                eprintln!("[log file error] {}", message);
+            }
         }
     }
 }
