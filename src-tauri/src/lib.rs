@@ -73,6 +73,14 @@ pub fn run() {
             commands::shelve::shelve_delete,
             commands::config::get_config,
             commands::config::set_config,
+            commands::hook::hook_subscribe,
+            commands::hook::hook_unsubscribe,
+            commands::hook::hook_emit,
+            commands::hook::hook_load_config,
+            commands::hook::hook_save_config,
+            commands::hook::hook_add_handler,
+            commands::hook::hook_remove_handler,
+            commands::hook::hook_update_handler,
         ])
         .run(tauri::generate_context!());
 
