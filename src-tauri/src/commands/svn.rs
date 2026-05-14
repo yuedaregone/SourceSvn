@@ -1,4 +1,5 @@
 use crate::app_state::AppState;
+use crate::hook::{HookContext, HookEvent, HookType};
 use crate::svn;
 use crate::svn::models::{
     BlameEntry, ChangedPath, CommitResult, DiffTarget, DirEntry, FileStatus, LogEntry, RepoInfo,
@@ -79,10 +80,23 @@ pub async fn svn_commit(
     message: String,
     files: Vec<String>,
 ) -> Result<CommitResult, String> {
+    let mut context = HookContext::new(HookType::PreCommit, path.clone());
+    context = context.with_data("message".to_string(), serde_json::Value::String(message.clone()));
+    context = context.with_data("files".to_string(), serde_json::to_value(&files).unwrap());
+    let event = HookEvent::new(HookType::PreCommit, context);
+    state.hook_event_bus.emit(event).await;
+
     let timeout = get_timeout(&state)?;
-    svn::commit::svn_commit(&path, &message, &files, timeout)
+    let result = svn::commit::svn_commit(&path, &message, &files, timeout)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    let mut context = HookContext::new(HookType::PostCommit, path.clone());
+    context = context.with_data("revision".to_string(), serde_json::Value::Number(result.revision.into()));
+    let event = HookEvent::new(HookType::PostCommit, context);
+    state.hook_event_bus.emit(event).await;
+
+    Ok(result)
 }
 
 #[tauri::command]
@@ -124,10 +138,20 @@ pub async fn svn_checkout(
 
 #[tauri::command]
 pub async fn svn_update(state: State<'_, AppState>, path: String, app_handle: AppHandle) -> Result<(), String> {
+    let context = HookContext::new(HookType::PreUpdate, path.clone());
+    let event = HookEvent::new(HookType::PreUpdate, context);
+    state.hook_event_bus.emit(event).await;
+
     let timeout = get_timeout(&state)?;
     svn::update::svn_update_streaming(&path, timeout, &app_handle)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    let context = HookContext::new(HookType::PostUpdate, path.clone());
+    let event = HookEvent::new(HookType::PostUpdate, context);
+    state.hook_event_bus.emit(event).await;
+
+    Ok(())
 }
 
 #[tauri::command]
