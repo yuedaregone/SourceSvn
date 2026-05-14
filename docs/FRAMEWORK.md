@@ -351,4 +351,90 @@ App.vue
 - **Shelve 方案**：基于补丁文件，存储在全局目录避免污染工作副本。
 - **扩展性**：自定义功能（如关联单号）通过未来扩展系统实现，不侵入核心。
 - **错误处理**：`AppError` 结构化错误（`{ kind, message }`）+ toast，前端可按 `kind` 差异化处理。
-- **视图数据更新**：MVP 使用“切换即请求”，确保数据新鲜度，后期优化缓存。
+- **视图数据更新**：MVP 使用”切换即请求”，确保数据新鲜度，后期优化缓存。
+
+---
+
+## 七、Hook机制
+
+### 7.1 架构概述
+
+Hook机制基于事件总线架构，支持异步执行、通知/日志记录和拦截/修改操作。
+
+```
+事件总线 (EventBus)
+    │
+    ├── PreCommit / PostCommit
+    ├── PreUpdate / PostUpdate
+    ├── StatusChange / ConflictDetected
+    └── PreCheckout / PostCheckout / PreMerge / PostMerge
+```
+
+**模块文件结构**：
+
+```
+src-tauri/src/hook/
+├── mod.rs          — 模块入口，导出公共接口
+├── types.rs        — 核心类型（HookType, HookContext, HookResult, HookError）
+├── event_bus.rs    — EventBus trait 和 DefaultEventBus 实现
+├── config.rs       — HooksConfig 和 FileHookConfigManager
+├── logger.rs       — Logger trait 和 FileLogger
+├── handler.rs      — ScriptHookHandler 实现
+├── script.rs       — ScriptExecutorManager（外部脚本执行）
+└── tests.rs        — 单元测试
+```
+
+### 7.2 核心组件
+
+- **EventBus**: 事件总线，负责分发hook事件，支持 subscribe/unsubscribe/emit
+- **HookHandler**: hook处理程序接口，async execute 方法
+- **HookConfigManager**: 配置管理器，支持 TOML 格式的配置文件
+- **Logger**: 日志记录器，支持文件日志和 stderr fallback
+- **ScriptExecutor**: 脚本执行器，通过 tokio::process::Command 调用外部脚本
+
+### 7.3 支持的Hook类型
+
+| Hook类型 | 触发时机 | 用途 |
+|----------|----------|------|
+| `PreCommit` | 提交前 | 可修改提交信息、取消提交 |
+| `PostCommit` | 提交后 | 通知、日志记录 |
+| `PreUpdate` | 更新前 | 可取消更新 |
+| `PostUpdate` | 更新后 | 通知、日志记录 |
+| `StatusChange` | 文件状态变更时 | 自动处理 |
+| `ConflictDetected` | 冲突发生时 | 自动通知 |
+| `PreCheckout` | 检出前 | 可取消检出 |
+| `PostCheckout` | 检出后 | 通知 |
+| `PreMerge` | 合并前 | 可取消合并 |
+| `PostMerge` | 合并后 | 通知 |
+
+### 7.4 配置文件
+
+配置文件路径：`~/.sourcesvn/hooks.toml`
+
+```toml
+[hooks]
+enabled = true
+
+[[hooks.handlers]]
+name = “commit-notifier”
+type = “PostCommit”
+script_path = “~/.sourcesvn/hooks/commit-notifier.js”
+enabled = true
+
+[[hooks.handlers]]
+name = “update-logger”
+type = “PostUpdate”
+script_path = “~/.sourcesvn/hooks/update-logger.js”
+enabled = true
+```
+
+### 7.5 日志文件
+
+日志文件路径：`~/.sourcesvn/logs/hooks.log`
+
+### 7.6 设计说明
+
+- **通知型Hook**: 当前实现中，hook以通知/日志记录为主，hook执行失败不阻塞主流程
+- **异步执行**: 所有hook异步执行，不阻塞UI
+- **错误处理**: hook执行失败时通过toast通知用户，错误详情记录到日志文件
+- **扩展性**: 支持JavaScript/TypeScript脚本和外部可执行文件
