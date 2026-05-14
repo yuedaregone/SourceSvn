@@ -3724,6 +3724,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-dialog",
  "tauri-plugin-shell",
+ "thiserror 2.0.18",
  "tokio",
  "toml 0.8.2",
 ]

@@ -3,6 +3,7 @@ pub mod app_state;
 pub mod common;
 pub mod commands;
 pub mod config;
+pub mod hook;
 pub mod shelve;
 pub mod svn;
 
