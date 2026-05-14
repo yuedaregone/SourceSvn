@@ -34,7 +34,7 @@ impl HookType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HookContext {
     pub hook_type: HookType,
     pub repo_path: String,
@@ -65,7 +65,7 @@ pub enum HookResult {
     Modify(HashMap<String, serde_json::Value>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HookEvent {
     pub hook_type: HookType,
     pub context: HookContext,
