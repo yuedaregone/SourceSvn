@@ -6,3 +6,4 @@ pub mod handler;
 pub mod script;
 
 pub use types::*;
+pub use config::*;
