@@ -20,6 +20,14 @@ fn parse_single_update_line(line: &str) -> Option<SvnUpdateEvent> {
         }
     }
 
+    if let Some(rest) = trimmed.strip_prefix("At revision ") {
+        if let Some(rev_str) = rest.strip_suffix('.') {
+            if let Ok(rev) = rev_str.parse::<u64>() {
+                return Some(SvnUpdateEvent::Done { revision: rev });
+            }
+        }
+    }
+
     if trimmed.starts_with("Updating")
         || trimmed.starts_with("Updated")
         || trimmed.starts_with("At ")
@@ -60,13 +68,14 @@ fn parse_single_update_line(line: &str) -> Option<SvnUpdateEvent> {
     None
 }
 
-fn emit_update_event(app: &AppHandle, event: &SvnUpdateEvent, found_files: &mut bool) {
+fn emit_update_event(app: &AppHandle, event: &SvnUpdateEvent, found_files: &mut bool, last_revision: &mut u64) {
     match event {
         SvnUpdateEvent::File { .. } => {
             *found_files = true;
             let _ = app.emit("svn_update_progress", event);
         }
-        SvnUpdateEvent::Done { .. } => {
+        SvnUpdateEvent::Done { revision } => {
+            *last_revision = *revision;
             let _ = app.emit("svn_update_progress", event);
         }
         _ => {}
@@ -74,7 +83,7 @@ fn emit_update_event(app: &AppHandle, event: &SvnUpdateEvent, found_files: &mut 
 }
 
 /// Stream svn update, emitting file events in real time.
-pub async fn svn_update_streaming(path: &str, timeout_secs: u64, app: &AppHandle) -> Result<(), AppError> {
+pub async fn svn_update_streaming(path: &str, timeout_secs: u64, app: &AppHandle) -> Result<u64, AppError> {
     let svn_path = crate::svn::find_svn_executable()?;
 
     let mut cmd = Command::new(&svn_path);
@@ -98,17 +107,17 @@ pub async fn svn_update_streaming(path: &str, timeout_secs: u64, app: &AppHandle
 
     let mut buf = Vec::new();
     let mut found_files = false;
+    let mut last_revision: u64 = 0;
 
     let result = tokio::time::timeout(Duration::from_secs(timeout_secs), async {
         let mut tmp = [0u8; 4096];
         loop {
             let n = stdout.read(&mut tmp).await.map_err(|e| AppError::svn_io(format!("Failed to read svn output: {}", e)))?;
             if n == 0 {
-                // Flush remaining bytes
                 if !buf.is_empty() {
                     let line = crate::svn::decode_bytes(&buf);
                     if let Some(event) = parse_single_update_line(&line) {
-                        emit_update_event(app, &event, &mut found_files);
+                        emit_update_event(app, &event, &mut found_files, &mut last_revision);
                     }
                     buf.clear();
                 }
@@ -120,7 +129,7 @@ pub async fn svn_update_streaming(path: &str, timeout_secs: u64, app: &AppHandle
                 buf.drain(..=pos);
                 let line = crate::svn::decode_bytes(&line_bytes);
                 if let Some(event) = parse_single_update_line(&line) {
-                    emit_update_event(app, &event, &mut found_files);
+                    emit_update_event(app, &event, &mut found_files, &mut last_revision);
                 }
             }
         }
@@ -141,9 +150,9 @@ pub async fn svn_update_streaming(path: &str, timeout_secs: u64, app: &AppHandle
                 return Err(AppError::svn_exit_code(code, msg));
             }
             if !found_files {
-                let _ = app.emit("svn_update_progress", SvnUpdateEvent::UpToDate { revision: 0 });
+                let _ = app.emit("svn_update_progress", SvnUpdateEvent::UpToDate { revision: last_revision });
             }
-            Ok(())
+            Ok(last_revision)
         }
         Ok(Err(e)) => {
             let _ = app.emit("svn_update_progress", SvnUpdateEvent::Error { message: e.to_string() });

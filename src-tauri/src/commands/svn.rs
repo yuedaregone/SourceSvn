@@ -143,11 +143,12 @@ pub async fn svn_update(state: State<'_, AppState>, path: String, app_handle: Ap
     state.hook_event_bus.emit(event).await;
 
     let timeout = get_timeout(&state)?;
-    svn::update::svn_update_streaming(&path, timeout, &app_handle)
+    let revision = svn::update::svn_update_streaming(&path, timeout, &app_handle)
         .await
         .map_err(|e| e.to_string())?;
 
-    let context = HookContext::new(HookType::PostUpdate, path.clone());
+    let mut context = HookContext::new(HookType::PostUpdate, path.clone());
+    context = context.with_data("revision".to_string(), serde_json::Value::Number(revision.into()));
     let event = HookEvent::new(HookType::PostUpdate, context);
     state.hook_event_bus.emit(event).await;
 
