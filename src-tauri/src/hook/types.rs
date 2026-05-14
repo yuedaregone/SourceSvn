@@ -58,7 +58,7 @@ impl HookContext {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum HookResult {
     Continue,
     Cancel,
