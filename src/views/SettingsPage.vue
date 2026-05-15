@@ -141,6 +141,11 @@
             </div>
           </div>
 
+          <!-- Hook -->
+          <div v-if="activeTab === 'hook'" class="tab-panel tab-panel--hook">
+            <HookConfig />
+          </div>
+
           <!-- Advanced -->
           <div v-if="activeTab === 'advanced'" class="tab-panel">
             <div class="setting-row">
@@ -194,7 +199,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { AppConfig } from '../types/config'
 import { t } from '../locales'
-import { X, Settings, GitBranch, Sparkles, Shield, FolderOpen, RotateCcw, Search, Check, Save } from 'lucide-vue-next'
+import { X, Settings, GitBranch, Sparkles, Shield, FolderOpen, RotateCcw, Search, Check, Save, Terminal } from 'lucide-vue-next'
+import HookConfig from '../components/hook/HookConfig.vue'
 
 const emit = defineEmits<{
   close: []
@@ -216,6 +222,7 @@ const tabs = computed(() => [
   { key: 'general', label: t('settings.general'), icon: Settings },
   { key: 'svn', label: 'SVN', icon: GitBranch },
   { key: 'ai', label: 'AI', icon: Sparkles },
+  { key: 'hook', label: 'Hook', icon: Terminal },
   { key: 'advanced', label: t('settings.advanced'), icon: Shield },
 ])
 
@@ -474,6 +481,11 @@ watch(() => config.behavior.autoRefreshSecs, () => {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+.tab-panel--hook {
+  height: 500px;
+  gap: 0;
 }
 
 .setting-row {
