@@ -68,6 +68,69 @@ fn parse_single_update_line(line: &str) -> Option<SvnUpdateEvent> {
     None
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::svn::models::SvnUpdateEvent;
+
+    #[test]
+    fn test_parse_at_revision() {
+        let result = parse_single_update_line("At revision 12345.");
+        match result {
+            Some(SvnUpdateEvent::Done { revision }) => assert_eq!(revision, 12345),
+            other => panic!("expected Done(12345), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_at_revision_with_whitespace() {
+        let result = parse_single_update_line("  At revision 99.  ");
+        match result {
+            Some(SvnUpdateEvent::Done { revision }) => assert_eq!(revision, 99),
+            other => panic!("expected Done(99), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_updated_to_revision() {
+        let result = parse_single_update_line("Updated to revision 500.");
+        match result {
+            Some(SvnUpdateEvent::Done { revision }) => assert_eq!(revision, 500),
+            other => panic!("expected Done(500), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_file_status_u() {
+        let result = parse_single_update_line("U   src/main.rs");
+        match result {
+            Some(SvnUpdateEvent::File { status, path }) => {
+                assert_eq!(status, "U");
+                assert_eq!(path, "src/main.rs");
+            }
+            other => panic!("expected File, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_file_status_a() {
+        let result = parse_single_update_line("A   new_file.txt");
+        match result {
+            Some(SvnUpdateEvent::File { status, path }) => {
+                assert_eq!(status, "A");
+                assert_eq!(path, "new_file.txt");
+            }
+            other => panic!("expected File, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_updating_header_returns_none() {
+        let result = parse_single_update_line("Updating '.':");
+        assert!(result.is_none());
+    }
+}
+
 fn emit_update_event(app: &AppHandle, event: &SvnUpdateEvent, found_files: &mut bool, last_revision: &mut u64) {
     match event {
         SvnUpdateEvent::File { .. } => {

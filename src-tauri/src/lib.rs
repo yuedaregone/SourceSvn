@@ -94,10 +94,47 @@ pub fn run() {
 mod integration_tests {
     use super::*;
     use crate::hook::*;
+    use crate::hook::event_bus::HookHandler;
+    use async_trait::async_trait;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
 
-    #[tokio::test]
-    async fn test_hook_integration() {
-        let state = AppState::new();
+    struct TestHandler {
+        name: String,
+        call_count: Arc<AtomicUsize>,
+    }
+
+    impl TestHandler {
+        fn new(name: &str, call_count: Arc<AtomicUsize>) -> Self {
+            Self {
+                name: name.to_string(),
+                call_count,
+            }
+        }
+    }
+
+    #[async_trait]
+    impl HookHandler for TestHandler {
+        async fn execute(&self, _context: &HookContext) -> Result<HookResult, HookError> {
+            self.call_count.fetch_add(1, Ordering::SeqCst);
+            Ok(HookResult::Continue)
+        }
+
+        fn name(&self) -> &str {
+            &self.name
+        }
+
+        fn description(&self) -> &str {
+            "integration test handler"
+        }
+    }
+
+    #[test]
+    fn test_config_save_and_load_roundtrip() {
+        let dir = std::env::temp_dir().join("sourcesvn_integration_test_config");
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let manager = FileHookConfigManager::new(dir.join("hooks.toml"));
 
         let config = HooksConfig {
             enabled: true,
@@ -108,17 +145,69 @@ mod integration_tests {
                     script_path: "/path/to/script.js".to_string(),
                     enabled: true,
                 },
+                HookHandlerConfig {
+                    name: "pre-handler".to_string(),
+                    hook_type: HookType::PreCommit,
+                    script_path: "/other/script.sh".to_string(),
+                    enabled: false,
+                },
             ],
         };
 
-        assert!(config.enabled);
-        assert_eq!(config.handlers.len(), 1);
-        assert_eq!(config.handlers[0].name, "test-handler");
+        manager.save_config(&config).unwrap();
+        let loaded = manager.load_config().unwrap();
+
+        assert!(loaded.enabled);
+        assert_eq!(loaded.handlers.len(), 2);
+        assert_eq!(loaded.handlers[0].name, "test-handler");
+        assert_eq!(loaded.handlers[0].hook_type, HookType::PostCommit);
+        assert_eq!(loaded.handlers[0].script_path, "/path/to/script.js");
+        assert!(loaded.handlers[0].enabled);
+        assert_eq!(loaded.handlers[1].name, "pre-handler");
+        assert_eq!(loaded.handlers[1].hook_type, HookType::PreCommit);
+        assert!(!loaded.handlers[1].enabled);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_event_bus_subscriber_receives_events() {
+        let state = AppState::new();
+        let call_count = Arc::new(AtomicUsize::new(0));
+        let handler: Arc<dyn HookHandler> =
+            Arc::new(TestHandler::new("integration-handler", call_count.clone()));
+
+        state
+            .hook_event_bus
+            .subscribe(HookType::PostCommit, handler)
+            .await;
 
         let context = HookContext::new(HookType::PostCommit, "/test/path".to_string());
         let event = HookEvent::new(HookType::PostCommit, context);
         let results = state.hook_event_bus.emit(event).await;
 
+        assert_eq!(call_count.load(Ordering::SeqCst), 1);
+        assert_eq!(results.len(), 1);
+        assert!(results[0].is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_event_bus_no_cross_type_trigger() {
+        let state = AppState::new();
+        let call_count = Arc::new(AtomicUsize::new(0));
+        let handler: Arc<dyn HookHandler> =
+            Arc::new(TestHandler::new("pre-handler", call_count.clone()));
+
+        state
+            .hook_event_bus
+            .subscribe(HookType::PreCommit, handler)
+            .await;
+
+        let context = HookContext::new(HookType::PostCommit, "/test/path".to_string());
+        let event = HookEvent::new(HookType::PostCommit, context);
+        let results = state.hook_event_bus.emit(event).await;
+
+        assert_eq!(call_count.load(Ordering::SeqCst), 0);
         assert!(results.is_empty());
     }
 }
