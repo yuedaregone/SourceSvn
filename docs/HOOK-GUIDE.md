@@ -112,6 +112,60 @@ enabled = true
 - **0**：成功。根据 stdout 内容决定行为。
 - **非0**：失败。stderr 的内容会作为错误信息记录到日志。
 
+## 嵌入式 JS 引擎（推荐）
+
+`.js` 和 `.mjs` 文件由内置 JS 引擎执行，无需外部运行时。脚本可直接调用应用功能，无需通过 stdout 协议。
+
+### 全局对象
+
+**`context`** - 自动注入的全局对象，包含：
+
+```javascript
+context.hook_type   // "PreCommit", "PostCommit" 等
+context.repo_path   // 仓库路径
+context.data        // { message, files, author, revision, ... }
+context.timestamp   // ISO 8601 时间戳
+```
+
+### 可用 API
+
+| 函数 | 说明 | 示例 |
+|------|------|------|
+| `toast(type, message)` | 显示 UI 通知 | `toast("info", "开始检查...")` |
+| `svnStatus(path)` | 获取文件状态 | `var s = svnStatus("/repo")` |
+| `svnLog(path, limit)` | 获取提交历史 | `var logs = svnLog("/repo", 5)` |
+| `svnInfo(path)` | 获取仓库信息 | `var info = svnInfo("/repo")` |
+| `log(level, message)` | 写入日志 | `log("info", "检查完成")` |
+| `cancel(reason)` | 取消操作（仅Pre*） | `cancel("格式错误")` |
+| `modify(data)` | 修改操作参数 | `modify({"message": "新信息"})` |
+
+### 返回值
+
+- 脚本正常结束 → `Continue`
+- 调用 `cancel(reason)` → `Cancel`
+- 调用 `modify(data)` → `Modify(data)`
+
+### 限制
+
+- 超时：30 秒
+- 无网络访问
+- 无文件系统写入（只读）
+
+### 示例
+
+```javascript
+// PreCommit hook - 验证提交信息格式
+var message = (context.data.message || "").trim();
+var pattern = /^(feat|fix|docs|style|refactor|test|chore)(\(.+\))?: .+/;
+
+if (!pattern.test(message)) {
+  toast("error", "提交信息格式错误，要求: type: description");
+  cancel("bad format");
+}
+
+toast("success", "验证通过");
+```
+
 ## 脚本模板
 
 ### Node.js / Bun 模板
@@ -293,7 +347,8 @@ Hook 执行日志位于：`~/.sourcesvn/logs/hooks.log`
 - 查看 `~/.sourcesvn/logs/hooks.log` 中的错误信息
 
 **Q: 脚本超时？**
-- 当前版本无超时限制，建议脚本自行控制执行时间
+- 嵌入式 JS 引擎有 30 秒超时限制
+- 外部脚本无超时限制，建议自行控制执行时间
 
 **Q: 多个 hook 的执行顺序？**
 - 同一 hook 类型下的多个 handler 按配置顺序依次执行

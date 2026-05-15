@@ -12,11 +12,11 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new() -> Self {
+    pub fn new(app_handle: Option<tauri::AppHandle>) -> Self {
         let logger = Arc::new(FileLogger::new(FileLogger::default_path()));
         let event_bus = Arc::new(DefaultEventBus::new(logger));
         let config_manager = Arc::new(FileHookConfigManager::new(FileHookConfigManager::default_path()));
-        let script_executor = Arc::new(ScriptExecutorManager::new());
+        let script_executor = Arc::new(ScriptExecutorManager::new(app_handle));
 
         Self {
             config: RwLock::new(load_config()),

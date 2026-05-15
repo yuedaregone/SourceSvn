@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import { listen } from '@tauri-apps/api/event'
 import App from './App.vue'
 import './styles/design-system.css'
 import './styles/components.css'
@@ -13,4 +14,16 @@ window.addEventListener('popstate', () => {
 
 const app = createApp(App)
 app.use(createPinia())
+
+listen<{ type: string; message: string }>('hook-toast', (event) => {
+  const { useToastStore } = require('./stores/toastStore')
+  const toast = useToastStore()
+  const type = event.payload.type as 'success' | 'error' | 'warning' | 'info'
+  if (['success', 'error', 'warning', 'info'].includes(type)) {
+    toast.addToast(event.payload.message, type)
+  } else {
+    toast.info(event.payload.message)
+  }
+})
+
 app.mount('#app')

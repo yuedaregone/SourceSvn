@@ -50,7 +50,7 @@ mod tests {
 
     #[test]
     fn handler_returns_correct_name() {
-        let executor = Arc::new(ScriptExecutorManager::new());
+        let executor = Arc::new(ScriptExecutorManager::new(None));
         let handler = ScriptHookHandler::new(
             "my-hook".into(),
             "test hook".into(),
@@ -62,7 +62,7 @@ mod tests {
 
     #[test]
     fn handler_returns_correct_description() {
-        let executor = Arc::new(ScriptExecutorManager::new());
+        let executor = Arc::new(ScriptExecutorManager::new(None));
         let handler = ScriptHookHandler::new(
             "my-hook".into(),
             "some description".into(),
@@ -74,7 +74,7 @@ mod tests {
 
     #[tokio::test]
     async fn handler_delegates_to_executor_and_returns_not_found_for_missing_script() {
-        let executor = Arc::new(ScriptExecutorManager::new());
+        let executor = Arc::new(ScriptExecutorManager::new(None));
         let handler = ScriptHookHandler::new(
             "my-hook".into(),
             "test hook".into(),

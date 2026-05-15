@@ -18,7 +18,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            let state = AppState::new();
+            let state = AppState::new(Some(app.handle().clone()));
             let window = app
                 .get_webview_window("main")
                 .ok_or("failed to get main window")?;
@@ -172,7 +172,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_event_bus_subscriber_receives_events() {
-        let state = AppState::new();
+        let state = AppState::new(None);
         let call_count = Arc::new(AtomicUsize::new(0));
         let handler: Arc<dyn HookHandler> =
             Arc::new(TestHandler::new("integration-handler", call_count.clone()));
@@ -193,7 +193,7 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_event_bus_no_cross_type_trigger() {
-        let state = AppState::new();
+        let state = AppState::new(None);
         let call_count = Arc::new(AtomicUsize::new(0));
         let handler: Arc<dyn HookHandler> =
             Arc::new(TestHandler::new("pre-handler", call_count.clone()));
