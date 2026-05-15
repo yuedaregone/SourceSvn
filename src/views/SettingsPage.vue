@@ -484,8 +484,9 @@ watch(() => config.behavior.autoRefreshSecs, () => {
 }
 
 .tab-panel--hook {
-  height: 500px;
+  flex: 1;
   gap: 0;
+  min-height: 0;
 }
 
 .setting-row {

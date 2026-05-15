@@ -128,7 +128,8 @@ function handleSave() {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-width: 320px;
+  flex: 1;
+  min-width: 0;
 }
 
 .editor-header {

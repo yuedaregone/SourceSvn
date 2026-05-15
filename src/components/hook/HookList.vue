@@ -78,7 +78,8 @@ const filteredHandlers = computed(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-width: 280px;
+  width: 220px;
+  flex-shrink: 0;
   border-right: 1px solid var(--border-color, #e0e0e0);
 }
 
