@@ -275,4 +275,8 @@ export default {
     copyRevision: 'Copy Revision Number',
     revisionInput: 'Enter revision number',
   },
+  fileLog: {
+    title: 'File Log',
+    noLogs: 'No log entries',
+  },
 }

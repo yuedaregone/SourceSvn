@@ -275,4 +275,8 @@ export default {
     copyRevision: '复制版本号',
     revisionInput: '请输入版本号',
   },
+  fileLog: {
+    title: '文件日志',
+    noLogs: '暂无日志记录',
+  },
 }

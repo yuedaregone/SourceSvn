@@ -35,6 +35,8 @@ struct WcStatus {
     kind: Option<String>,
     #[serde(rename = "@tree-conflicted")]
     tree_conflicted: Option<String>,
+    #[serde(rename = "@locked")]
+    locked: Option<String>,
 }
 
 pub fn parse_status_xml(xml: &str) -> Result<Vec<FileStatus>, AppError> {
@@ -54,6 +56,8 @@ pub fn parse_status_xml(xml: &str) -> Result<Vec<FileStatus>, AppError> {
         .map(|entry| {
             let status_type = if entry.wc_status.tree_conflicted.as_deref() == Some("true") {
                 FileStatusType::Conflicted
+            } else if entry.wc_status.locked.as_deref() == Some("true") {
+                FileStatusType::Locked
             } else {
                 match entry.wc_status.item.as_str() {
                     "modified" => FileStatusType::Modified,
@@ -76,7 +80,17 @@ pub fn parse_status_xml(xml: &str) -> Result<Vec<FileStatus>, AppError> {
         .collect())
 }
 
+fn check_wc_locked(path: &str) -> bool {
+    let lock_path = std::path::Path::new(path).join(".svn").join("lock");
+    lock_path.exists()
+}
+
 pub async fn svn_status(path: &str, timeout_secs: u64) -> Result<Vec<FileStatus>, AppError> {
+    if check_wc_locked(path) {
+        return Err(AppError::svn_parse(
+            "工作副本被锁定，请先运行 'svn cleanup' 解锁".to_string(),
+        ));
+    }
     let xml = crate::svn::run_svn_async(&["status", "--xml", "--depth", "infinity", path], timeout_secs).await?;
     parse_status_xml(&xml)
 }
@@ -132,5 +146,21 @@ mod tests {
 </status>"#;
         let result = parse_status_xml(xml).unwrap();
         assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_status_xml_locked() {
+        let xml = r#"<?xml version="1.0"?>
+<status>
+  <target>
+    <entry path="src/main.rs">
+      <wc-status item="normal" locked="true"/>
+    </entry>
+  </target>
+</status>"#;
+        let result = parse_status_xml(xml).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].path, "src/main.rs");
+        assert_eq!(result[0].status, FileStatusType::Locked);
     }
 }

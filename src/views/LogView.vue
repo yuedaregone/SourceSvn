@@ -113,18 +113,26 @@
       :items="fileCtxMenuItems"
       @close="fileCtxMenu.visible = false"
     />
+    <FileLogModal
+      :visible="showFileLog"
+      :file-path="fileLogPath"
+      :repo-path="props.repoPath"
+      :use-repo-path="true"
+      @close="showFileLog = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { X, Copy, RotateCcw, ExternalLink, FolderOpen, Eye, Download, ChevronLeft, ChevronRight, File as FileIcon } from 'lucide-vue-next'
+import { X, Copy, RotateCcw, ExternalLink, FolderOpen, Eye, Download, ChevronLeft, ChevronRight, File as FileIcon, ScrollText } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
 import type { LogEntry, ChangedPath } from '../types/svn'
 import type { MenuItem } from '../components/ContextMenu.vue'
 import ContextMenu from '../components/ContextMenu.vue'
 import CodeDiffViewer from '../components/CodeDiffViewer.vue'
+import FileLogModal from '../components/FileLogModal.vue'
 import { t } from '../locales'
 
 const props = defineProps<{
@@ -168,6 +176,8 @@ const oldContent = ref<string | undefined>(undefined)
 const newContent = ref<string | undefined>(undefined)
 const fileDiffLoading = ref(false)
 const isBinaryFile = ref(false)
+const showFileLog = ref(false)
+const fileLogPath = ref('')
 
 function loadNumber(key: string, fallback: number, min: number, max: number): number {
   const saved = localStorage.getItem(key)
@@ -475,6 +485,15 @@ const fileCtxMenuItems = computed<MenuItem[]>(() => {
   const toast = useToastStore()
 
   return [
+    {
+      label: t('contextMenu.showLog'),
+      icon: ScrollText,
+      action: () => {
+        fileLogPath.value = filePath
+        showFileLog.value = true
+      },
+    },
+    { divider: true },
     {
       label: t('contextMenu.copyPath'),
       icon: Copy,

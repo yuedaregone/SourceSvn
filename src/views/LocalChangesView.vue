@@ -95,19 +95,26 @@
       :items="ctxMenuItems"
       @close="ctxMenu.visible = false"
     />
+    <FileLogModal
+      :visible="showFileLog"
+      :file-path="fileLogPath"
+      :repo-path="props.repoPath"
+      @close="showFileLog = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { Sparkles, X, Send, RotateCcw, Plus, Trash2, ExternalLink, FolderOpen, Copy, CheckSquare, Square, History, File as FileIcon, GitCompare, GitMerge } from 'lucide-vue-next'
+import { Sparkles, X, Send, RotateCcw, Plus, Trash2, ExternalLink, FolderOpen, Copy, CheckSquare, Square, History, File as FileIcon, GitCompare, GitMerge, ScrollText } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
 import { useConfigStore } from '../stores/configStore'
 import type { FileStatus, DiffTarget } from '../types/svn'
 import type { MenuItem } from '../components/ContextMenu.vue'
 import ContextMenu from '../components/ContextMenu.vue'
 import CodeDiffViewer from '../components/CodeDiffViewer.vue'
+import FileLogModal from '../components/FileLogModal.vue'
 import { t } from '../locales'
 
 const props = defineProps<{
@@ -133,6 +140,8 @@ const newContent = ref<string | undefined>(undefined)
 const aiLoading = ref(false)
 const isBinaryFile = ref(false)
 const toast = useToastStore()
+const showFileLog = ref(false)
+const fileLogPath = ref('')
 const configStore = useConfigStore()
 
 const leftPanelWidth = ref(loadPanelWidth())
@@ -211,6 +220,7 @@ const STATUS_LABELS: Record<string, string> = {
   unversioned: '?',
   missing: '!',
   conflicted: 'C',
+  locked: 'L',
 }
 
 function statusLabel(status: string): string {
@@ -465,6 +475,14 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
       },
     },
     { divider: true },
+    {
+      label: t('contextMenu.showLog'),
+      icon: ScrollText,
+      action: () => {
+        fileLogPath.value = file.path
+        showFileLog.value = true
+      },
+    },
     {
       label: t('contextMenu.openWithEditor'),
       icon: ExternalLink,

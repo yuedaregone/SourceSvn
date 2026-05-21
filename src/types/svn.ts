@@ -1,4 +1,4 @@
-export type FileStatusType = 'modified' | 'added' | 'deleted' | 'unversioned' | 'missing' | 'conflicted'
+export type FileStatusType = 'modified' | 'added' | 'deleted' | 'unversioned' | 'missing' | 'conflicted' | 'locked'
 
 export interface FileStatus {
   path: string

@@ -19,6 +19,7 @@ pub enum FileStatusType {
     Unversioned,
     Missing,
     Conflicted,
+    Locked,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

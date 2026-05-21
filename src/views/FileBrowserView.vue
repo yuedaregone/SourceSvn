@@ -73,17 +73,24 @@
       :items="ctxMenuItems"
       @close="ctxMenu.visible = false"
     />
+    <FileLogModal
+      :visible="showFileLog"
+      :file-path="fileLogPath"
+      :repo-path="props.repoPath"
+      @close="showFileLog = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { ExternalLink, FolderOpen, Copy, History, Terminal, ChevronRight, Folder as FolderIcon, File as FileIcon, Loader2, Sparkles, FileText } from 'lucide-vue-next'
+import { ExternalLink, FolderOpen, Copy, History, Terminal, ChevronRight, Folder as FolderIcon, File as FileIcon, Loader2, Sparkles, FileText, ScrollText } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
 import type { DirEntry } from '../types/svn'
 import type { MenuItem } from '../components/ContextMenu.vue'
 import ContextMenu from '../components/ContextMenu.vue'
+import FileLogModal from '../components/FileLogModal.vue'
 import { t } from '../locales'
 
 const props = defineProps<{
@@ -106,6 +113,8 @@ interface TreeItem {
 
 const fileContent = ref('')
 const selectedFilePath = ref('')
+const showFileLog = ref(false)
+const fileLogPath = ref('')
 
 const expandedDirs = ref<Record<string, DirEntry[]>>({})
 const expandedKeys = ref<Record<string, boolean>>({})
@@ -228,8 +237,11 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   items.push({ divider: true })
   items.push({
     label: t('contextMenu.showLog'),
-    icon: History,
-    action: () => { emit('viewHistory', fullP) },
+    icon: ScrollText,
+    action: () => {
+      fileLogPath.value = fullP
+      showFileLog.value = true
+    },
   })
   if (isFile) {
     items.push({
