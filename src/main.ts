@@ -16,14 +16,15 @@ const app = createApp(App)
 app.use(createPinia())
 
 listen<{ type: string; message: string }>('hook-toast', (event) => {
-  const { useToastStore } = require('./stores/toastStore')
-  const toast = useToastStore()
-  const type = event.payload.type as 'success' | 'error' | 'warning' | 'info'
-  if (['success', 'error', 'warning', 'info'].includes(type)) {
-    toast.addToast(event.payload.message, type)
-  } else {
-    toast.info(event.payload.message)
-  }
+  import('./stores/toastStore').then(({ useToastStore }) => {
+    const toast = useToastStore()
+    const type = event.payload.type as 'success' | 'error' | 'warning' | 'info'
+    if (['success', 'error', 'warning', 'info'].includes(type)) {
+      toast.addToast(event.payload.message, type)
+    } else {
+      toast.info(event.payload.message)
+    }
+  })
 })
 
 app.mount('#app')

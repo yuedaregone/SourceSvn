@@ -63,39 +63,21 @@
         </button>
       </div>
       <p class="detail-message">{{ expandedEntry?.message }}</p>
-      <div class="detail-split">
-        <div class="detail-left" :style="{ width: splitLeftWidth + 'px' }">
-          <h5>{{ t('logView.changedPaths') }}</h5>
-          <div v-if="fetchChangedPathsLoading" class="changed-paths-loading">
-            <div class="spinner" />
-            <span>{{ t('common.loading') }}</span>
-          </div>
-          <div
-            v-for="cp in displayChangedPaths"
-            :key="cp.path"
-            class="changed-path"
-            :class="{ active: selectedFilePath === cp.path }"
-            @click="selectFile(cp.path)"
-            @contextmenu.prevent="openFileContextMenu($event, cp)"
-          >
-            <span class="action" :class="actionClass(cp.action)">{{ cp.action }}</span>
-            <span class="path-text">{{ displayChangedPath(cp.path) }}</span>
-          </div>
+      <div class="detail-changes">
+        <h5>{{ t('logView.changedPaths') }}</h5>
+        <div v-if="fetchChangedPathsLoading" class="changed-paths-loading">
+          <div class="spinner" />
+          <span>{{ t('common.loading') }}</span>
         </div>
-        <div class="h-drag-divider" @mousedown="onHDragStart" @touchstart="onHDragStart">
-          <div class="h-drag-handle"></div>
-        </div>
-        <div class="detail-right">
-          <div v-if="fileDiffLoading" class="diff-loading">
-            <div class="spinner" />
-            <span>{{ t('common.loading') }}</span>
-          </div>
-          <div v-else-if="isBinaryFile" class="diff-binary">
-            <FileIcon :size="24" />
-            <span>{{ t('common.binaryFile') }}</span>
-          </div>
-          <CodeDiffViewer v-else-if="oldContent !== undefined && newContent !== undefined" :old-string="oldContent" :new-string="newContent" :filename="selectedFilePath || undefined" :empty-hint="t('common.viewDiff')" />
-          <div v-else class="diff-placeholder">{{ t('common.viewDiff') }}</div>
+        <div
+          v-for="cp in displayChangedPaths"
+          :key="cp.path"
+          class="changed-path"
+          @click="selectFile(cp.path)"
+          @contextmenu.prevent="openFileContextMenu($event, cp)"
+        >
+          <span class="action" :class="actionClass(cp.action)">{{ cp.action }}</span>
+          <span class="path-text">{{ displayChangedPath(cp.path) }}</span>
         </div>
       </div>
     </div>
@@ -126,12 +108,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { X, Copy, RotateCcw, ExternalLink, FolderOpen, Eye, Download, ChevronLeft, ChevronRight, File as FileIcon, ScrollText } from 'lucide-vue-next'
+import { X, Copy, RotateCcw, ExternalLink, FolderOpen, Eye, Download, ChevronLeft, ChevronRight, ScrollText } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
+import { useDiffStore } from '../stores/diffStore'
 import type { LogEntry, ChangedPath } from '../types/svn'
 import type { MenuItem } from '../components/ContextMenu.vue'
 import ContextMenu from '../components/ContextMenu.vue'
-import CodeDiffViewer from '../components/CodeDiffViewer.vue'
 import FileLogModal from '../components/FileLogModal.vue'
 import { t } from '../locales'
 
@@ -172,10 +154,7 @@ const expandedRevision = ref<number | null>(null)
 const currentPage = ref(1)
 const pageSize = 50
 const selectedFilePath = ref<string | null>(null)
-const oldContent = ref<string | undefined>(undefined)
-const newContent = ref<string | undefined>(undefined)
-const fileDiffLoading = ref(false)
-const isBinaryFile = ref(false)
+const diffStore = useDiffStore()
 const showFileLog = ref(false)
 const fileLogPath = ref('')
 
@@ -192,10 +171,6 @@ const detailPanelHeight = ref(loadNumber('logView.detailPanelHeight', 450, 100, 
 const isDragging = ref(false)
 const startY = ref(0)
 const startHeight = ref(0)
-const splitLeftWidth = ref(loadNumber('logView.splitLeftWidth', 400, 150, 600))
-const isHDragging = ref(false)
-const hStartX = ref(0)
-const hStartWidth = ref(0)
 const fetchedChangedPaths = ref<ChangedPath[] | null>(null)
 const fetchChangedPathsLoading = ref(false)
 
@@ -252,9 +227,6 @@ async function toggleDetail(revision: number) {
   } else {
     expandedRevision.value = revision
     selectedFilePath.value = null
-    oldContent.value = undefined
-    newContent.value = undefined
-    isBinaryFile.value = false
     fetchedChangedPaths.value = null
 
     // 非本地版本需要额外获取变更文件列表
@@ -279,9 +251,6 @@ async function toggleDetail(revision: number) {
 function closeDetail() {
   expandedRevision.value = null
   selectedFilePath.value = null
-  oldContent.value = undefined
-  newContent.value = undefined
-  isBinaryFile.value = false
   fetchedChangedPaths.value = null
 }
 
@@ -312,33 +281,6 @@ function onDragEnd() {
   document.removeEventListener('touchend', onDragEnd)
 }
 
-// 水平拖动：调整左右面板宽度
-function onHDragStart(e: MouseEvent | TouchEvent) {
-  isHDragging.value = true
-  hStartX.value = 'touches' in e ? e.touches[0].clientX : e.clientX
-  hStartWidth.value = splitLeftWidth.value
-  document.addEventListener('mousemove', onHDragMove)
-  document.addEventListener('mouseup', onHDragEnd)
-  document.addEventListener('touchmove', onHDragMove)
-  document.addEventListener('touchend', onHDragEnd)
-}
-
-function onHDragMove(e: MouseEvent | TouchEvent) {
-  if (!isHDragging.value) return
-  const currentX = 'touches' in e ? e.touches[0].clientX : e.clientX
-  const delta = currentX - hStartX.value
-  splitLeftWidth.value = Math.max(150, Math.min(600, hStartWidth.value + delta))
-}
-
-function onHDragEnd() {
-  isHDragging.value = false
-  localStorage.setItem('logView.splitLeftWidth', String(splitLeftWidth.value))
-  document.removeEventListener('mousemove', onHDragMove)
-  document.removeEventListener('mouseup', onHDragEnd)
-  document.removeEventListener('touchmove', onHDragMove)
-  document.removeEventListener('touchend', onHDragEnd)
-}
-
 // 合并变更路径：优先使用已获取的数据，其次使用条目自带数据
 const displayChangedPaths = computed(() => {
   if (fetchedChangedPaths.value !== null) return fetchedChangedPaths.value
@@ -349,38 +291,27 @@ async function selectFile(filePath: string) {
   if (selectedFilePath.value === filePath) return
   if (expandedRevision.value == null) return
   selectedFilePath.value = filePath
-  oldContent.value = undefined
-  newContent.value = undefined
-  isBinaryFile.value = false
-  fileDiffLoading.value = true
+  const toast = useToastStore()
   try {
     const rev = String(expandedRevision.value)
     const baseRev = String(expandedRevision.value - 1)
-    // 先用 svn diff 检测是否为二进制文件
-    const diff = await invoke<string>('svn_diff', {
-      path: props.repoPath,
-      target: { type: 'fileAtRevision', data: { path: filePath, revision: rev, baseRevision: baseRev } },
-    })
-    if (diff.includes('Binary files')) {
-      isBinaryFile.value = true
-    } else {
-      // 文本文件：获取两个版本的内容
-      const [old, cur] = await Promise.all([
-        invoke<string>('svn_cat_at_revision', { repoPath: props.repoPath, filePath, revision: baseRev }),
-        invoke<string>('svn_cat_at_revision', { repoPath: props.repoPath, filePath, revision: rev }),
-      ])
-      oldContent.value = old
-      newContent.value = cur
-    }
+    // 获取旧版本和新版本完整内容
+    const [oldContent, newContent] = await Promise.all([
+      invoke<string>('svn_cat_at_revision', {
+        repoPath: props.repoPath,
+        filePath: filePath,
+        revision: baseRev,
+      }),
+      invoke<string>('svn_cat_at_revision', {
+        repoPath: props.repoPath,
+        filePath: filePath,
+        revision: rev,
+      }),
+    ])
+    diffStore.openWithContent(filePath, oldContent, newContent)
   } catch (error) {
     const err = error as Error
-    oldContent.value = undefined
-    newContent.value = undefined
-    // 显示错误信息
-    oldContent.value = ''
-    newContent.value = t('common.error') + ': ' + (err.message || String(error))
-  } finally {
-    fileDiffLoading.value = false
+    toast.error(err.message || String(error))
   }
 }
 
@@ -536,10 +467,6 @@ onBeforeUnmount(() => {
   document.removeEventListener('mouseup', onDragEnd)
   document.removeEventListener('touchmove', onDragMove)
   document.removeEventListener('touchend', onDragEnd)
-  document.removeEventListener('mousemove', onHDragMove)
-  document.removeEventListener('mouseup', onHDragEnd)
-  document.removeEventListener('touchmove', onHDragMove)
-  document.removeEventListener('touchend', onHDragEnd)
 })
 </script>
 
@@ -871,25 +798,17 @@ tr.non-local:hover {
   color: var(--color-text-primary);
 }
 
-.detail-split {
-  display: flex;
-  gap: 0;
+.detail-changes {
   margin: 0 var(--space-4) var(--space-4);
   flex: 1;
-  min-height: 150px;
-  overflow: hidden;
-}
-
-.detail-left {
-  flex-shrink: 0;
-  overflow-x: hidden;
+  min-height: 100px;
   overflow-y: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-bg-primary);
 }
 
-.detail-left h5 {
+.detail-changes h5 {
   margin: 0;
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-sm);
@@ -902,46 +821,14 @@ tr.non-local:hover {
   z-index: 1;
 }
 
-.detail-left .changed-path {
+.detail-changes .changed-path {
   cursor: pointer;
   padding: var(--space-1) var(--space-3);
   transition: background var(--transition-fast);
 }
 
-.detail-left .changed-path:hover {
+.detail-changes .changed-path:hover {
   background: var(--color-bg-hover);
-}
-
-.detail-left .changed-path.active {
-  background: var(--color-bg-active);
-}
-
-.h-drag-divider {
-  width: 6px;
-  cursor: ew-resize;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: background var(--transition-fast);
-}
-
-.h-drag-divider:hover {
-  background: var(--color-bg-hover);
-}
-
-.h-drag-handle {
-  width: 2px;
-  height: 40px;
-  background: var(--color-border-light);
-  border-radius: var(--radius-full);
-  transition: background var(--transition-fast);
-}
-
-.h-drag-divider:hover .h-drag-handle,
-.h-drag-divider:active .h-drag-handle {
-  background: var(--color-border);
 }
 
 .changed-paths-loading {
@@ -954,30 +841,6 @@ tr.non-local:hover {
   font-size: var(--text-sm);
 }
 
-.detail-right {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-primary);
-  display: flex;
-  flex-direction: column;
-}
-
-.diff-loading,
-.diff-binary,
-.diff-placeholder {
-  color: var(--color-text-muted);
-  text-align: center;
-  padding: var(--space-10) var(--space-4);
-  font-size: var(--text-base);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-3);
-}
-
 @media (max-width: 768px) {
   .filter-bar {
     gap: var(--space-1);
@@ -986,19 +849,6 @@ tr.non-local:hover {
   .search-input {
     min-width: 100%;
     order: 1;
-  }
-
-  .detail-split {
-    flex-direction: column;
-  }
-
-  .detail-left {
-    width: 100% !important;
-    max-height: 150px;
-  }
-
-  .h-drag-divider {
-    display: none;
   }
 }
 </style>

@@ -231,6 +231,11 @@ export default {
     nextChange: '下一个修改',
     collapseUnchanged: '折叠未修改行',
     context: '上下文',
+    sideBySide: '双排对比',
+    lineByLine: '单排对比',
+    showFull: '显示全部内容',
+    showNearby: '仅显示邻近行',
+    wordWrap: '自动换行',
   },
   aiReviewPanel: {
     title: 'AI 代码审查',

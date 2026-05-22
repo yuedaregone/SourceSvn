@@ -62,7 +62,7 @@
         <p class="detail-message">{{ selectedEntry.message }}</p>
         <div v-if="selectedEntry.changedPaths && selectedEntry.changedPaths.length > 0" class="detail-changes">
           <h5>{{ t('logView.changedPaths') }}</h5>
-          <div v-for="cp in selectedEntry.changedPaths" :key="cp.path" class="changed-path">
+          <div v-for="cp in selectedEntry.changedPaths" :key="cp.path" class="changed-path clickable" @click="viewDiff(cp.path)">
             <span class="action-badge" :class="actionClass(cp.action)">{{ cp.action }}</span>
             <span class="path-text">{{ cp.path }}</span>
           </div>
@@ -86,6 +86,8 @@ import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { X, History, ScrollText } from 'lucide-vue-next'
 import type { LogEntry } from '../types/svn'
+import { useDiffStore } from '../stores/diffStore'
+import { useToastStore } from '../stores/toastStore'
 import { t } from '../locales'
 
 const props = defineProps<{
@@ -99,6 +101,8 @@ const emit = defineEmits<{
   close: []
 }>()
 
+const diffStore = useDiffStore()
+const toastStore = useToastStore()
 const overlayMousedown = ref(false)
 function onOverlayClick() {
   if (!overlayMousedown.value) return
@@ -191,6 +195,30 @@ function actionClass(action: string) {
   if (action === 'D') return 'deleted'
   if (action === 'R') return 'replaced'
   return 'modified'
+}
+
+async function viewDiff(changedPath: string) {
+  if (!selectedEntry.value) return
+  const revision = String(selectedEntry.value.revision)
+  const baseRevision = String(selectedEntry.value.revision - 1)
+  try {
+    // 获取旧版本和新版本完整内容
+    const [oldContent, newContent] = await Promise.all([
+      invoke<string>('svn_cat_at_revision', {
+        repoPath: props.repoPath,
+        filePath: changedPath,
+        revision: baseRevision,
+      }),
+      invoke<string>('svn_cat_at_revision', {
+        repoPath: props.repoPath,
+        filePath: changedPath,
+        revision: revision,
+      }),
+    ])
+    diffStore.openWithContent(changedPath, oldContent, newContent)
+  } catch (e) {
+    toastStore.error(String(e))
+  }
 }
 
 function close() {
@@ -508,6 +536,17 @@ onBeforeUnmount(() => {
   padding: var(--space-1) 0;
   font-size: var(--text-sm);
   font-family: var(--font-mono);
+}
+
+.changed-path.clickable {
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.changed-path.clickable:hover {
+  background: var(--color-bg-hover);
 }
 
 .action-badge {

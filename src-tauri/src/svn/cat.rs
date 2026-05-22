@@ -17,9 +17,15 @@ pub async fn svn_cat(
 pub async fn svn_cat_in_dir(
     repo_path: &str,
     file_path: &str,
+    revision: Option<&str>,
     timeout_secs: u64,
 ) -> Result<String, AppError> {
-    let args = vec!["cat", file_path];
+    let mut args = vec!["cat"];
+    if let Some(rev) = revision {
+        args.push("-r");
+        args.push(rev);
+    }
+    args.push(file_path);
     crate::svn::run_svn_async_in_dir(&args, timeout_secs, Some(repo_path)).await
 }
 

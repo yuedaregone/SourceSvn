@@ -78,13 +78,6 @@
       @close="showAddRepo = false"
       @openRepo="openRepo"
     />
-    <DiffViewer
-      :visible="showDiff"
-      :filePath="diffFilePath"
-      :diffText="diffText"
-      @close="showDiff = false"
-      @aiReview="handleAiReview"
-    />
     <AiReviewPanel
       :visible="showAiReview"
       :content="aiReviewContent"
@@ -99,6 +92,7 @@
       @close="showPullResult = false"
       @refresh="refreshCurrentView()"
     />
+    <CodeDiffViewer mode="panel" />
     <Toast />
   </div>
 </template>
@@ -120,9 +114,9 @@ import ShelveView from './views/ShelveView.vue'
 import { useToastStore } from './stores/toastStore'
 import type { UpdateResult, SvnUpdateEvent } from './types/svn'
 import { t } from './locales'
+import CodeDiffViewer from './components/CodeDiffViewer.vue'
 
 const SettingsPage = defineAsyncComponent(() => import('./views/SettingsPage.vue'))
-const DiffViewer = defineAsyncComponent(() => import('./components/DiffViewer.vue'))
 const AiReviewPanel = defineAsyncComponent(() => import('./components/AiReviewPanel.vue'))
 const AddRepoDialog = defineAsyncComponent(() => import('./components/AddRepoDialog.vue'))
 const PullResultModal = defineAsyncComponent(() => import('./components/PullResultModal.vue'))
@@ -136,9 +130,6 @@ const showSettings = ref(false)
 const showAddRepo = ref(false)
 const tabStores = ref<Record<string, TabStoreInstance>>({})
 let tabIdCounter = 0
-const showDiff = ref(false)
-const diffFilePath = ref('')
-const diffText = ref('')
 const showAiReview = ref(false)
 const aiReviewContent = ref('')
 const aiReviewLoading = ref(false)

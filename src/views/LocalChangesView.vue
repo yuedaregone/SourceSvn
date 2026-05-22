@@ -40,20 +40,6 @@
       <div class="drag-handle"></div>
     </div>
     <div class="right-panel">
-      <div class="diff-area">
-        <!-- 二进制文件提示 -->
-        <div v-if="isBinaryFile" class="binary-diff">
-          <FileIcon :size="24" />
-          <span>{{ t('common.binaryFile') }}</span>
-        </div>
-        <!-- 代码 diff -->
-        <CodeDiffViewer v-else-if="oldContent !== undefined && newContent !== undefined" :old-string="oldContent" :new-string="newContent" :filename="selectedFile" :empty-hint="t('common.clickToViewDiff')" />
-        <!-- 空状态 -->
-        <div v-else class="diff-placeholder">
-          <GitCompare :size="32" />
-          <span>{{ t('common.clickToViewDiff') }}</span>
-        </div>
-      </div>
       <div class="commit-section" @click="showHistory = false">
         <textarea
           v-model="commitMessage"
@@ -107,13 +93,13 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { Sparkles, X, Send, RotateCcw, Plus, Trash2, ExternalLink, FolderOpen, Copy, CheckSquare, Square, History, File as FileIcon, GitCompare, GitMerge, ScrollText } from 'lucide-vue-next'
+import { Sparkles, X, Send, RotateCcw, Plus, Trash2, ExternalLink, FolderOpen, Copy, CheckSquare, Square, History, File as FileIcon, GitMerge, ScrollText } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
 import { useConfigStore } from '../stores/configStore'
+import { useDiffStore } from '../stores/diffStore'
 import type { FileStatus, DiffTarget } from '../types/svn'
 import type { MenuItem } from '../components/ContextMenu.vue'
 import ContextMenu from '../components/ContextMenu.vue'
-import CodeDiffViewer from '../components/CodeDiffViewer.vue'
 import FileLogModal from '../components/FileLogModal.vue'
 import { t } from '../locales'
 
@@ -135,11 +121,9 @@ const selectedFile = ref('')
 const lastClickIndex = ref(-1)
 const commitMessage = ref('')
 const showHistory = ref(false)
-const oldContent = ref<string | undefined>(undefined)
-const newContent = ref<string | undefined>(undefined)
 const aiLoading = ref(false)
-const isBinaryFile = ref(false)
 const toast = useToastStore()
+const diffStore = useDiffStore()
 const showFileLog = ref(false)
 const fileLogPath = ref('')
 const configStore = useConfigStore()
@@ -276,57 +260,39 @@ async function selectFile(file: FileStatus, index: number, event: MouseEvent) {
 
   // 查看 diff（仅 Ctrl+Click 不切换 diff）
   if (!event.ctrlKey && !event.metaKey) {
-    isBinaryFile.value = false
-    isBinaryFile.value = false
-    oldContent.value = undefined
-    newContent.value = undefined
     if (file.isDirectory) {
       toast.info(t('localChanges.directoryNoDiff'))
       return
     }
     try {
       if (file.status === 'unversioned' || file.status === 'added') {
-        // 未版本化/新增文件：old 为空，new 为本地文件内容
-        try {
-          oldContent.value = ''
-          newContent.value = await invoke<string>('read_local_file', {
+        // 新文件：只有新内容
+        const newContent = await invoke<string>('read_local_file', {
+          repoPath: props.repoPath,
+          filePath: file.path,
+        })
+        diffStore.openWithContent(file.path, undefined, newContent)
+      } else if (file.status === 'deleted' || file.status === 'missing') {
+        // 删除的文件：只有旧内容
+        const oldContent = await invoke<string>('svn_cat_in_dir', {
+          repoPath: props.repoPath,
+          filePath: file.path,
+          revision: 'BASE',
+        })
+        diffStore.openWithContent(file.path, oldContent, undefined)
+      } else {
+        // 修改的文件：获取旧版本和新版本完整内容
+        const [oldContent, newContent] = await Promise.all([
+          invoke<string>('svn_cat_in_dir', {
             repoPath: props.repoPath,
             filePath: file.path,
-          })
-        } catch {
-          toast.info(t('localChanges.directoryNoDiff'))
-        }
-      } else if (file.status === 'deleted' || file.status === 'missing') {
-        // 已删除/丢失：尝试获取 BASE 内容，目录会失败则显示提示
-        try {
-          oldContent.value = await invoke<string>('svn_cat_in_dir', { repoPath: props.repoPath, filePath: file.path })
-          newContent.value = ''
-        } catch {
-          toast.info(t('localChanges.directoryNoDiff'))
-        }
-      } else {
-        // 先用 svn diff 检测是否为二进制文件
-        const target: DiffTarget = { type: 'file', data: { path: file.path } }
-        const diff = await invoke<string>('svn_diff', {
-          path: props.repoPath,
-          target,
-        })
-        if (diff.includes('Binary files') || diff.includes('不能以文本形式显示')) {
-          isBinaryFile.value = true
-        } else {
-          // 文本文件：分别获取 old（BASE）和 new（本地工作副本）
-          const [old, cur] = await Promise.all([
-            invoke<string>('svn_cat_in_dir', { repoPath: props.repoPath, filePath: file.path }),
-            invoke<string>('read_local_file', { repoPath: props.repoPath, filePath: file.path }),
-          ])
-          oldContent.value = old
-          newContent.value = cur
-        }
+            revision: 'BASE',
+          }),
+          invoke<string>('read_local_file', { repoPath: props.repoPath, filePath: file.path }),
+        ])
+        diffStore.openWithContent(file.path, oldContent, newContent)
       }
     } catch (e) {
-      oldContent.value = undefined
-      newContent.value = undefined
-      isBinaryFile.value = false
       toast.error(String(e), 0)
     }
   }
@@ -366,9 +332,6 @@ async function submitCommit() {
     commitMessage.value = ''
     selectedPaths.value = new Set()
     selectedFile.value = ''
-    oldContent.value = undefined
-    newContent.value = undefined
-    isBinaryFile.value = false
     emit('refreshLocalChanges')
     emit('refresh')
   } catch (e) {
@@ -380,9 +343,6 @@ function cancelCommit() {
   commitMessage.value = ''
   selectedPaths.value = new Set()
   selectedFile.value = ''
-  oldContent.value = undefined
-  newContent.value = undefined
-  isBinaryFile.value = false
 }
 
 function openContextMenu(e: MouseEvent, file: FileStatus) {
@@ -858,36 +818,5 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   font-size: var(--text-sm);
   color: var(--color-text-muted);
   text-align: center;
-}
-
-/* 右侧 diff 区域 */
-.diff-area {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.diff-placeholder {
-  color: var(--color-text-muted);
-  text-align: center;
-  margin-top: var(--space-10);
-  font-size: var(--text-base);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-/* 二进制文件提示 */
-.binary-diff {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: var(--color-text-muted);
-  margin-top: 40px;
-  font-size: 13px;
 }
 </style>

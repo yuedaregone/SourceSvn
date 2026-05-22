@@ -241,9 +241,10 @@ pub async fn svn_cat_in_dir(
     state: State<'_, AppState>,
     repo_path: String,
     file_path: String,
+    revision: Option<String>,
 ) -> Result<String, String> {
     let timeout = get_timeout(&state)?;
-    svn::cat::svn_cat_in_dir(&repo_path, &file_path, timeout)
+    svn::cat::svn_cat_in_dir(&repo_path, &file_path, revision.as_deref(), timeout)
         .await
         .map_err(|e| e.to_string())
 }

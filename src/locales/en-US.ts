@@ -231,6 +231,11 @@ export default {
     nextChange: 'Next Change',
     collapseUnchanged: 'Collapse Unchanged',
     context: 'Context',
+    sideBySide: 'Side by Side',
+    lineByLine: 'Line by Line',
+    showFull: 'Show Full Content',
+    showNearby: 'Show Nearby Only',
+    wordWrap: 'Word Wrap',
   },
   aiReviewPanel: {
     title: 'AI Code Review',

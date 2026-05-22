@@ -45,7 +45,8 @@
             <tr
               v-for="file in sortedFiles"
               :key="file.path"
-              :class="{ 'row-conflict': file.status === 'C' }"
+              :class="{ 'row-conflict': file.status === 'C', 'clickable': file.status !== 'C' }"
+              @click="viewDiff(file)"
               @contextmenu.prevent="openContextMenu($event, file)"
             >
               <td />
@@ -89,6 +90,7 @@ import type { UpdateResult, UpdateFileItem } from '../types/svn'
 import type { MenuItem } from './ContextMenu.vue'
 import ContextMenu from './ContextMenu.vue'
 import { useToastStore } from '../stores/toastStore'
+import { useDiffStore } from '../stores/diffStore'
 import { t } from '../locales'
 
 const emit = defineEmits<{ close: []; refresh: [] }>()
@@ -107,6 +109,7 @@ const props = defineProps<{
 }>()
 
 const toast = useToastStore()
+const diffStore = useDiffStore()
 
 // Local mutable copy of files for status updates after resolve
 const localFiles = ref<UpdateFileItem[]>([])
@@ -122,6 +125,27 @@ function openContextMenu(e: MouseEvent, file: UpdateFileItem) {
 
 function fullPath(relPath: string): string {
   return `${props.repoPath}\\${relPath.replace(/^\//, '').replace(/\//g, '\\')}`
+}
+
+async function viewDiff(file: UpdateFileItem) {
+  if (file.status === 'C') return
+  try {
+    // 获取旧版本(BASE)和新版本(工作副本)完整内容
+    const [oldContent, newContent] = await Promise.all([
+      invoke<string>('svn_cat_in_dir', {
+        repoPath: props.repoPath,
+        filePath: file.path,
+        revision: 'BASE',
+      }),
+      invoke<string>('read_local_file', {
+        repoPath: props.repoPath,
+        filePath: file.path,
+      }),
+    ])
+    diffStore.openWithContent(file.path, oldContent, newContent)
+  } catch (e) {
+    toast.error(String(e))
+  }
 }
 
 const ctxMenuItems = computed<MenuItem[]>(() => {
@@ -390,6 +414,10 @@ function statusClass(status: string) {
 
 .file-table tr {
   transition: background var(--transition-fast);
+}
+
+.file-table tr.clickable {
+  cursor: pointer;
 }
 
 .file-table tr:hover {
