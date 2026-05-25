@@ -1,77 +1,72 @@
 <template>
   <div class="local-changes-view">
-    <div class="left-panel" :style="{ width: leftPanelWidth + 'px' }">
-      <div class="file-list" :class="{ loading: props.loading }">
-        <div v-if="props.loading" class="loading-overlay">
-          <div class="spinner" />
-        </div>
-        <div class="file-list-header">
-          <label class="select-all">
-            <input type="checkbox" :checked="allSelected" @change="toggleAll" class="checkbox" />
-            <span>{{ t('common.selectAll') }}</span>
-          </label>
-          <span class="selected-count">{{ t('localChanges.selectedOf', { selected: selectedPaths.size, total: props.localChanges.length }) }}</span>
-        </div>
-        <div
-          v-for="(file, index) in props.localChanges"
-          :key="file.path"
-          class="file-item"
-          :class="{ selected: selectedFile === file.path, checked: selectedPaths.has(file.path) }"
-          @click="selectFile(file, index, $event)"
-          @contextmenu.prevent="openContextMenu($event, file)"
-        >
-          <input
-            type="checkbox"
-            :checked="selectedPaths.has(file.path)"
-            @click.stop="toggleFile(file.path)"
-            :disabled="props.loading"
-            class="checkbox"
-          />
-          <span class="status-badge" :class="file.status">{{ statusLabel(file.status) }}</span>
-          <span class="file-path" :class="{ dir: file.isDirectory }">{{ displayPath(file.path) }}</span>
-        </div>
-        <div v-if="!props.loading && props.localChanges.length === 0" class="empty-list">
-          <FileIcon :size="24" />
-          <span>{{ t('common.noLocalChanges') }}</span>
-        </div>
+    <div class="file-list" :class="{ loading: props.loading }">
+      <div v-if="props.loading" class="loading-overlay">
+        <div class="spinner" />
+      </div>
+      <div class="file-list-header">
+        <label class="select-all">
+          <input type="checkbox" :checked="allSelected" @change="toggleAll" class="checkbox" />
+          <span>{{ t('common.selectAll') }}</span>
+        </label>
+        <span class="selected-count">{{ t('localChanges.selectedOf', { selected: selectedPaths.size, total: props.localChanges.length }) }}</span>
+      </div>
+      <div
+        v-for="(file, index) in props.localChanges"
+        :key="file.path"
+        class="file-item"
+        :class="{ selected: selectedFile === file.path, checked: selectedPaths.has(file.path) }"
+        @click="selectFile(file, index, $event)"
+        @contextmenu.prevent="openContextMenu($event, file)"
+      >
+        <input
+          type="checkbox"
+          :checked="selectedPaths.has(file.path)"
+          @click.stop="toggleFile(file.path)"
+          :disabled="props.loading"
+          class="checkbox"
+        />
+        <span class="status-badge" :class="file.status">{{ statusLabel(file.status) }}</span>
+        <span class="file-path" :class="{ dir: file.isDirectory }">{{ displayPath(file.path) }}</span>
+      </div>
+      <div v-if="!props.loading && props.localChanges.length === 0" class="empty-list">
+        <FileIcon :size="24" />
+        <span>{{ t('common.noLocalChanges') }}</span>
       </div>
     </div>
     <div class="drag-bar" @mousedown="onDragStart" @touchstart="onDragStart">
       <div class="drag-handle"></div>
     </div>
-    <div class="right-panel">
-      <div class="commit-section" @click="showHistory = false">
-        <textarea
-          v-model="commitMessage"
-          :placeholder="t('localChanges.commitMessage')"
-          rows="2"
-          class="textarea textarea--no-resize"
-        ></textarea>
-        <div class="commit-actions">
-          <div class="history-wrapper">
-            <button @click.stop="showHistory = !showHistory" class="action-btn icon-btn" :title="t('localChanges.recentCommits')">
-              <History :size="16" />
-            </button>
-            <button @click="generateAiMessage" :disabled="aiLoading || selectedPaths.size === 0" class="action-btn ai-btn" :title="t('localChanges.aiGenerate')">
-              <Sparkles :size="16" />
-            </button>
-            <div v-if="showHistory" class="history-dropdown" @click.stop>
-              <div
-                v-for="(msg, i) in recentMessages"
-                :key="i"
-                class="history-item"
-                @click="selectMessage(msg)"
-              >{{ msg }}</div>
-              <div v-if="recentMessages.length === 0" class="history-empty">{{ t('localChanges.noRecentCommits') }}</div>
-            </div>
+    <div class="commit-section" :style="{ height: commitSectionHeight + 'px' }" @click="showHistory = false">
+      <textarea
+        v-model="commitMessage"
+        :placeholder="t('localChanges.commitMessage')"
+        class="textarea textarea--no-resize commit-textarea"
+      ></textarea>
+      <div class="commit-actions">
+        <div class="history-wrapper">
+          <button @click.stop="showHistory = !showHistory" class="action-btn icon-btn" :title="t('localChanges.recentCommits')">
+            <History :size="16" />
+          </button>
+          <button @click="generateAiMessage" :disabled="aiLoading || selectedPaths.size === 0" class="action-btn ai-btn" :title="t('localChanges.aiGenerate')">
+            <Sparkles :size="16" />
+          </button>
+          <div v-if="showHistory" class="history-dropdown" @click.stop>
+            <div
+              v-for="(msg, i) in recentMessages"
+              :key="i"
+              class="history-item"
+              @click="selectMessage(msg)"
+            >{{ msg }}</div>
+            <div v-if="recentMessages.length === 0" class="history-empty">{{ t('localChanges.noRecentCommits') }}</div>
           </div>
-          <button @click="cancelCommit" class="action-btn icon-btn" :title="t('common.cancel')">
-            <X :size="16" />
-          </button>
-          <button @click="submitCommit" :disabled="!canCommit" class="commit-btn" :title="t('common.submit')">
-            <Send :size="16" />
-          </button>
         </div>
+        <button @click="cancelCommit" class="action-btn icon-btn" :title="t('common.cancel')">
+          <X :size="16" />
+        </button>
+        <button @click="submitCommit" :disabled="!canCommit" class="commit-btn" :title="t('common.submit')">
+          <Send :size="16" />
+        </button>
       </div>
     </div>
     <ContextMenu
@@ -128,22 +123,22 @@ const showFileLog = ref(false)
 const fileLogPath = ref('')
 const configStore = useConfigStore()
 
-const leftPanelWidth = ref(loadPanelWidth())
+const commitSectionHeight = ref(loadCommitHeight())
 const isDragging = ref(false)
-const startX = ref(0)
-const startWidth = ref(0)
+const startY = ref(0)
+const startHeight = ref(0)
 
-function loadPanelWidth(): number {
-  const saved = localStorage.getItem('localChanges.leftPanelWidth')
+function loadCommitHeight(): number {
+  const saved = localStorage.getItem('localChanges.commitHeight')
   if (saved) {
-    const w = parseInt(saved, 10)
-    if (!isNaN(w) && w >= 180 && w <= 800) return w
+    const h = parseInt(saved, 10)
+    if (!isNaN(h) && h >= 80 && h <= 300) return h
   }
-  return 420
+  return 120
 }
 
-function savePanelWidth(width: number) {
-  localStorage.setItem('localChanges.leftPanelWidth', String(width))
+function saveCommitHeight(height: number) {
+  localStorage.setItem('localChanges.commitHeight', String(height))
 }
 
 const recentMessages = computed(() =>
@@ -171,8 +166,8 @@ function toggleAll() {
 
 function onDragStart(e: MouseEvent | TouchEvent) {
   isDragging.value = true
-  startX.value = 'touches' in e ? e.touches[0].clientX : e.clientX
-  startWidth.value = leftPanelWidth.value
+  startY.value = 'touches' in e ? e.touches[0].clientY : e.clientY
+  startHeight.value = commitSectionHeight.value
   document.addEventListener('mousemove', onDragMove)
   document.addEventListener('mouseup', onDragEnd)
   document.addEventListener('touchmove', onDragMove)
@@ -181,14 +176,14 @@ function onDragStart(e: MouseEvent | TouchEvent) {
 
 function onDragMove(e: MouseEvent | TouchEvent) {
   if (!isDragging.value) return
-  const currentX = 'touches' in e ? e.touches[0].clientX : e.clientX
-  const delta = currentX - startX.value
-  leftPanelWidth.value = Math.max(180, Math.min(window.innerWidth - 300, startWidth.value + delta))
+  const currentY = 'touches' in e ? e.touches[0].clientY : e.clientY
+  const delta = startY.value - currentY
+  commitSectionHeight.value = Math.max(80, Math.min(300, startHeight.value + delta))
 }
 
 function onDragEnd() {
   isDragging.value = false
-  savePanelWidth(leftPanelWidth.value)
+  saveCommitHeight(commitSectionHeight.value)
   document.removeEventListener('mousemove', onDragMove)
   document.removeEventListener('mouseup', onDragEnd)
   document.removeEventListener('touchmove', onDragMove)
@@ -491,22 +486,24 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
 <style scoped>
 .local-changes-view {
   display: flex;
+  flex-direction: column;
   height: 100%;
   gap: 0;
 }
 
-.left-panel {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  min-width: 180px;
-  max-width: 75%;
-  overflow: hidden;
+.file-list {
+  flex: 1;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  min-height: 0;
+  background: var(--color-bg-primary);
+  position: relative;
 }
 
 .drag-bar {
-  width: 6px;
-  cursor: ew-resize;
+  height: 6px;
+  cursor: ns-resize;
   background: transparent;
   display: flex;
   align-items: center;
@@ -520,8 +517,8 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
 }
 
 .drag-handle {
-  width: 2px;
-  height: 40px;
+  width: 40px;
+  height: 2px;
   background: var(--color-border-light);
   border-radius: var(--radius-full);
   transition: background var(--transition-fast);
@@ -532,15 +529,15 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   background: var(--color-border);
 }
 
-.right-panel {
-  flex: 1;
-  min-width: 300px;
+.commit-section {
+  flex: none;
+  padding: var(--space-2);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  overflow: hidden;
   background: var(--color-bg-primary);
   display: flex;
   flex-direction: column;
+  gap: var(--space-2);
 }
 
 .file-list-header {
@@ -568,16 +565,6 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
 .selected-count {
   color: var(--color-text-muted);
   font-size: var(--text-sm);
-}
-
-.file-list {
-  flex: 1;
-  overflow: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  min-height: 0;
-  background: var(--color-bg-primary);
-  position: relative;
 }
 
 .file-list.loading {
@@ -679,11 +666,11 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   gap: var(--space-3);
 }
 
-/* 右侧提交区 */
-.commit-section {
-  padding: var(--space-2);
-  border-top: 1px solid var(--color-border);
-  flex-shrink: 0;
+/* 提交区 */
+.commit-textarea {
+  flex: 1;
+  min-height: 0;
+  resize: none;
 }
 
 .commit-actions {

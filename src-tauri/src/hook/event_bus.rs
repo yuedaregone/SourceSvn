@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -10,8 +9,8 @@ use super::types::*;
 #[async_trait]
 pub trait EventBus: Send + Sync {
     async fn emit(&self, event: HookEvent) -> Vec<Result<HookResult, HookError>>;
-    async fn subscribe(&self, hook_type: HookType, handler: Arc<dyn HookHandler>);
-    async fn unsubscribe(&self, hook_type: HookType, handler_name: &str);
+    async fn subscribe(&self, handler: Arc<dyn HookHandler>);
+    async fn unsubscribe(&self, handler_name: &str);
 }
 
 #[async_trait]
@@ -22,14 +21,14 @@ pub trait HookHandler: Send + Sync {
 }
 
 pub struct DefaultEventBus {
-    handlers: Arc<RwLock<HashMap<HookType, Vec<Arc<dyn HookHandler>>>>>,
+    handlers: Arc<RwLock<Vec<Arc<dyn HookHandler>>>>,
     logger: Arc<dyn Logger>,
 }
 
 impl DefaultEventBus {
     pub fn new(logger: Arc<dyn Logger>) -> Self {
         Self {
-            handlers: Arc::new(RwLock::new(HashMap::new())),
+            handlers: Arc::new(RwLock::new(Vec::new())),
             logger,
         }
     }
@@ -40,11 +39,7 @@ impl EventBus for DefaultEventBus {
     async fn emit(&self, event: HookEvent) -> Vec<Result<HookResult, HookError>> {
         let handlers = {
             let guard = self.handlers.read().await;
-            guard.get(&event.hook_type).cloned()
-        };
-
-        let Some(handlers) = handlers else {
-            return Vec::new();
+            guard.clone()
         };
 
         let mut results = Vec::with_capacity(handlers.len());
@@ -69,16 +64,14 @@ impl EventBus for DefaultEventBus {
         results
     }
 
-    async fn subscribe(&self, hook_type: HookType, handler: Arc<dyn HookHandler>) {
+    async fn subscribe(&self, handler: Arc<dyn HookHandler>) {
         let mut handlers = self.handlers.write().await;
-        handlers.entry(hook_type).or_default().push(handler);
+        handlers.push(handler);
     }
 
-    async fn unsubscribe(&self, hook_type: HookType, handler_name: &str) {
+    async fn unsubscribe(&self, handler_name: &str) {
         let mut handlers = self.handlers.write().await;
-        if let Some(handlers) = handlers.get_mut(&hook_type) {
-            handlers.retain(|h| h.name() != handler_name);
-        }
+        handlers.retain(|h| h.name() != handler_name);
     }
 }
 
@@ -194,7 +187,7 @@ mod tests {
         let call_count = Arc::new(AtomicUsize::new(0));
         let handler: Arc<dyn HookHandler> = Arc::new(MockHandler::new("test", call_count.clone()));
 
-        bus.subscribe(HookType::PreCommit, handler).await;
+        bus.subscribe(handler).await;
 
         let context = HookContext::new(HookType::PreCommit, "/repo".into());
         let event = HookEvent::new(HookType::PreCommit, context);
@@ -206,20 +199,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_emit_does_not_call_handler_for_different_hook_type() {
+    async fn test_handler_called_for_any_hook_type() {
         let (logger, _, _, _) = make_logger();
         let bus = DefaultEventBus::new(logger);
         let call_count = Arc::new(AtomicUsize::new(0));
         let handler: Arc<dyn HookHandler> = Arc::new(MockHandler::new("test", call_count.clone()));
 
-        bus.subscribe(HookType::PreCommit, handler).await;
+        bus.subscribe(handler).await;
 
         let context = HookContext::new(HookType::PostCommit, "/repo".into());
         let event = HookEvent::new(HookType::PostCommit, context);
         let results = bus.emit(event).await;
 
-        assert_eq!(call_count.load(Ordering::SeqCst), 0);
-        assert!(results.is_empty());
+        assert_eq!(call_count.load(Ordering::SeqCst), 1);
+        assert_eq!(results.len(), 1);
+        assert!(results[0].is_ok());
     }
 
     #[tokio::test]
@@ -229,8 +223,8 @@ mod tests {
         let call_count = Arc::new(AtomicUsize::new(0));
         let handler: Arc<dyn HookHandler> = Arc::new(MockHandler::new("test", call_count.clone()));
 
-        bus.subscribe(HookType::PreCommit, handler).await;
-        bus.unsubscribe(HookType::PreCommit, "test").await;
+        bus.subscribe(handler).await;
+        bus.unsubscribe("test").await;
 
         let context = HookContext::new(HookType::PreCommit, "/repo".into());
         let event = HookEvent::new(HookType::PreCommit, context);
@@ -246,7 +240,7 @@ mod tests {
         let bus = DefaultEventBus::new(logger);
         let handler: Arc<dyn HookHandler> = Arc::new(MockHandler::new("test", Arc::new(AtomicUsize::new(0))));
 
-        bus.subscribe(HookType::PreCommit, handler).await;
+        bus.subscribe(handler).await;
 
         let context = HookContext::new(HookType::PreCommit, "/repo".into());
         let event = HookEvent::new(HookType::PreCommit, context);
@@ -263,7 +257,7 @@ mod tests {
         let bus = DefaultEventBus::new(logger);
         let handler: Arc<dyn HookHandler> = Arc::new(FailingHandler);
 
-        bus.subscribe(HookType::PreCommit, handler).await;
+        bus.subscribe(handler).await;
 
         let context = HookContext::new(HookType::PreCommit, "/repo".into());
         let event = HookEvent::new(HookType::PreCommit, context);
@@ -277,18 +271,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_multiple_handlers_for_same_type() {
+    async fn test_multiple_handlers() {
         let (logger, _, _, _) = make_logger();
         let bus = DefaultEventBus::new(logger);
         let count1 = Arc::new(AtomicUsize::new(0));
         let count2 = Arc::new(AtomicUsize::new(0));
 
         bus.subscribe(
-            HookType::PreCommit,
             Arc::new(MockHandler::new("h1", count1.clone())),
         ).await;
         bus.subscribe(
-            HookType::PreCommit,
             Arc::new(MockHandler::new("h2", count2.clone())),
         ).await;
 

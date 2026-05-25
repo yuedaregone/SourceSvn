@@ -74,7 +74,7 @@ async fn test_event_bus_subscribe_and_emit() {
     let event_bus = DefaultEventBus::new(logger.clone());
 
     event_bus
-        .subscribe(HookType::PreCommit, Arc::new(TestHandler))
+        .subscribe(Arc::new(TestHandler))
         .await;
 
     let context = HookContext::new(HookType::PreCommit, "/test/path".to_string());

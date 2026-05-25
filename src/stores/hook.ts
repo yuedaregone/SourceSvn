@@ -4,7 +4,6 @@ import { invoke } from '@tauri-apps/api/core'
 
 export interface HookHandlerConfig {
   name: string
-  hook_type: string
   script_path: string
   enabled: boolean
 }

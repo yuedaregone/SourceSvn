@@ -141,13 +141,11 @@ mod integration_tests {
             handlers: vec![
                 HookHandlerConfig {
                     name: "test-handler".to_string(),
-                    hook_type: HookType::PostCommit,
                     script_path: "/path/to/script.js".to_string(),
                     enabled: true,
                 },
                 HookHandlerConfig {
                     name: "pre-handler".to_string(),
-                    hook_type: HookType::PreCommit,
                     script_path: "/other/script.sh".to_string(),
                     enabled: false,
                 },
@@ -160,11 +158,9 @@ mod integration_tests {
         assert!(loaded.enabled);
         assert_eq!(loaded.handlers.len(), 2);
         assert_eq!(loaded.handlers[0].name, "test-handler");
-        assert_eq!(loaded.handlers[0].hook_type, HookType::PostCommit);
         assert_eq!(loaded.handlers[0].script_path, "/path/to/script.js");
         assert!(loaded.handlers[0].enabled);
         assert_eq!(loaded.handlers[1].name, "pre-handler");
-        assert_eq!(loaded.handlers[1].hook_type, HookType::PreCommit);
         assert!(!loaded.handlers[1].enabled);
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -179,7 +175,7 @@ mod integration_tests {
 
         state
             .hook_event_bus
-            .subscribe(HookType::PostCommit, handler)
+            .subscribe(handler)
             .await;
 
         let context = HookContext::new(HookType::PostCommit, "/test/path".to_string());
@@ -192,22 +188,23 @@ mod integration_tests {
     }
 
     #[tokio::test]
-    async fn test_event_bus_no_cross_type_trigger() {
+    async fn test_event_bus_handler_called_for_any_type() {
         let state = AppState::new(None);
         let call_count = Arc::new(AtomicUsize::new(0));
         let handler: Arc<dyn HookHandler> =
-            Arc::new(TestHandler::new("pre-handler", call_count.clone()));
+            Arc::new(TestHandler::new("handler", call_count.clone()));
 
         state
             .hook_event_bus
-            .subscribe(HookType::PreCommit, handler)
+            .subscribe(handler)
             .await;
 
-        let context = HookContext::new(HookType::PostCommit, "/test/path".to_string());
-        let event = HookEvent::new(HookType::PostCommit, context);
+        let context = HookContext::new(HookType::PreCommit, "/test/path".to_string());
+        let event = HookEvent::new(HookType::PreCommit, context);
         let results = state.hook_event_bus.emit(event).await;
 
-        assert_eq!(call_count.load(Ordering::SeqCst), 0);
-        assert!(results.is_empty());
+        assert_eq!(call_count.load(Ordering::SeqCst), 1);
+        assert_eq!(results.len(), 1);
+        assert!(results[0].is_ok());
     }
 }

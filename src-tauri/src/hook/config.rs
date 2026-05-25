@@ -2,8 +2,6 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use super::types::HookType;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HooksConfig {
     pub enabled: bool,
@@ -13,7 +11,6 @@ pub struct HooksConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HookHandlerConfig {
     pub name: String,
-    pub hook_type: HookType,
     pub script_path: String,
     pub enabled: bool,
 }
@@ -128,7 +125,6 @@ mod tests {
             enabled: false,
             handlers: vec![HookHandlerConfig {
                 name: "test".to_string(),
-                hook_type: HookType::PreCommit,
                 script_path: "/path/to/script.sh".to_string(),
                 enabled: true,
             }],
@@ -140,7 +136,6 @@ mod tests {
         assert!(!loaded.enabled);
         assert_eq!(loaded.handlers.len(), 1);
         assert_eq!(loaded.handlers[0].name, "test");
-        assert_eq!(loaded.handlers[0].hook_type, HookType::PreCommit);
         assert_eq!(loaded.handlers[0].script_path, "/path/to/script.sh");
         assert!(loaded.handlers[0].enabled);
 
@@ -157,7 +152,6 @@ mod tests {
         manager
             .add_handler(HookHandlerConfig {
                 name: "handler1".to_string(),
-                hook_type: HookType::PreCommit,
                 script_path: "/a.sh".to_string(),
                 enabled: true,
             })
@@ -166,7 +160,6 @@ mod tests {
         manager
             .add_handler(HookHandlerConfig {
                 name: "handler2".to_string(),
-                hook_type: HookType::PostCommit,
                 script_path: "/b.sh".to_string(),
                 enabled: false,
             })
@@ -190,7 +183,6 @@ mod tests {
         manager
             .add_handler(HookHandlerConfig {
                 name: "keep".to_string(),
-                hook_type: HookType::PreCommit,
                 script_path: "/a.sh".to_string(),
                 enabled: true,
             })
@@ -199,7 +191,6 @@ mod tests {
         manager
             .add_handler(HookHandlerConfig {
                 name: "remove_me".to_string(),
-                hook_type: HookType::PostCommit,
                 script_path: "/b.sh".to_string(),
                 enabled: true,
             })
@@ -224,7 +215,6 @@ mod tests {
         manager
             .add_handler(HookHandlerConfig {
                 name: "handler1".to_string(),
-                hook_type: HookType::PreCommit,
                 script_path: "/old.sh".to_string(),
                 enabled: true,
             })
@@ -235,7 +225,6 @@ mod tests {
                 "handler1",
                 HookHandlerConfig {
                     name: "handler1".to_string(),
-                    hook_type: HookType::PostCommit,
                     script_path: "/new.sh".to_string(),
                     enabled: false,
                 },
@@ -244,7 +233,6 @@ mod tests {
 
         let config = manager.load_config().unwrap();
         assert_eq!(config.handlers.len(), 1);
-        assert_eq!(config.handlers[0].hook_type, HookType::PostCommit);
         assert_eq!(config.handlers[0].script_path, "/new.sh");
         assert!(!config.handlers[0].enabled);
 
@@ -276,7 +264,6 @@ mod tests {
                 "does_not_exist",
                 HookHandlerConfig {
                     name: "does_not_exist".to_string(),
-                    hook_type: HookType::PreCommit,
                     script_path: "/x.sh".to_string(),
                     enabled: true,
                 },

@@ -20,12 +20,11 @@
       >
         <div class="hook-item-info">
           <span class="hook-name">{{ handler.name }}</span>
-          <span class="hook-type">{{ handler.hook_type }}</span>
         </div>
         <div class="hook-item-actions">
           <button
             @click.stop="$emit('toggle', handler.name)"
-            :class="['btn btn-sm', handler.enabled ? 'btn-success' : 'btn-ghost']"
+            :class="['btn btn-sm', handler.enabled ? 'btn-primary' : 'btn-ghost']"
           >
             {{ handler.enabled ? '启用' : '禁用' }}
           </button>
@@ -68,7 +67,7 @@ const filteredHandlers = computed(() => {
   if (!searchQuery.value) return props.handlers
   const query = searchQuery.value.toLowerCase()
   return props.handlers.filter(
-    h => h.name.toLowerCase().includes(query) || h.hook_type.toLowerCase().includes(query)
+    h => h.name.toLowerCase().includes(query)
   )
 })
 </script>
@@ -80,14 +79,14 @@ const filteredHandlers = computed(() => {
   height: 100%;
   width: 220px;
   flex-shrink: 0;
-  border-right: 1px solid var(--border-color, #e0e0e0);
+  border-right: 1px solid var(--color-border);
 }
 
 .hook-list-header {
   display: flex;
-  gap: 8px;
-  padding: 12px;
-  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .hook-items {
@@ -99,48 +98,49 @@ const filteredHandlers = computed(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px;
-  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border-light);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--transition-fast);
 }
 
 .hook-item:hover {
-  background: var(--hover-color, #f5f5f5);
+  background: var(--color-bg-hover);
 }
 
 .hook-item.active {
-  background: var(--active-color, #e8f0fe);
+  background: var(--color-bg-active);
 }
 
 .hook-item-info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
   min-width: 0;
 }
 
 .hook-name {
   font-weight: 500;
+  color: var(--color-text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .hook-type {
-  font-size: 12px;
-  color: var(--text-secondary, #666);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
 }
 
 .hook-item-actions {
   display: flex;
-  gap: 6px;
+  gap: var(--space-1);
   flex-shrink: 0;
 }
 
 .hook-empty {
-  padding: 24px;
+  padding: var(--space-6);
   text-align: center;
-  color: var(--text-secondary, #999);
+  color: var(--color-text-muted);
 }
 </style>

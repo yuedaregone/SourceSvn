@@ -27,13 +27,28 @@ impl ScriptExecutor for ExternalScriptExecutor {
         let context_json = serde_json::to_string(context)
             .map_err(|e| HookError::ExecutionFailed(e.to_string()))?;
 
-        let output = Command::new(script_path)
-            .arg(&context_json)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-            .await
-            .map_err(|e| HookError::ExecutionFailed(e.to_string()))?;
+        let path = std::path::Path::new(script_path);
+        let output = match path.extension().and_then(|e| e.to_str()) {
+            Some("js") | Some("mjs") => {
+                Command::new("node")
+                    .arg(script_path)
+                    .arg(&context_json)
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .output()
+                    .await
+                    .map_err(|e| HookError::ExecutionFailed(e.to_string()))?
+            }
+            _ => {
+                Command::new(script_path)
+                    .arg(&context_json)
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .output()
+                    .await
+                    .map_err(|e| HookError::ExecutionFailed(e.to_string()))?
+            }
+        };
 
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -83,8 +98,16 @@ fn execute_js(
         .map_err(|e| HookError::ExecutionFailed(format!("Set context: {}", e)))?;
 
     context
-        .eval(Source::from_bytes("var context = JSON.parse(__context_json);"))
+        .eval(Source::from_bytes("var __hook_context = JSON.parse(__context_json);"))
         .map_err(|e| HookError::ExecutionFailed(format!("Parse context: {}", e)))?;
+
+    // Set 'context' as alias for '__hook_context' using globals.set to avoid var redefinition
+    let hook_context_val = context
+        .eval(Source::from_bytes("__hook_context"))
+        .map_err(|e| HookError::ExecutionFailed(format!("Get hook context: {}", e)))?;
+    globals
+        .set(js_string!("context"), hook_context_val, true, &mut context)
+        .map_err(|e| HookError::ExecutionFailed(format!("Set context alias: {}", e)))?;
 
     let app_handle_clone = app_handle.clone();
     // SAFETY: AppHandle is not GC-traced, safe to capture

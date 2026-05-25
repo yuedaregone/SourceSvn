@@ -8,6 +8,7 @@
             type="checkbox"
             v-model="config.enabled"
             @change="saveConfig"
+            class="checkbox"
           />
           <span>启用Hook系统</span>
         </label>
@@ -127,21 +128,23 @@ async function saveConfig() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .config-header h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--text-xl);
+  color: var(--color-text-primary);
 }
 
 .checkbox-label {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   cursor: pointer;
   font-weight: normal;
+  color: var(--color-text-primary);
 }
 
 .config-content {
@@ -155,7 +158,7 @@ async function saveConfig() {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-secondary, #999);
+  color: var(--color-text-muted);
 }
 
 .placeholder-content {
@@ -163,7 +166,7 @@ async function saveConfig() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .placeholder-content p {
@@ -175,11 +178,11 @@ async function saveConfig() {
 .config-error {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  background: var(--danger-bg, #fef2f2);
-  color: var(--danger-color, #dc2626);
-  border-top: 1px solid var(--danger-border, #fecaca);
-  font-size: 14px;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-danger-muted);
+  color: var(--color-danger);
+  border-top: 1px solid var(--color-danger);
+  font-size: var(--text-base);
 }
 </style>

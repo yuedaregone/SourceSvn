@@ -14,21 +14,6 @@
         />
       </div>
       <div class="form-group">
-        <label class="form-label">类型</label>
-        <select v-model="formData.hook_type" class="input">
-          <option value="PreCommit">PreCommit - 提交前</option>
-          <option value="PostCommit">PostCommit - 提交后</option>
-          <option value="PreUpdate">PreUpdate - 更新前</option>
-          <option value="PostUpdate">PostUpdate - 更新后</option>
-          <option value="StatusChange">StatusChange - 状态变更</option>
-          <option value="ConflictDetected">ConflictDetected - 冲突检测</option>
-          <option value="PreCheckout">PreCheckout - 检出前</option>
-          <option value="PostCheckout">PostCheckout - 检出后</option>
-          <option value="PreMerge">PreMerge - 合并前</option>
-          <option value="PostMerge">PostMerge - 合并后</option>
-        </select>
-      </div>
-      <div class="form-group">
         <label class="form-label">脚本路径</label>
         <div class="path-input">
           <input
@@ -47,18 +32,25 @@
           <input
             type="checkbox"
             v-model="formData.enabled"
+            class="checkbox"
           />
           <span>启用</span>
         </label>
       </div>
     </div>
     <div class="editor-actions">
+      <button @click="handleTest" class="btn btn-secondary" :disabled="!canTest || testing">
+        {{ testing ? '测试中...' : '测试' }}
+      </button>
       <button @click="$emit('cancel')" class="btn btn-secondary">
         取消
       </button>
       <button @click="handleSave" class="btn btn-primary" :disabled="!isValid">
         保存
       </button>
+    </div>
+    <div v-if="testResult" :class="['test-result', testResult.success ? 'success' : 'error']">
+      {{ testResult.message }}
     </div>
   </div>
 </template>
@@ -67,6 +59,7 @@
 import { ref, watch, computed } from 'vue'
 import { FolderOpen } from 'lucide-vue-next'
 import { open } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@tauri-apps/api/core'
 import type { HookHandlerConfig } from '../../stores/hook'
 
 const props = defineProps<{
@@ -81,7 +74,6 @@ const emit = defineEmits<{
 
 const formData = ref<HookHandlerConfig>({
   name: '',
-  hook_type: 'PostCommit',
   script_path: '',
   enabled: true
 })
@@ -90,13 +82,19 @@ const isValid = computed(() => {
   return formData.value.name.trim() !== '' && formData.value.script_path.trim() !== ''
 })
 
+const canTest = computed(() => {
+  return formData.value.script_path.trim() !== ''
+})
+
+const testing = ref(false)
+const testResult = ref<{ success: boolean; message: string } | null>(null)
+
 watch(() => props.handler, (newHandler) => {
   if (newHandler) {
     formData.value = { ...newHandler }
   } else {
     formData.value = {
       name: '',
-      hook_type: 'PostCommit',
       script_path: '',
       enabled: true
     }
@@ -121,6 +119,23 @@ function handleSave() {
     emit('save', { ...formData.value })
   }
 }
+
+async function handleTest() {
+  testing.value = true
+  testResult.value = null
+  try {
+    const result = await invoke('hook_emit', {
+      scriptPath: formData.value.script_path,
+      hookType: 'PostCommit',
+      repoPath: '.'
+    })
+    testResult.value = { success: true, message: `执行成功: ${JSON.stringify(result)}` }
+  } catch (e) {
+    testResult.value = { success: false, message: `执行失败: ${String(e)}` }
+  } finally {
+    testing.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -133,36 +148,38 @@ function handleSave() {
 }
 
 .editor-header {
-  padding: 16px;
-  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .editor-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--text-lg);
+  color: var(--color-text-primary);
 }
 
 .editor-content {
   flex: 1;
-  padding: 16px;
+  padding: var(--space-4);
   overflow-y: auto;
 }
 
 .form-group {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-4);
 }
 
 .form-label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
   font-weight: 500;
-  font-size: 14px;
+  font-size: var(--text-base);
+  color: var(--color-text-primary);
 }
 
 .checkbox-label {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   cursor: pointer;
 }
 
@@ -172,7 +189,7 @@ function handleSave() {
 
 .path-input {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .path-input .input {
@@ -182,8 +199,24 @@ function handleSave() {
 .editor-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 16px;
-  border-top: 1px solid var(--border-color, #e0e0e0);
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.test-result {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+.test-result.success {
+  background: var(--color-success-muted, #f0fdf4);
+  color: var(--color-success, #16a34a);
+}
+
+.test-result.error {
+  background: var(--color-danger-muted, #fef2f2);
+  color: var(--color-danger, #dc2626);
 }
 </style>
