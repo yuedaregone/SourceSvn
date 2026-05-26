@@ -109,6 +109,10 @@ export default {
     binarySizeDiff: '二进制文件大小变化',
     recentCommits: '最近提交',
     noRecentCommits: '暂无提交记录',
+    flatView: '列表视图',
+    treeView: '树形视图',
+    expandAll: '全部展开',
+    collapseAll: '全部折叠',
   },
   settings: {
     title: '设置',

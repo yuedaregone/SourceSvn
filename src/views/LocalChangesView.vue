@@ -10,25 +10,97 @@
           <span>{{ t('common.selectAll') }}</span>
         </label>
         <span class="selected-count">{{ t('localChanges.selectedOf', { selected: selectedPaths.size, total: props.localChanges.length }) }}</span>
+        <div class="view-controls">
+          <button
+            v-if="viewMode === 'tree'"
+            class="view-btn"
+            :title="t('localChanges.expandAll')"
+            @click="expandAll"
+          >
+            <ChevronDown :size="14" />
+          </button>
+          <button
+            v-if="viewMode === 'tree'"
+            class="view-btn"
+            :title="t('localChanges.collapseAll')"
+            @click="collapseAll"
+          >
+            <ChevronRight :size="14" />
+          </button>
+          <button
+            class="view-btn"
+            :class="{ active: viewMode === 'flat' }"
+            :title="t('localChanges.flatView')"
+            @click="viewMode = 'flat'"
+          >
+            <List :size="14" />
+          </button>
+          <button
+            class="view-btn"
+            :class="{ active: viewMode === 'tree' }"
+            :title="t('localChanges.treeView')"
+            @click="viewMode = 'tree'"
+          >
+            <FolderTree :size="14" />
+          </button>
+        </div>
       </div>
-      <div
-        v-for="(file, index) in props.localChanges"
-        :key="file.path"
-        class="file-item"
-        :class="{ selected: selectedFile === file.path, checked: selectedPaths.has(file.path) }"
-        @click="selectFile(file, index, $event)"
-        @contextmenu.prevent="openContextMenu($event, file)"
-      >
-        <input
-          type="checkbox"
-          :checked="selectedPaths.has(file.path)"
-          @click.stop="toggleFile(file.path)"
-          :disabled="props.loading"
-          class="checkbox"
-        />
-        <span class="status-badge" :class="file.status">{{ statusLabel(file.status) }}</span>
-        <span class="file-path" :class="{ dir: file.isDirectory }">{{ displayPath(file.path) }}</span>
-      </div>
+      <!-- 扁平列表视图 -->
+      <template v-if="viewMode === 'flat'">
+        <div
+          v-for="(file, index) in props.localChanges"
+          :key="file.path"
+          class="file-item"
+          :class="{ selected: selectedFile === file.path, checked: selectedPaths.has(file.path) }"
+          @click="selectFile(file, index, $event)"
+          @contextmenu.prevent="openContextMenu($event, file)"
+        >
+          <input
+            type="checkbox"
+            :checked="selectedPaths.has(file.path)"
+            @click.stop="toggleFile(file.path)"
+            :disabled="props.loading"
+            class="checkbox"
+          />
+          <span class="status-badge" :class="file.status">{{ statusLabel(file.status) }}</span>
+          <span class="file-path" :class="{ dir: file.isDirectory }">{{ displayPath(file.path) }}</span>
+        </div>
+      </template>
+      <!-- 树形视图 -->
+      <template v-else>
+        <div
+          v-for="node in flatTreeNodes"
+          :key="node.path"
+          class="file-item tree-item"
+          :class="{
+            selected: selectedFile === node.path,
+            checked: selectedPaths.has(node.path),
+            'tree-dir': node.isDirectory,
+          }"
+          :style="{ paddingLeft: `${12 + node.level * 16}px` }"
+          @click="handleTreeClick(node, $event)"
+          @contextmenu.prevent="openContextMenuForTree(node, $event)"
+        >
+          <span v-if="node.hasChildren" class="tree-toggle" @click.stop="toggleFolder(node.path)">
+            <ChevronRight v-if="!node.isExpanded" :size="14" />
+            <ChevronDown v-else :size="14" />
+          </span>
+          <span v-else class="tree-toggle-placeholder" />
+          <input
+            v-if="!node.isDirectory"
+            type="checkbox"
+            :checked="selectedPaths.has(node.path)"
+            @click.stop="toggleFile(node.path)"
+            :disabled="props.loading"
+            class="checkbox"
+          />
+          <span v-if="node.isDirectory" class="folder-icon">
+            <FolderOpen :size="14" />
+          </span>
+          <span v-if="node.status" class="status-badge" :class="node.status">{{ statusLabel(node.status) }}</span>
+          <span class="file-path" :class="{ dir: node.isDirectory }">{{ node.name }}</span>
+        </div>
+      </template>
       <div v-if="!props.loading && props.localChanges.length === 0" class="empty-list">
         <FileIcon :size="24" />
         <span>{{ t('common.noLocalChanges') }}</span>
@@ -86,13 +158,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, shallowRef } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { Sparkles, X, Send, RotateCcw, Plus, Trash2, ExternalLink, FolderOpen, Copy, CheckSquare, Square, History, File as FileIcon, GitMerge, ScrollText } from 'lucide-vue-next'
+import { Sparkles, X, Send, RotateCcw, Plus, Trash2, ExternalLink, FolderOpen, Copy, CheckSquare, Square, History, File as FileIcon, GitMerge, ScrollText, List, FolderTree, ChevronRight, ChevronDown } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
 import { useConfigStore } from '../stores/configStore'
 import { useDiffStore } from '../stores/diffStore'
-import type { FileStatus, DiffTarget } from '../types/svn'
+import type { FileStatus, FileStatusType, DiffTarget } from '../types/svn'
 import type { MenuItem } from '../components/ContextMenu.vue'
 import ContextMenu from '../components/ContextMenu.vue'
 import FileLogModal from '../components/FileLogModal.vue'
@@ -123,10 +195,140 @@ const showFileLog = ref(false)
 const fileLogPath = ref('')
 const configStore = useConfigStore()
 
+// 树形视图相关
+type ViewMode = 'flat' | 'tree'
+const viewMode = ref<ViewMode>('flat')
+const expandedFolders = shallowRef(new Set<string>())
+
 const commitSectionHeight = ref(loadCommitHeight())
 const isDragging = ref(false)
 const startY = ref(0)
 const startHeight = ref(0)
+
+interface TreeNode {
+  name: string
+  path: string
+  isDirectory: boolean
+  status?: FileStatusType
+  level: number
+  children?: TreeNode[]
+}
+
+// 构建树形结构
+function buildTree(files: FileStatus[]): TreeNode[] {
+  const result: TreeNode[] = []
+
+  for (const file of files) {
+    const relativePath = displayPath(file.path)
+    const parts = relativePath.split(/[\/\\]/)
+    let currentPath = ''
+    let parentChildren = result
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i]
+      const isLast = i === parts.length - 1
+      currentPath = currentPath ? `${currentPath}/${part}` : part
+
+      if (isLast && !file.isDirectory) {
+        // 文件节点
+        parentChildren.push({
+          name: part,
+          path: file.path,
+          isDirectory: false,
+          status: file.status,
+          level: i,
+        })
+      } else {
+        // 文件夹节点
+        let existing = parentChildren.find(n => n.name === part && n.isDirectory)
+        if (!existing) {
+          existing = {
+            name: part,
+            path: currentPath,
+            isDirectory: true,
+            level: i,
+            children: [],
+          }
+          parentChildren.push(existing)
+        }
+        if (existing.children) {
+          parentChildren = existing.children
+        }
+      }
+    }
+  }
+
+  return result
+}
+
+// 扁平化树（只包含可见节点）
+interface FlatNode {
+  name: string
+  path: string
+  isDirectory: boolean
+  status?: FileStatusType
+  level: number
+  hasChildren: boolean
+  isExpanded?: boolean
+}
+
+const treeData = computed(() => buildTree(props.localChanges))
+
+const flatTreeNodes = computed<FlatNode[]>(() => {
+  const result: FlatNode[] = []
+
+  function traverse(nodes: TreeNode[]) {
+    for (const node of nodes) {
+      const hasChildren = node.isDirectory && node.children && node.children.length > 0
+      const isExpanded = expandedFolders.value.has(node.path)
+
+      result.push({
+        name: node.name,
+        path: node.path,
+        isDirectory: node.isDirectory,
+        status: node.status,
+        level: node.level,
+        hasChildren: !!hasChildren,
+        isExpanded: hasChildren ? isExpanded : undefined,
+      })
+
+      if (hasChildren && isExpanded && node.children) {
+        traverse(node.children)
+      }
+    }
+  }
+
+  traverse(treeData.value)
+  return result
+})
+
+function toggleFolder(path: string) {
+  const next = new Set(expandedFolders.value)
+  if (next.has(path)) {
+    next.delete(path)
+  } else {
+    next.add(path)
+  }
+  expandedFolders.value = next
+}
+
+function expandAll() {
+  const paths = new Set<string>()
+  function collect(nodes: TreeNode[]) {
+    for (const node of nodes) {
+      if (node.isDirectory && node.children && node.children.length > 0) {
+        paths.add(node.path)
+        collect(node.children)
+      }
+    }
+  }
+  collect(treeData.value)
+  expandedFolders.value = paths
+}
+
+function collapseAll() {
+  expandedFolders.value = new Set()
+}
 
 function loadCommitHeight(): number {
   const saved = localStorage.getItem('localChanges.commitHeight')
@@ -343,6 +545,37 @@ function cancelCommit() {
 function openContextMenu(e: MouseEvent, file: FileStatus) {
   ctxMenu.value = { visible: true, x: e.clientX, y: e.clientY, file }
   selectedFile.value = file.path
+}
+
+function openContextMenuForTree(node: FlatNode, e: MouseEvent) {
+  const file = props.localChanges.find(f => f.path === node.path)
+  if (file) {
+    openContextMenu(e, file)
+  } else if (node.isDirectory) {
+    // 文件夹的右键菜单
+    ctxMenu.value = {
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      file: { path: node.path, status: 'modified', isDirectory: true },
+    }
+    selectedFile.value = node.path
+  }
+}
+
+async function handleTreeClick(node: FlatNode, event: MouseEvent) {
+  if (node.isDirectory) {
+    toggleFolder(node.path)
+    selectedFile.value = node.path
+    return
+  }
+
+  // 文件点击 - 复用原有逻辑
+  const file = props.localChanges.find(f => f.path === node.path)
+  if (file) {
+    const index = props.localChanges.indexOf(file)
+    await selectFile(file, index, event)
+  }
 }
 
 const ctxMenuItems = computed<MenuItem[]>(() => {
@@ -664,6 +897,70 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   flex-direction: column;
   align-items: center;
   gap: var(--space-3);
+}
+
+.view-controls {
+  display: flex;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+.view-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.view-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.view-btn.active {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-text-inverse);
+}
+
+/* 树形视图样式 */
+.tree-item {
+  font-size: var(--text-sm);
+}
+
+.tree-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  transition: color var(--transition-fast);
+}
+
+.tree-toggle:hover {
+  color: var(--color-text-primary);
+}
+
+.tree-toggle-placeholder {
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.folder-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-accent);
+  flex-shrink: 0;
 }
 
 /* 提交区 */

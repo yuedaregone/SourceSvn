@@ -109,6 +109,10 @@ export default {
     binarySizeDiff: 'Binary file size change',
     recentCommits: 'Recent Commits',
     noRecentCommits: 'No recent commits',
+    flatView: 'Flat View',
+    treeView: 'Tree View',
+    expandAll: 'Expand All',
+    collapseAll: 'Collapse All',
   },
   settings: {
     title: 'Settings',

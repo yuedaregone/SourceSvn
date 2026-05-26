@@ -69,6 +69,7 @@ export interface UpdateFileItem {
 
 export interface UpdateResult {
   revision: number
+  oldRevision: number
   files: UpdateFileItem[]
 }
 

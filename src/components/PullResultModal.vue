@@ -130,18 +130,25 @@ function fullPath(relPath: string): string {
 async function viewDiff(file: UpdateFileItem) {
   if (file.status === 'C') return
   try {
-    // 获取旧版本(BASE)和新版本(工作副本)完整内容
-    const [oldContent, newContent] = await Promise.all([
-      invoke<string>('svn_cat_in_dir', {
-        repoPath: props.repoPath,
-        filePath: file.path,
-        revision: 'BASE',
-      }),
-      invoke<string>('read_local_file', {
-        repoPath: props.repoPath,
-        filePath: file.path,
-      }),
-    ])
+    // 获取旧版本（拉取前）和新版本（拉取后，即当前工作副本）完整内容
+    const oldRev = props.result?.oldRevision
+    const newContent = await invoke<string>('read_local_file', {
+      repoPath: props.repoPath,
+      filePath: file.path,
+    })
+    // 新增文件在旧版本中不存在，旧内容为空
+    let oldContent = ''
+    if (file.status !== 'A' && oldRev) {
+      try {
+        oldContent = await invoke<string>('svn_cat_in_dir', {
+          repoPath: props.repoPath,
+          filePath: file.path,
+          revision: String(oldRev),
+        })
+      } catch {
+        oldContent = ''
+      }
+    }
     diffStore.openWithContent(file.path, oldContent, newContent)
   } catch (e) {
     toast.error(String(e))

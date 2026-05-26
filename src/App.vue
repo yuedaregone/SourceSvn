@@ -112,7 +112,7 @@ import LocalChangesView from './views/LocalChangesView.vue'
 import FileBrowserView from './views/FileBrowserView.vue'
 import ShelveView from './views/ShelveView.vue'
 import { useToastStore } from './stores/toastStore'
-import type { UpdateResult, SvnUpdateEvent } from './types/svn'
+import type { UpdateResult, SvnUpdateEvent, RepoInfo } from './types/svn'
 import { t } from './locales'
 import CodeDiffViewer from './components/CodeDiffViewer.vue'
 
@@ -376,7 +376,16 @@ function refreshCurrentView() {
 async function handlePull() {
   if (!currentTabStore.value) return
 
-  pullResult.value = { revision: 0, files: [] }
+  // 获取当前版本号（拉取前的版本）
+  let oldRevision = 0
+  try {
+    const info = await invoke<RepoInfo>('svn_info', { path: currentTabStore.value.repoPath })
+    oldRevision = info.revision
+  } catch {
+    // 忽略错误，继续执行
+  }
+
+  pullResult.value = { revision: 0, oldRevision, files: [] }
   pulling.value = true
   showPullResult.value = true
 
@@ -390,6 +399,7 @@ async function handlePull() {
         case 'file':
           pullResult.value = {
             revision: pullResult.value?.revision ?? 0,
+            oldRevision,
             files: [...(pullResult.value?.files ?? []), { path: ev.path, status: ev.status as 'A' | 'U' | 'M' | 'C' }],
           }
           break
