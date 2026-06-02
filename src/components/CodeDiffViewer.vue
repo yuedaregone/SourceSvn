@@ -36,6 +36,15 @@
           </div>
           <div class="panel-content">
             <div class="code-diff-viewer">
+              <!-- 二进制文件提示 -->
+              <div v-if="diffStore.isBinary" class="binary-notice">
+                <FileIcon :size="32" class="binary-icon" />
+                <p class="binary-title">{{ t('diffViewer.binaryFile') }}</p>
+                <p v-if="diffStore.binaryIdentical === true" class="binary-same">{{ t('diffViewer.binaryIdentical') }}</p>
+                <p v-else-if="diffStore.binaryIdentical === false" class="binary-diff">{{ t('diffViewer.binaryDifferent') }}</p>
+                <p v-else class="binary-unknown">{{ t('diffViewer.binaryUnknown') }}</p>
+              </div>
+              <template v-else>
               <div v-if="panelFilename && panelOldString !== undefined && panelNewString !== undefined" class="diff-header">
                 <span class="diff-filename">{{ panelFilename }}</span>
                 <span class="diff-nav">
@@ -69,6 +78,7 @@
                   @diff="onDiff"
                 />
               </div>
+              </template>
             </div>
           </div>
         </div>
@@ -625,5 +635,46 @@ function onResizeEnd() {
 .slide-enter-to,
 .slide-leave-from {
   opacity: 1;
+}
+
+.binary-notice {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-8);
+  color: var(--color-text-secondary);
+}
+
+.binary-icon {
+  color: var(--color-text-muted);
+  opacity: 0.5;
+}
+
+.binary-title {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.binary-same {
+  font-size: var(--text-sm);
+  color: var(--color-success);
+  margin: 0;
+}
+
+.binary-diff {
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+  margin: 0;
+}
+
+.binary-unknown {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin: 0;
 }
 </style>

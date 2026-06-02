@@ -99,7 +99,7 @@
       :visible="showFileLog"
       :file-path="fileLogPath"
       :repo-path="props.repoPath"
-      :use-repo-path="true"
+      :log-file-path="fileLogUrl"
       @close="showFileLog = false"
     />
   </div>
@@ -157,6 +157,7 @@ const selectedFilePath = ref<string | null>(null)
 const diffStore = useDiffStore()
 const showFileLog = ref(false)
 const fileLogPath = ref('')
+const fileLogUrl = ref('')
 
 function loadNumber(key: string, fallback: number, min: number, max: number): number {
   const saved = localStorage.getItem(key)
@@ -292,6 +293,14 @@ async function selectFile(filePath: string) {
   if (expandedRevision.value == null) return
   selectedFilePath.value = filePath
   const toast = useToastStore()
+
+  // 判断是否是目录（通过 changedPaths 里的 kind 字段）
+  const cp = displayChangedPaths.value.find(p => p.path === filePath)
+  if (cp?.kind === 'dir') {
+    toast.info(t('localChanges.directoryNoDiff'))
+    return
+  }
+
   try {
     const rev = String(expandedRevision.value)
     const baseRev = String(expandedRevision.value - 1)
@@ -420,7 +429,19 @@ const fileCtxMenuItems = computed<MenuItem[]>(() => {
       label: t('contextMenu.showLog'),
       icon: ScrollText,
       action: () => {
+        // 拼接仓库根 URL + 文件的仓库绝对路径，得到完整 URL 供 svn log 查询
+        const root = props.root.replace(/\/$/, '')
+        const rootPath = rootUrlPath.value  // URL 中的路径部分，如 /repos/project
+        let svnFileUrl: string
+        if (rootPath && filePath.startsWith(rootPath + '/')) {
+          // filePath 是仓库绝对路径（含仓库根路径前缀），直接拼到 root 对应的 origin
+          svnFileUrl = root.replace(rootPath, '') + filePath
+        } else {
+          // filePath 已是相对路径或无法匹配，拼接到 root
+          svnFileUrl = root + (filePath.startsWith('/') ? filePath : '/' + filePath)
+        }
         fileLogPath.value = filePath
+        fileLogUrl.value = svnFileUrl
         showFileLog.value = true
       },
     },

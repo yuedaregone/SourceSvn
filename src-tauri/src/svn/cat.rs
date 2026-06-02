@@ -1,4 +1,5 @@
 use crate::common::AppError;
+use crate::svn::diff::{is_binary_bytes, make_binary_placeholder};
 
 pub async fn svn_cat(
     path: &str,
@@ -13,7 +14,7 @@ pub async fn svn_cat(
     crate::svn::run_svn_async(&args, timeout_secs).await
 }
 
-/// 在指定工作目录下执行 svn cat（用于本地工作副本的 BASE 版本）
+/// 在指定工作目录下执行 svn cat（用于本地工作副本的 BASE 版本），二进制文件返回占位符
 pub async fn svn_cat_in_dir(
     repo_path: &str,
     file_path: &str,
@@ -26,10 +27,14 @@ pub async fn svn_cat_in_dir(
         args.push(rev);
     }
     args.push(file_path);
-    crate::svn::run_svn_async_in_dir(&args, timeout_secs, Some(repo_path)).await
+    let bytes = crate::svn::run_svn_async_in_dir_bytes(&args, timeout_secs, Some(repo_path)).await?;
+    if is_binary_bytes(&bytes) {
+        return Ok(make_binary_placeholder(&bytes));
+    }
+    Ok(crate::svn::decode_bytes(&bytes))
 }
 
-/// 通过工作目录和相对路径获取指定版本的文件内容（自动构造完整 URL）
+/// 通过工作目录和相对路径获取指定版本的文件内容（自动构造完整 URL），二进制文件返回占位符
 pub async fn svn_cat_at_revision(
     repo_path: &str,
     file_path: &str,
@@ -45,5 +50,9 @@ pub async fn svn_cat_at_revision(
         format!("{}/{}", base_url, file_path)
     };
     let args = vec!["cat", "-r", revision, &file_url];
-    crate::svn::run_svn_async(&args, timeout_secs).await
+    let bytes = crate::svn::run_svn_async_bytes(&args, timeout_secs).await?;
+    if is_binary_bytes(&bytes) {
+        return Ok(make_binary_placeholder(&bytes));
+    }
+    Ok(crate::svn::decode_bytes(&bytes))
 }

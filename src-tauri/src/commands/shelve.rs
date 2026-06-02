@@ -8,13 +8,14 @@ pub async fn shelve_save(
     state: State<'_, AppState>,
     path: String,
     name: String,
+    files: Vec<String>,
 ) -> Result<(), String> {
     shelve::validate_shelve_name(&name)?;
     let timeout = {
         let config = state.config.read().map_err(|e| e.to_string())?;
         config.advanced.svn_timeout_secs
     };
-    shelve::shelve_save(&path, &name, timeout)
+    shelve::shelve_save(&path, &name, &files, timeout)
         .await
         .map_err(|e| e.to_string())
 }
@@ -29,12 +30,13 @@ pub async fn shelve_apply(
     state: State<'_, AppState>,
     path: String,
     name: String,
+    delete_after_apply: bool,
 ) -> Result<(), String> {
     let timeout = {
         let config = state.config.read().map_err(|e| e.to_string())?;
         config.advanced.svn_timeout_secs
     };
-    shelve::shelve_apply(&path, &name, timeout)
+    shelve::shelve_apply(&path, &name, delete_after_apply, timeout)
         .await
         .map_err(|e| e.to_string())
 }
@@ -43,4 +45,11 @@ pub async fn shelve_apply(
 pub fn shelve_delete(path: String, name: String) -> Result<(), String> {
     shelve::validate_shelve_name(&name)?;
     shelve::shelve_delete(&path, &name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn shelve_rename(path: String, old_name: String, new_name: String) -> Result<(), String> {
+    shelve::validate_shelve_name(&old_name)?;
+    shelve::validate_shelve_name(&new_name)?;
+    shelve::shelve_rename(&path, &old_name, &new_name).map_err(|e| e.to_string())
 }

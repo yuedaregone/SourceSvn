@@ -196,9 +196,11 @@ export default {
     save: 'Save',
     apply: 'Apply',
     delete: 'Delete',
-    saveCurrentChanges: 'Save current changes',
+    saveCurrentChanges: 'Shelve selected changes',
     applySelected: 'Apply selected shelves',
     deleteSelected: 'Delete selected shelves',
+    saveSuccess: 'Shelved successfully',
+    shelveFileCount: 'Will shelve changes in {count} file(s)',
   },
   toolbar: {
     pull: 'Pull Updates',
@@ -240,6 +242,10 @@ export default {
     showFull: 'Show Full Content',
     showNearby: 'Show Nearby Only',
     wordWrap: 'Word Wrap',
+    binaryFile: 'Binary File',
+    binaryIdentical: 'Both versions are identical',
+    binaryDifferent: 'The two versions differ',
+    binaryUnknown: 'Binary file (text comparison not available)',
   },
   aiReviewPanel: {
     title: 'AI Code Review',
@@ -283,6 +289,7 @@ export default {
     showChanges: 'Show Changes',
     copyRevision: 'Copy Revision Number',
     revisionInput: 'Enter revision number',
+    renameInput: 'Enter new name',
   },
   fileLog: {
     title: 'File Log',

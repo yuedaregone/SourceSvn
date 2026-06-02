@@ -71,6 +71,7 @@ pub fn run() {
             commands::shelve::shelve_list,
             commands::shelve::shelve_apply,
             commands::shelve::shelve_delete,
+            commands::shelve::shelve_rename,
             commands::config::get_config,
             commands::config::set_config,
             commands::hook::hook_subscribe,

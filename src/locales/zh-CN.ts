@@ -196,9 +196,11 @@ export default {
     save: '保存',
     apply: '应用',
     delete: '删除',
-    saveCurrentChanges: '保存当前修改',
+    saveCurrentChanges: '储藏选中的修改',
     applySelected: '应用选中的 shelve',
     deleteSelected: '删除选中的 shelve',
+    saveSuccess: '储藏成功',
+    shelveFileCount: '将储藏 {count} 个文件的修改',
   },
   toolbar: {
     pull: '拉取更新',
@@ -240,6 +242,10 @@ export default {
     showFull: '显示全部内容',
     showNearby: '仅显示邻近行',
     wordWrap: '自动换行',
+    binaryFile: '二进制文件',
+    binaryIdentical: '两个版本内容完全相同',
+    binaryDifferent: '两个版本内容不同',
+    binaryUnknown: '二进制文件（无法进行文本比较）',
   },
   aiReviewPanel: {
     title: 'AI 代码审查',
@@ -283,6 +289,7 @@ export default {
     showChanges: '查看变更',
     copyRevision: '复制版本号',
     revisionInput: '请输入版本号',
+    renameInput: '请输入新名称',
   },
   fileLog: {
     title: '文件日志',

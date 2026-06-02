@@ -30,6 +30,8 @@ struct PathsXml {
 struct PathEntryXml {
     #[serde(rename = "@action")]
     action: String,
+    #[serde(rename = "@kind")]
+    kind: Option<String>,
     #[serde(rename = "@copyfrom-path")]
     copy_from_path: Option<String>,
     #[serde(rename = "@copyfrom-rev")]
@@ -61,6 +63,7 @@ pub fn parse_log_xml(xml: &str) -> Result<Vec<LogEntry>, AppError> {
                         ChangedPath {
                             path: p.text,
                             action,
+                            kind: p.kind,
                             copy_from_path: p.copy_from_path,
                             copy_from_rev: p.copy_from_rev,
                         }

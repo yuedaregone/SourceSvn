@@ -1,10 +1,6 @@
 <template>
   <div class="shelve-view">
     <div class="shelve-header">
-      <button @click="showSaveDialog = true" class="btn btn-primary" :title="t('shelveView.saveCurrentChanges')">
-        <Save :size="16" />
-        <span>{{ t('shelveView.save') }}</span>
-      </button>
       <button @click="refresh" class="btn btn-secondary" :disabled="props.loading" :title="t('common.refresh')">
         <RefreshCw :size="16" />
       </button>
@@ -82,29 +78,6 @@
       <AlertCircle :size="14" />
       <span>{{ errorMessage }}</span>
     </div>
-    <div v-if="showSaveDialog" class="dialog-overlay" @click.self="showSaveDialog = false">
-      <div class="dialog">
-        <div class="dialog-header">
-          <h3 class="dialog-title">{{ t('common.saveShelve') }}</h3>
-          <button class="btn btn-icon btn-ghost" @click="showSaveDialog = false">
-            <X :size="16" />
-          </button>
-        </div>
-        <div class="dialog-body">
-          <input
-            v-model="shelveName"
-            :placeholder="t('common.shelveName')"
-            class="input"
-            @keyup.enter="saveShelve"
-            ref="nameInput"
-          />
-        </div>
-        <div class="dialog-footer">
-          <button @click="showSaveDialog = false" class="btn btn-secondary">{{ t('common.cancel') }}</button>
-          <button @click="saveShelve" :disabled="!shelveName.trim()" class="btn btn-primary">{{ t('common.save') }}</button>
-        </div>
-      </div>
-    </div>
     <ContextMenu
       :visible="ctxMenu.visible"
       :x="ctxMenu.x"
@@ -116,9 +89,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { Save, RefreshCw, Check, Trash2, ArrowRight, X, Pencil, Package, AlertCircle } from 'lucide-vue-next'
+import { RefreshCw, Check, Trash2, ArrowRight, X, Pencil, Package, AlertCircle } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
 import type { ShelveInfo } from '../types/svn'
 import type { MenuItem } from '../components/ContextMenu.vue'
@@ -133,23 +106,17 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   refreshShelves: []
+  refreshLocalChanges: []
 }>()
 
-const showSaveDialog = ref(false)
-const shelveName = ref('')
 const errorMessage = ref('')
 const selectedNames = ref(new Set<string>())
-const nameInput = ref<HTMLInputElement | null>(null)
 
 const allSelected = computed(
   () =>
     props.shelves.length > 0 &&
     props.shelves.every((s) => selectedNames.value.has(s.name)),
 )
-
-watch(showSaveDialog, (v) => {
-  if (v) nextTick(() => nameInput.value?.focus())
-})
 
 function toggleAll() {
   if (allSelected.value) {
@@ -180,27 +147,16 @@ function formatDate(dateStr: string) {
   }
 }
 
-async function saveShelve() {
-  if (!shelveName.value.trim()) return
-  errorMessage.value = ''
-  try {
-    await invoke('shelve_save', {
-      path: props.repoPath,
-      name: shelveName.value.trim(),
-    })
-    showSaveDialog.value = false
-    shelveName.value = ''
-    emit('refreshShelves')
-  } catch (e) {
-    errorMessage.value = t('common.error') + ': ' + e
-  }
-}
-
+// Apply（pop 语义：应用 patch 并删除储藏）
 async function applyShelve(name: string) {
   errorMessage.value = ''
   try {
-    await invoke('shelve_apply', { path: props.repoPath, name })
+    await invoke('shelve_apply', { path: props.repoPath, name, deleteAfterApply: true })
+    const next = new Set(selectedNames.value)
+    next.delete(name)
+    selectedNames.value = next
     emit('refreshShelves')
+    emit('refreshLocalChanges')
   } catch (e) {
     errorMessage.value = t('common.error') + ': ' + e
   }
@@ -222,9 +178,10 @@ async function deleteShelve(name: string) {
 
 async function bulkApply() {
   errorMessage.value = ''
-  for (const name of selectedNames.value) {
+  const names = Array.from(selectedNames.value)
+  for (const name of names) {
     try {
-      await invoke('shelve_apply', { path: props.repoPath, name })
+      await invoke('shelve_apply', { path: props.repoPath, name, deleteAfterApply: true })
     } catch (e) {
       errorMessage.value = t('common.error') + ': ' + e
       break
@@ -232,6 +189,7 @@ async function bulkApply() {
   }
   selectedNames.value = new Set()
   emit('refreshShelves')
+  emit('refreshLocalChanges')
 }
 
 async function bulkDelete() {
@@ -275,15 +233,13 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
       label: t('contextMenu.rename'),
       icon: Pencil,
       action: async () => {
-        const newName = prompt(t('contextMenu.revisionInput'), shelve.name)
-        if (newName && newName.trim() !== shelve.name) {
-          try {
-            // Rename is save + delete original
-            await invoke('shelve_save', { path: props.repoPath, name: newName.trim() })
-            await invoke('shelve_delete', { path: props.repoPath, name: shelve.name })
-            emit('refreshShelves')
-          } catch (e) { toast.error(String(e)) }
-        }
+        const newName = prompt(t('contextMenu.renameInput'), shelve.name)
+        if (!newName || newName.trim() === shelve.name) return
+        try {
+          // 直接重命名 patch 文件，不重新生成 diff
+          await invoke('shelve_rename', { path: props.repoPath, oldName: shelve.name, newName: newName.trim() })
+          emit('refreshShelves')
+        } catch (e) { toast.error(String(e)) }
       },
     },
     {
@@ -413,105 +369,5 @@ tr.selected {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-}
-
-.dialog-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--color-overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: var(--z-modal);
-  animation: fadeIn 0.2s ease;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.dialog {
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  width: 400px;
-  box-shadow: var(--shadow-xl);
-  animation: scaleIn 0.2s ease;
-}
-
-@keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.dialog-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.dialog-title {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.dialog-body {
-  padding: var(--space-5);
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  padding: var(--space-4) var(--space-5);
-  border-top: 1px solid var(--color-border);
-}
-
-.checkbox {
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border: 1.5px solid var(--color-border-input);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-primary);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  position: relative;
-}
-
-.checkbox:checked {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-}
-
-.checkbox:checked::after {
-  content: '';
-  position: absolute;
-  left: 4px;
-  top: 1px;
-  width: 5px;
-  height: 9px;
-  border: solid white;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-
-.checkbox:hover {
-  border-color: var(--color-accent);
 }
 </style>

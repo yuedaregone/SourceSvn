@@ -27,7 +27,7 @@ pub async fn svn_revert(
     paths: &[String],
     timeout_secs: u64,
 ) -> Result<Vec<String>, AppError> {
-    let mut args = vec!["revert"];
+    let mut args = vec!["revert", "--depth", "infinity"];
     for p in paths {
         args.push(p);
     }
@@ -54,7 +54,7 @@ pub async fn svn_delete(
     keep_local: bool,
     timeout_secs: u64,
 ) -> Result<Vec<String>, AppError> {
-    let mut args = vec!["delete"];
+    let mut args = vec!["delete", "--force"];
     if keep_local {
         args.push("--keep-local");
     }

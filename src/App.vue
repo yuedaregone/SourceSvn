@@ -56,6 +56,7 @@
           :shelves="currentTabStore.shelves"
           :loading="currentTabStore.shelvesLoading"
           @refreshShelves="currentTabStore.refreshShelves"
+          @refreshLocalChanges="currentTabStore.refreshLocalChanges"
         />
       </div>
     </div>

@@ -2,6 +2,32 @@ use crate::common::AppError;
 use crate::svn::models::DiffTarget;
 use std::path::Path;
 
+/// 检测字节序列是否为二进制内容（含 null 字节则视为二进制）
+pub fn is_binary_bytes(bytes: &[u8]) -> bool {
+    // 取前 8KB 采样，含 null 字节则判定为二进制
+    let sample = if bytes.len() > 8192 { &bytes[..8192] } else { bytes };
+    sample.contains(&0u8)
+}
+
+/// 二进制文件占位符前缀，后面跟 FNV-64 hex，格式：\x00BINARY:<hash>\x00
+pub const BINARY_PREFIX: &str = "\x00BINARY:";
+pub const BINARY_SUFFIX: &str = "\x00";
+
+/// 构造二进制占位符（含哈希）
+pub fn make_binary_placeholder(bytes: &[u8]) -> String {
+    use std::fmt::Write;
+    // 简单 FNV-64 哈希，避免引入额外依赖
+    let mut hash: u64 = 14695981039346656037u64;
+    for &b in bytes {
+        hash ^= b as u64;
+        hash = hash.wrapping_mul(1099511628211u64);
+    }
+    let mut s = String::from(BINARY_PREFIX);
+    write!(s, "{:016x}", hash).unwrap();
+    s.push_str(BINARY_SUFFIX);
+    s
+}
+
 pub async fn svn_diff(
     path: &str,
     target: &DiffTarget,
@@ -64,6 +90,9 @@ pub async fn read_local_file_content(repo_path: &str, file_path: &str) -> Result
             e
         ))
     })?;
+    if is_binary_bytes(&bytes) {
+        return Ok(make_binary_placeholder(&bytes));
+    }
     Ok(crate::svn::decode_bytes(&bytes))
 }
 
@@ -73,6 +102,11 @@ pub async fn read_local_file(repo_path: &str, file_path: &str) -> Result<String,
 
 pub async fn diff_unversioned_file(repo_path: &str, file_path: &str) -> Result<String, AppError> {
     let content = read_local_file_content(repo_path, file_path).await?;
+
+    // 二进制文件直接返回占位符，不构造 diff
+    if content.starts_with(BINARY_PREFIX) {
+        return Ok(content);
+    }
 
     let filename = Path::new(file_path)
         .file_name()

@@ -136,9 +136,44 @@
         <button @click="cancelCommit" class="action-btn icon-btn" :title="t('common.cancel')">
           <X :size="16" />
         </button>
+        <button
+          @click="showShelveDialog = true"
+          :disabled="selectedPaths.size === 0"
+          class="action-btn shelve-btn"
+          :title="t('shelveView.saveCurrentChanges')"
+        >
+          <Package :size="16" />
+        </button>
         <button @click="submitCommit" :disabled="!canCommit" class="commit-btn" :title="t('common.submit')">
           <Send :size="16" />
         </button>
+      </div>
+    </div>
+    <!-- 储藏命名对话框 -->
+    <div v-if="showShelveDialog" class="dialog-overlay" @click.self="showShelveDialog = false">
+      <div class="dialog">
+        <div class="dialog-header">
+          <h3 class="dialog-title">{{ t('common.saveShelve') }}</h3>
+          <button class="btn btn-icon btn-ghost" @click="showShelveDialog = false">
+            <X :size="16" />
+          </button>
+        </div>
+        <div class="dialog-body">
+          <p class="dialog-hint">{{ t('shelveView.shelveFileCount', { count: selectedPaths.size }) }}</p>
+          <input
+            v-model="shelveName"
+            :placeholder="t('common.shelveName')"
+            class="input"
+            @keyup.enter="saveShelve"
+            ref="shelveNameInput"
+          />
+        </div>
+        <div class="dialog-footer">
+          <button @click="showShelveDialog = false" class="btn btn-secondary">{{ t('common.cancel') }}</button>
+          <button @click="saveShelve" :disabled="!shelveName.trim() || shelveLoading" class="btn btn-primary">
+            {{ t('common.save') }}
+          </button>
+        </div>
       </div>
     </div>
     <ContextMenu
@@ -158,9 +193,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, shallowRef } from 'vue'
+import { ref, computed, shallowRef, watch, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { Sparkles, X, Send, RotateCcw, Plus, Trash2, ExternalLink, FolderOpen, Copy, CheckSquare, Square, History, File as FileIcon, GitMerge, ScrollText, List, FolderTree, ChevronRight, ChevronDown } from 'lucide-vue-next'
+import { Sparkles, X, Send, RotateCcw, Plus, Trash2, ExternalLink, FolderOpen, Copy, CheckSquare, Square, History, File as FileIcon, GitMerge, ScrollText, List, FolderTree, ChevronRight, ChevronDown, Package } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
 import { useConfigStore } from '../stores/configStore'
 import { useDiffStore } from '../stores/diffStore'
@@ -194,6 +229,16 @@ const diffStore = useDiffStore()
 const showFileLog = ref(false)
 const fileLogPath = ref('')
 const configStore = useConfigStore()
+
+// 储藏对话框
+const showShelveDialog = ref(false)
+const shelveName = ref('')
+const shelveLoading = ref(false)
+const shelveNameInput = ref<HTMLInputElement | null>(null)
+
+watch(showShelveDialog, (v) => {
+  if (v) nextTick(() => shelveNameInput.value?.focus())
+})
 
 // 树形视图相关
 type ViewMode = 'flat' | 'tree'
@@ -540,6 +585,26 @@ function cancelCommit() {
   commitMessage.value = ''
   selectedPaths.value = new Set()
   selectedFile.value = ''
+}
+
+async function saveShelve() {
+  if (!shelveName.value.trim()) return
+  shelveLoading.value = true
+  try {
+    await invoke('shelve_save', {
+      path: props.repoPath,
+      name: shelveName.value.trim(),
+      files: Array.from(selectedPaths.value),
+    })
+    showShelveDialog.value = false
+    shelveName.value = ''
+    toast.success(t('shelveView.saveSuccess'))
+    emit('refreshLocalChanges')
+  } catch (e) {
+    toast.error(String(e))
+  } finally {
+    shelveLoading.value = false
+  }
 }
 
 function openContextMenu(e: MouseEvent, file: FileStatus) {
@@ -1102,5 +1167,83 @@ const ctxMenuItems = computed<MenuItem[]>(() => {
   font-size: var(--text-sm);
   color: var(--color-text-muted);
   text-align: center;
+}
+
+/* 储藏按钮 */
+.shelve-btn {
+  color: var(--color-warning);
+  border-color: var(--color-warning-muted);
+}
+
+.shelve-btn:hover:not(:disabled) {
+  background: var(--color-warning-muted);
+  border-color: var(--color-warning);
+}
+
+/* 储藏命名对话框 */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  animation: fadeInOverlay 0.2s ease;
+}
+
+@keyframes fadeInOverlay {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.dialog {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  width: 400px;
+  box-shadow: var(--shadow-xl);
+  animation: scaleInDialog 0.2s ease;
+}
+
+@keyframes scaleInDialog {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.dialog-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.dialog-body {
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.dialog-hint {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--color-border);
 }
 </style>

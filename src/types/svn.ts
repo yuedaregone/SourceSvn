@@ -24,6 +24,7 @@ export interface WcLogResult {
 export interface ChangedPath {
   path: string
   action: 'A' | 'M' | 'D' | 'R'
+  kind?: 'file' | 'dir'
   copyFromPath?: string
   copyFromRev?: number
 }

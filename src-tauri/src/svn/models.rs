@@ -39,6 +39,8 @@ pub struct ChangedPath {
     pub path: String,
     pub action: PathAction,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub copy_from_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub copy_from_rev: Option<u64>,

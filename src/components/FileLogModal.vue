@@ -95,6 +95,7 @@ const props = defineProps<{
   filePath: string
   repoPath: string
   useRepoPath?: boolean
+  logFilePath?: string  // 用于日志查询的路径（完整URL或本地路径），优先于 filePath/repoPath
 }>()
 
 const emit = defineEmits<{
@@ -135,7 +136,7 @@ async function loadLog() {
   entries.value = []
   selectedRevision.value = null
 
-  const logPath = props.useRepoPath ? props.repoPath : props.filePath
+  const logPath = props.logFilePath ?? (props.useRepoPath ? props.repoPath : props.filePath)
 
   try {
     const result = await invoke<{ entries: LogEntry[]; wcRevision: number; root: string }>('svn_log_server', {
@@ -165,7 +166,8 @@ async function onEntryClick(entry: LogEntry) {
   }
   selectedRevision.value = entry.revision
   if (!entry.changedPaths || entry.changedPaths.length === 0) {
-    const changedPath = props.useRepoPath ? props.repoPath : props.filePath
+    // changedPaths 查询始终用本地仓库路径（工作目录）
+    const changedPath = props.repoPath
     try {
       entry.changedPaths = await invoke('svn_log_changed_paths', {
         path: changedPath,
@@ -199,6 +201,10 @@ function actionClass(action: string) {
 
 async function viewDiff(changedPath: string) {
   if (!selectedEntry.value) return
+  // 找到对应的 ChangedPath 条目，判断是否是目录
+  const cp = selectedEntry.value.changedPaths?.find(p => p.path === changedPath)
+  if (cp?.kind === 'dir') return
+
   const revision = String(selectedEntry.value.revision)
   const baseRevision = String(selectedEntry.value.revision - 1)
   try {

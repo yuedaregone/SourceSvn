@@ -12,14 +12,17 @@ export const useToastStore = defineStore('toast', () => {
   const toasts = ref<Toast[]>([])
   let nextId = 1
 
-  function addToast(message: string, type: Toast['type'] = 'info', duration = 3000) {
+  function addToast(message: string, type: Toast['type'] = 'info', duration?: number) {
     const id = nextId++
     toasts.value.push({ id, message, type })
 
-    if (duration > 0) {
+    // error 类型不自动关闭，其他类型默认 3000ms 后关闭
+    const effectiveDuration = duration !== undefined ? duration : type === 'error' ? 0 : 3000
+
+    if (effectiveDuration > 0) {
       setTimeout(() => {
         removeToast(id)
-      }, duration)
+      }, effectiveDuration)
     }
   }
 

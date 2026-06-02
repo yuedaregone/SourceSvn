@@ -36,6 +36,10 @@ pub async fn run_svn_async(args: &[&str], timeout_secs: u64) -> Result<String, A
     run_svn_async_in_dir(args, timeout_secs, None).await
 }
 
+pub async fn run_svn_async_bytes(args: &[&str], timeout_secs: u64) -> Result<Vec<u8>, AppError> {
+    run_svn_async_in_dir_bytes(args, timeout_secs, None).await
+}
+
 /// Execute SVN command with UTF-8 output via environment variables.
 pub async fn run_svn_async_in_dir(
     args: &[&str],
@@ -59,6 +63,27 @@ pub async fn run_svn_async_in_dir(
     cmd.env("LC_ALL", "en_US.UTF-8");
     cmd.env("LC_CTYPE", "en_US.UTF-8");
     run_cmd_output(cmd, timeout_secs).await
+}
+
+/// Execute SVN command and return raw bytes (for binary detection).
+pub async fn run_svn_async_in_dir_bytes(
+    args: &[&str],
+    timeout_secs: u64,
+    work_dir: Option<&str>,
+) -> Result<Vec<u8>, AppError> {
+    let svn_path =
+        tokio::task::spawn_blocking(|| find_svn_executable())
+            .await
+            .map_err(|e| AppError::svn_io(format!("Task join error: {}", e)))??;
+
+    let mut cmd = Command::new(&svn_path);
+    cmd.args(args);
+    if let Some(dir) = work_dir {
+        cmd.current_dir(dir);
+    }
+    #[cfg(target_os = "windows")]
+    cmd.as_std_mut().creation_flags(0x08000000); // CREATE_NO_WINDOW
+    run_cmd_output_bytes(cmd, timeout_secs).await
 }
 
 async fn run_cmd_output(
@@ -107,6 +132,61 @@ async fn run_cmd_output(
                 return Err(AppError::svn_exit_code(code, decode_bytes(&stderr)));
             }
             Ok(decode_bytes(&stdout))
+        }
+        Ok(Err(e)) => Err(AppError::svn_io(e.to_string())),
+        Err(_) => {
+            let _ = child.kill().await;
+            let _ = child.wait().await;
+            Err(AppError::svn_timeout(timeout_secs))
+        }
+    }
+}
+
+async fn run_cmd_output_bytes(
+    mut cmd: Command,
+    timeout_secs: u64,
+) -> Result<Vec<u8>, AppError> {
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::piped());
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| AppError::svn_spawn(e.to_string()))?;
+
+    let mut stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| AppError::svn_io("Failed to capture svn stdout"))?;
+    let mut stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| AppError::svn_io("Failed to capture svn stderr"))?;
+
+    let read_output = async {
+        let stdout_handle = tokio::spawn(async move {
+            let mut buf = Vec::new();
+            tokio::io::AsyncReadExt::read_to_end(&mut stdout, &mut buf).await?;
+            Ok::<Vec<u8>, std::io::Error>(buf)
+        });
+        let stderr_handle = tokio::spawn(async move {
+            let mut buf = Vec::new();
+            tokio::io::AsyncReadExt::read_to_end(&mut stderr, &mut buf).await?;
+            Ok::<Vec<u8>, std::io::Error>(buf)
+        });
+
+        let stdout_buf = stdout_handle.await??;
+        let stderr_buf = stderr_handle.await??;
+        let status = child.wait().await?;
+        Ok::<_, std::io::Error>((status, stdout_buf, stderr_buf))
+    };
+
+    match tokio::time::timeout(Duration::from_secs(timeout_secs), read_output).await {
+        Ok(Ok((status, stdout, stderr))) => {
+            if !status.success() {
+                let code = status.code().unwrap_or(-1);
+                return Err(AppError::svn_exit_code(code, decode_bytes(&stderr)));
+            }
+            Ok(stdout)
         }
         Ok(Err(e)) => Err(AppError::svn_io(e.to_string())),
         Err(_) => {

@@ -96,9 +96,12 @@ fn repo_shelve_dir(repo_path: &str) -> PathBuf {
     shelve_base_dir().join(short_hash)
 }
 
+/// 保存储藏。
+/// - `files`：要储藏的文件路径列表（绝对路径）。若为空则储藏整个工作区。
 pub async fn shelve_save(
     repo_path: &str,
     name: &str,
+    files: &[String],
     timeout_secs: u64,
 ) -> Result<(), AppError> {
     let shelve_dir = repo_shelve_dir(repo_path);
@@ -114,7 +117,20 @@ pub async fn shelve_save(
         )));
     }
 
-    let diff = crate::svn::run_svn_async(&["diff", repo_path], timeout_secs)
+    // 构建 svn diff 参数：在仓库目录下运行，文件路径转为相对路径
+    let mut args = vec!["diff".to_string()];
+    if files.is_empty() {
+        // 没有指定文件，diff 整个工作区
+        // 不加额外参数，run_svn_async_in_dir 会在 repo_path 下运行
+    } else {
+        for f in files {
+            // svn diff 在工作区目录下运行时接受相对路径或绝对路径
+            args.push(f.clone());
+        }
+    }
+
+    let args_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let diff = crate::svn::run_svn_async_in_dir(&args_refs, timeout_secs, Some(repo_path))
         .await
         .map_err(|e| AppError::svn_other(format!("Failed to get diff: {}", e)))?;
 
@@ -163,9 +179,12 @@ pub fn shelve_list(repo_path: &str) -> Result<Vec<ShelveInfo>, AppError> {
     Ok(shelves)
 }
 
+/// 应用储藏（将 patch 打回工作区）。
+/// `delete_after_apply`：应用后是否删除该储藏（pop 语义）。
 pub async fn shelve_apply(
     repo_path: &str,
     name: &str,
+    delete_after_apply: bool,
     timeout_secs: u64,
 ) -> Result<(), AppError> {
     let shelve_dir = repo_shelve_dir(repo_path);
@@ -175,8 +194,17 @@ pub async fn shelve_apply(
         return Err(AppError::Fs(format!("Shelve '{}' not found", name)));
     }
 
-    let patch_path = patch_file.to_str().unwrap_or("");
-    crate::svn::run_svn_async(&["patch", patch_path, repo_path], timeout_secs).await?;
+    let patch_path = patch_file
+        .to_str()
+        .ok_or_else(|| AppError::Fs("Invalid patch file path".to_string()))?
+        .to_string();
+
+    crate::svn::run_svn_async_in_dir(&["patch", &patch_path], timeout_secs, Some(repo_path)).await?;
+
+    if delete_after_apply {
+        fs::remove_file(&patch_file)
+            .map_err(|e| AppError::Fs(format!("Failed to delete shelve after apply: {}", e)))?;
+    }
 
     Ok(())
 }
@@ -191,6 +219,27 @@ pub fn shelve_delete(repo_path: &str, name: &str) -> Result<(), AppError> {
 
     fs::remove_file(&patch_file)
         .map_err(|e| AppError::Fs(format!("Failed to delete shelve: {}", e)))?;
+
+    Ok(())
+}
+
+/// 重命名储藏（直接重命名 patch 文件，不重新生成 diff）。
+pub fn shelve_rename(repo_path: &str, old_name: &str, new_name: &str) -> Result<(), AppError> {
+    let shelve_dir = repo_shelve_dir(repo_path);
+    let _lock = ShelveLock::acquire_blocking(&shelve_dir)?;
+
+    let old_path = shelve_dir.join(format!("{}.patch", old_name));
+    let new_path = shelve_dir.join(format!("{}.patch", new_name));
+
+    if !old_path.exists() {
+        return Err(AppError::Fs(format!("Shelve '{}' not found", old_name)));
+    }
+    if new_path.exists() {
+        return Err(AppError::Fs(format!("Shelve '{}' already exists", new_name)));
+    }
+
+    fs::rename(&old_path, &new_path)
+        .map_err(|e| AppError::Fs(format!("Failed to rename shelve: {}", e)))?;
 
     Ok(())
 }
