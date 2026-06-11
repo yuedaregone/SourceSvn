@@ -89,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { RefreshCw, Check, Trash2, ArrowRight, X, Pencil, Package, AlertCircle } from 'lucide-vue-next'
 import { useToastStore } from '../stores/toastStore'
